@@ -49,6 +49,38 @@ export default function AdminApp() {
         <div className="form-actions"><button className="primary-button" type="submit">{editingId ? 'حفظ التعديلات' : 'إضافة المنتج'}</button>{editingId && <button type="button" className="secondary-button" onClick={resetForm}>إلغاء</button>}</div>
       </form>
       <section className="admin-products"><div className="admin-list-heading"><h2>المنتجات ({products.length})</h2><span>السعر بالجنيه المصري</span></div>
+        <div className="catalog-backup-actions">
+          <button type="button" className="secondary-button" onClick={() => {
+            const blob = new Blob([JSON.stringify({ format: 'stickerz-catalog', version: 1, exportedAt: new Date().toISOString(), products }, null, 2)], { type: 'application/json;charset=utf-8' });
+            const url = URL.createObjectURL(blob); const link = document.createElement('a');
+            link.href = url; link.download = 'stickerz-catalog-backup.json'; link.click(); URL.revokeObjectURL(url);
+            setNotice('تم تجهيز نسخة احتياطية من كتالوج هذا المتصفح.');
+          }}>تصدير نسخة احتياطية</button>
+          <label className="secondary-button catalog-import-button">استيراد نسخة احتياطية
+            <input type="file" accept="application/json,.json" hidden onChange={event => {
+              const file = event.target.files?.[0]; if (!file) return;
+              const reader = new FileReader();
+              reader.onload = () => {
+                try {
+                  const parsed = JSON.parse(String(reader.result || ''));
+                  if (parsed?.format !== 'stickerz-catalog' || parsed?.version !== 1 || !Array.isArray(parsed.products)) throw new Error('format');
+                  const valid = parsed.products.every((p: unknown) => {
+                    if (!p || typeof p !== 'object') return false;
+                    const item = p as Partial<Product>;
+                    return typeof item.id === 'string' && typeof item.name === 'string' && typeof item.price === 'number' && Number.isFinite(item.price) && item.price >= 0 && categories.some(c => c.id === item.category) && typeof item.description === 'string' && typeof item.image === 'string' && typeof item.active === 'boolean';
+                  });
+                  if (!valid || parsed.products.length > 500) throw new Error('invalid');
+                  if (!window.confirm('سيتم استبدال كتالوج هذا المتصفح بالنسخة المستوردة. خذ نسخة احتياطية أولًا إذا احتجت المنتجات الحالية. هل تريد المتابعة؟')) return;
+                  setProducts(parsed.products as Product[]); setNotice('تم استيراد الكتالوج لهذا المتصفح فقط.');
+                } catch { setFormError('ملف النسخة الاحتياطية غير صالح أو غير مدعوم.'); }
+                finally { event.target.value = ''; }
+              };
+              reader.onerror = () => { setFormError('تعذر قراءة ملف النسخة الاحتياطية.'); event.target.value = ''; };
+              reader.readAsText(file);
+            }} />
+          </label>
+        </div>
+        <p className="backup-help">النسخ الاحتياطي ينقل المنتجات بين المتصفحات يدويًا فقط، ولا يزامنها مع أجهزة العملاء أو قاعدة بيانات مشتركة.</p>
         {products.length === 0 ? <div className="admin-empty"><span>✳</span><h3>لسه مفيش منتجات</h3><p>املأ النموذج لإضافة أول منتج.</p></div> : <div className="admin-product-list">{products.map(p => <article className="admin-product-row" key={p.id}><div className="admin-thumb">{p.image ? <img src={p.image} alt="" /> : <span>✳</span>}</div><div className="admin-product-info"><strong>{p.name}</strong><span>{categoryNames[p.category]}</span><b>{money(p.price)}</b><small>{p.active ? 'ظاهر في المتجر' : 'مخفي من المتجر'}</small></div><div className="admin-product-actions"><button type="button" className="secondary-button" onClick={() => editProduct(p)}>تعديل</button><button type="button" className="secondary-button" onClick={() => setProducts(old => old.map(x => x.id === p.id ? {...x, active: !x.active} : x))}>{p.active ? 'إخفاء' : 'إظهار'}</button><button type="button" className="danger-button" onClick={() => { if (window.confirm('متأكد إنك عاوز تحذف المنتج؟')) setProducts(old => old.filter(x => x.id !== p.id)); }}>حذف</button></div></article>)}</div>}
       </section></div>
     </main>
