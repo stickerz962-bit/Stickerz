@@ -30,6 +30,9 @@ export default function AdminApp() {
   const [editingId, setEditingId] = useState<string | undefined>();
   const [name, setName] = useState('');
   const [price, setPrice] = useState('');
+  const [sku, setSku] = useState('');
+  const [stock, setStock] = useState('0');
+  const [featured, setFeatured] = useState(false);
   const [category, setCategory] = useState<CategoryId>('school');
   const [description, setDescription] = useState('');
   const [imageUrl, setImageUrl] = useState('');
@@ -51,7 +54,7 @@ export default function AdminApp() {
   }, [user, isAdmin]);
 
   const resetForm = () => {
-    setEditingId(undefined); setName(''); setPrice(''); setCategory('school');
+    setEditingId(undefined); setName(''); setPrice(''); setSku(''); setStock('0'); setFeatured(false); setCategory('school');
     setDescription(''); setImageUrl(''); setImageFile(null); setFormError('');
   };
   const submitLogin = async (event: FormEvent<HTMLFormElement>) => {
@@ -67,7 +70,9 @@ export default function AdminApp() {
       if (!name.trim() || !Number.isFinite(numericPrice) || numericPrice < 0) throw new Error('اكتب اسم المنتج وسعرًا صحيحًا بالجنيه.');
       let finalImageUrl = imageUrl;
       if (imageFile) finalImageUrl = await uploadProductImage(imageFile);
-      await saveProduct({ name: name.trim(), price: numericPrice, category, description: description.trim(), imageUrl: finalImageUrl, active: editingId ? products.find(p => p.id === editingId)?.active ?? true : true }, editingId);
+      const numericStock = Number(stock);
+      if (!Number.isInteger(numericStock) || numericStock < 0) throw new Error('اكتب كمية مخزون صحيحة (صفر أو أكثر).');
+      await saveProduct({ name: name.trim(), price: numericPrice, sku: sku.trim(), stock: numericStock, featured, category, description: description.trim(), imageUrl: finalImageUrl, active: editingId ? products.find(p => p.id === editingId)?.active ?? true : true }, editingId);
       setNotice(editingId ? 'تم حفظ التعديلات في قاعدة البيانات.' : 'تمت إضافة المنتج إلى قاعدة البيانات.');
       resetForm();
     } catch (err) { setFormError(err instanceof Error ? err.message : 'تعذر حفظ المنتج. تحقق من اتصال Firebase وصلاحيات المدير.'); }
@@ -75,6 +80,7 @@ export default function AdminApp() {
   };
   const editProduct = (product: Product) => {
     setEditingId(product.id); setName(product.name); setPrice(String(product.price));
+    setSku(product.sku || ''); setStock(String(product.stock ?? 0)); setFeatured(product.featured === true);
     setCategory(product.category); setDescription(product.description); setImageUrl(product.imageUrl || '');
     setImageFile(null); setFormError(''); window.scrollTo({ top: 0, behavior: 'smooth' });
   };
@@ -105,6 +111,9 @@ export default function AdminApp() {
           <h2>{editingId ? 'تعديل المنتج' : 'إضافة منتج جديد'}</h2>
           <label>اسم المنتج<input required maxLength={100} value={name} onChange={e => setName(e.target.value)} placeholder="مثال: ملصقات اسم للمدرسة" /></label>
           <label>السعر بالجنيه المصري<input required type="number" min="0" step="0.01" value={price} onChange={e => setPrice(e.target.value)} placeholder="مثال: 120" /></label>
+          <label>كود المنتج (SKU — اختياري)<input value={sku} maxLength={60} onChange={e => setSku(e.target.value)} placeholder="مثال: STK-001" /></label>
+          <label>الكمية المتاحة<input required type="number" min="0" step="1" value={stock} onChange={e => setStock(e.target.value)} /></label>
+          <label className="checkbox-label"><input type="checkbox" checked={featured} onChange={e => setFeatured(e.target.checked)} /> منتج مميز</label>
           <label>التصنيف<select value={category} onChange={e => setCategory(e.target.value as CategoryId)}>{categories.map(c => <option key={c.id} value={c.id}>{c.label}</option>)}</select></label>
           <label>وصف المنتج<textarea rows={3} maxLength={500} value={description} onChange={e => setDescription(e.target.value)} placeholder="تفاصيل المنتج والمقاس والخامة..." /></label>
           <label>صورة المنتج<input type="file" accept="image/*" onChange={e => setImageFile(e.target.files?.[0] || null)} /></label>
@@ -114,7 +123,7 @@ export default function AdminApp() {
           <div className="form-actions"><button className="primary-button" type="submit" disabled={busy}>{busy ? 'جارٍ الحفظ…' : editingId ? 'حفظ التعديلات' : 'إضافة المنتج'}</button>{editingId && <button type="button" className="secondary-button" onClick={resetForm}>إلغاء</button>}</div>
         </form>
         <section className="admin-products"><div className="admin-list-heading"><h2>المنتجات ({products.length})</h2><span>السعر بالجنيه المصري</span></div>
-          {products.length === 0 ? <div className="admin-empty"><span>✳</span><h3>لسه مفيش منتجات في قاعدة البيانات</h3><p>أضف أول منتج من النموذج.</p></div> : <div className="admin-product-list">{products.map(p => <article className="admin-product-row" key={p.id}><div className="admin-thumb">{p.imageUrl ? <img src={p.imageUrl} alt="" /> : <span>✳</span>}</div><div className="admin-product-info"><strong>{p.name}</strong><span>{categoryNames[p.category]}</span><b>{money(p.price)}</b><small>{p.active ? 'ظاهر في المتجر' : 'مخفي من المتجر'}</small></div><div className="admin-product-actions"><button type="button" className="secondary-button" onClick={() => editProduct(p)}>تعديل</button><button type="button" className="secondary-button" disabled={busy} onClick={async () => { setBusy(true); setError(''); try { await setProductActive(p.id, !p.active); } catch { setError('تعذر تغيير حالة المنتج. تحقق من صلاحيات المدير.'); } finally { setBusy(false); } }}>{p.active ? 'إخفاء' : 'إظهار'}</button><button type="button" className="danger-button" disabled={busy} onClick={async () => { if (!window.confirm('متأكد إنك عاوز تحذف المنتج من قاعدة البيانات؟')) return; setBusy(true); setError(''); try { await removeProduct(p.id); setNotice('تم حذف المنتج.'); } catch { setError('تعذر حذف المنتج. تحقق من صلاحيات المدير.'); } finally { setBusy(false); } }}>حذف</button></div></article>)}</div>}
+          {products.length === 0 ? <div className="admin-empty"><span>✳</span><h3>لسه مفيش منتجات في قاعدة البيانات</h3><p>أضف أول منتج من النموذج.</p></div> : <div className="admin-product-list">{products.map(p => <article className="admin-product-row" key={p.id}><div className="admin-thumb">{p.imageUrl ? <img src={p.imageUrl} alt="" /> : <span>✳</span>}</div><div className="admin-product-info"><strong>{p.name}</strong><span>{categoryNames[p.category]}{p.sku ? ` · ${p.sku}` : ''}</span><b>{money(p.price)}</b><small>المخزون: {p.stock ?? 0} · {p.featured ? 'منتج مميز · ' : ''}{p.active ? 'ظاهر في المتجر' : 'مخفي من المتجر'}</small></div><div className="admin-product-actions"><button type="button" className="secondary-button" onClick={() => editProduct(p)}>تعديل</button><button type="button" className="secondary-button" disabled={busy} onClick={async () => { setBusy(true); setError(''); try { await setProductActive(p.id, !p.active); } catch { setError('تعذر تغيير حالة المنتج. تحقق من صلاحيات المدير.'); } finally { setBusy(false); } }}>{p.active ? 'إخفاء' : 'إظهار'}</button><button type="button" className="danger-button" disabled={busy} onClick={async () => { if (!window.confirm('متأكد إنك عاوز تحذف المنتج من قاعدة البيانات؟')) return; setBusy(true); setError(''); try { await removeProduct(p.id); setNotice('تم حذف المنتج.'); } catch { setError('تعذر حذف المنتج. تحقق من صلاحيات المدير.'); } finally { setBusy(false); } }}>حذف</button></div></article>)}</div>}
         </section>
       </div>
     </main>
