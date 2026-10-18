@@ -6,7 +6,7 @@ import { firebaseAuth, firebaseConfigured, firestore, firebaseStorage } from './
 export type CategoryId = 'school' | 'gifts' | 'bundles' | 'coloring' | 'moms' | 'party';
 export type Product = {
   id: string; name: string; price: number; category: CategoryId; description: string;
-  imageUrl?: string; active: boolean; updatedAt?: unknown;
+  imageUrl?: string; sku?: string; stock?: number; featured?: boolean; active: boolean; updatedAt?: unknown;
 };
 export type ProductInput = Omit<Product, 'id' | 'updatedAt'>;
 
@@ -17,7 +17,10 @@ function fromDocument(id: string, data: DocumentData): Product | null {
       !categories.includes(data.category) || typeof data.active !== 'boolean') return null;
   return { id, name: data.name, price: data.price, category: data.category,
     description: typeof data.description === 'string' ? data.description : '',
-    imageUrl: typeof data.imageUrl === 'string' ? data.imageUrl : '', active: data.active, updatedAt: data.updatedAt };
+    imageUrl: typeof data.imageUrl === 'string' ? data.imageUrl : '',
+    sku: typeof data.sku === 'string' ? data.sku : '',
+    stock: typeof data.stock === 'number' && data.stock >= 0 ? data.stock : 0,
+    featured: data.featured === true, active: data.active, updatedAt: data.updatedAt };
 }
 function requireServices() {
   if (!firebaseConfigured || !firestore || !firebaseStorage || !firebaseAuth) throw new Error('إعدادات Firebase غير مكتملة.');
@@ -64,7 +67,9 @@ export async function saveProduct(input: ProductInput, id?: string): Promise<str
       !categories.includes(input.category) || input.description.length > 500) throw new Error('راجع اسم المنتج والسعر والتصنيف والوصف.');
   const productId = id || crypto.randomUUID();
   const data = { name: input.name.trim(), price: input.price, category: input.category,
-    description: input.description.trim(), imageUrl: input.imageUrl || '', active: input.active, updatedAt: serverTimestamp() };
+    description: input.description.trim(), imageUrl: input.imageUrl || '',
+    sku: (input.sku || '').trim().slice(0, 60), stock: Number.isInteger(input.stock) && (input.stock ?? 0) >= 0 ? input.stock : 0,
+    featured: input.featured === true, active: input.active, updatedAt: serverTimestamp() };
   await setDoc(doc(db, 'products', productId), data, { merge: true });
   return productId;
 }
