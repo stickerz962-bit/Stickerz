@@ -1,9 +1,9 @@
 import { useEffect, useState, type FormEvent } from 'react';
 
-type CategoryId = 'school' | 'gifts' | 'bundles';
+type CategoryId = 'school' | 'gifts' | 'bundles' | 'coloring' | 'moms' | 'party';
 type Product = { id: string; name: string; price: number; category: CategoryId; description: string; image: string; active: boolean };
-const categories: { id: CategoryId; label: string }[] = [{ id: 'school', label: 'ملصقات مدرسية' }, { id: 'gifts', label: 'هدايا مخصصة' }, { id: 'bundles', label: 'مجموعات وباقات' }];
-const categoryNames: Record<CategoryId, string> = { school: 'ملصقات مدرسية', gifts: 'هدايا مخصصة', bundles: 'مجموعات وباقات' };
+const categories: { id: CategoryId; label: string }[] = [{ id: 'school', label: 'المدرسة والحضانة' }, { id: 'party', label: 'أعياد الميلاد' }, { id: 'coloring', label: 'كتب التلوين' }, { id: 'moms', label: 'ركن الأم' }, { id: 'gifts', label: 'هدايا مخصصة' }, { id: 'bundles', label: 'مجموعات وباقات' }];
+const categoryNames: Record<CategoryId, string> = { school: 'المدرسة والحضانة', gifts: 'هدايا مخصصة', bundles: 'مجموعات وباقات', coloring: 'كتب التلوين', moms: 'ركن الأم', party: 'أعياد الميلاد' };
 const STORAGE_KEY = 'stickerz-preview-products-v1';
 const money = (price: number) => new Intl.NumberFormat('ar-EG', { style: 'currency', currency: 'EGP', maximumFractionDigits: 2 }).format(price);
 function readProducts(): Product[] { try { return JSON.parse(localStorage.getItem(STORAGE_KEY) || '[]') as Product[]; } catch { return []; } }
