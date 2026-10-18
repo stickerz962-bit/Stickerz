@@ -47,7 +47,7 @@ export default function AdminApp() {
 
   useEffect(() => {
     if (!user || !isAdmin) return;
-    return subscribeToAllProducts(setProducts, err => setError('تعذر تحميل كتالوج Firestore. تحقق من قواعد البيانات وإعدادها.'));
+    return subscribeToAllProducts(setProducts, () => setError('تعذر تحميل كتالوج Firestore. تحقق من قواعد البيانات وإعدادها.'));
   }, [user, isAdmin]);
 
   const resetForm = () => {
