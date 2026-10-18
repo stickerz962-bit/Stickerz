@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useState, type FormEvent } from 'react';
 
 type CategoryId = 'school' | 'gifts' | 'bundles';
 type Product = { id: string; name: string; price: number; category: CategoryId; description: string; image: string; active: boolean };
@@ -38,7 +38,7 @@ export default function App() {
   const visibleProducts = useMemo(() => products.filter(p => p.active && (category === 'all' || p.category === category) && (p.name + ' ' + p.description).toLocaleLowerCase('ar').includes(query.trim().toLocaleLowerCase('ar'))), [products, category, query]);
   const resetForm = () => { setEditingId(null); setName(''); setPrice(''); setProductCategory('school'); setDescription(''); setImage(''); setFormError(''); };
   const editProduct = (p: Product) => { setEditingId(p.id); setName(p.name); setPrice(String(p.price)); setProductCategory(p.category); setDescription(p.description); setImage(p.image); setFormError(''); window.scrollTo({ top: 0, behavior: 'smooth' }); };
-  const saveProduct = (event: React.FormEvent<HTMLFormElement>) => {
+  const saveProduct = (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     const numericPrice = Number(price);
     if (!name.trim() || !Number.isFinite(numericPrice) || numericPrice < 0) { setFormError('اكتب اسم المنتج وسعرًا صحيحًا بالجنيه.'); return; }
