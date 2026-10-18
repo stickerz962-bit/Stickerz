@@ -7,12 +7,13 @@ beforeEach(() => {
   window.location.hash = '';
 });
 
-describe('Arabic storefront and preview admin', () => {
-  it('renders the Arabic storefront and admin entry point', () => {
+describe('Arabic customer storefront', () => {
+  it('renders the Arabic storefront without exposing admin controls', () => {
     render(<App />);
     expect(screen.getByRole('heading', { name: /خلي حاجات طفلك/ })).toBeInTheDocument();
     expect(screen.getByRole('navigation', { name: 'التنقل الرئيسي' })).toBeInTheDocument();
-    expect(screen.getByRole('link', { name: 'لوحة الإدارة' })).toBeInTheDocument();
+    expect(screen.queryByRole('link', { name: /لوحة الإدارة/ })).not.toBeInTheDocument();
+    expect(screen.queryByRole('heading', { name: 'لوحة إدارة المنتجات' })).not.toBeInTheDocument();
   });
 
   it('switches product categories', () => {
@@ -30,22 +31,8 @@ describe('Arabic storefront and preview admin', () => {
     expect(screen.queryByRole('status')).not.toBeInTheDocument();
   });
 
-  it('opens the product admin from the hash route', () => {
-    window.location.hash = '#admin';
+  it('shows a friendly empty catalog message when no products are configured', () => {
     render(<App />);
-    expect(screen.getByRole('heading', { name: 'لوحة إدارة المنتجات' })).toBeInTheDocument();
-    expect(screen.getByLabelText('اسم المنتج')).toBeInTheDocument();
-    expect(screen.getByLabelText('السعر بالجنيه المصري')).toBeInTheDocument();
-  });
-
-  it('adds a priced product to local preview storage', () => {
-    window.location.hash = '#admin';
-    render(<App />);
-    fireEvent.change(screen.getByLabelText('اسم المنتج'), { target: { value: 'ملصقات الاسم' } });
-    fireEvent.change(screen.getByLabelText('السعر بالجنيه المصري'), { target: { value: '120' } });
-    fireEvent.click(screen.getByRole('button', { name: 'إضافة المنتج' }));
-    expect(screen.getByText('ملصقات الاسم')).toBeInTheDocument();
-    expect(screen.getByText(/١٢٠/)).toBeInTheDocument();
-    expect(JSON.parse(localStorage.getItem('stickerz-preview-products-v1') || '[]')).toHaveLength(1);
+    expect(screen.getByRole('heading', { name: 'الكتالوج لسه فاضي' })).toBeInTheDocument();
   });
 });
