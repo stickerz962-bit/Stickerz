@@ -4,22 +4,16 @@ service cloud.firestore {
     function isAdmin() {
       return request.auth != null && request.auth.token.admin == true;
     }
+
     match /products/{productId} {
       allow read: if resource.data.active == true || isAdmin();
       allow create, update, delete: if isAdmin();
     }
+
     match /orders/{orderId} {
-      allow create: if request.resource.data.keys().hasOnly([
-          'items', 'customerName', 'customerPhone', 'customerAddress',
-          'notes', 'status', 'createdAt'
-        ])
-        && request.resource.data.status == 'pending'
-        && request.resource.data.customerName is string
-        && request.resource.data.customerName.size() <= 120
-        && request.resource.data.customerPhone is string
-        && request.resource.data.customerPhone.size() <= 40
-        && request.resource.data.customerAddress is string
-        && request.resource.data.customerAddress.size() <= 500;
+      // Checkout is not implemented yet. Keep public order writes closed until
+      // item, quantity, product-price, and spam validation are implemented and tested.
+      allow create: if false;
       allow read, update, delete: if isAdmin();
     }
   }
