@@ -1,7 +1,8 @@
-import { useMemo, useState, type ChangeEvent } from 'react';
+import { useEffect, useMemo, useState, type ChangeEvent } from 'react';
+import { firebaseConfigured } from './firebase';
+import { subscribeToActiveProducts, type Product } from './firebase-products';
 
 type CategoryId = 'school' | 'gifts' | 'bundles' | 'coloring' | 'moms' | 'party';
-type Product = { id: string; name: string; price: number; category: CategoryId; description: string; image: string; active: boolean };
 const categories: { id: CategoryId | 'all'; label: string }[] = [
   { id: 'all', label: 'كل المنتجات' }, { id: 'school', label: 'المدرسة والحضانة' },
   { id: 'party', label: 'أعياد الميلاد' }, { id: 'coloring', label: 'كتب التلوين' },
@@ -23,7 +24,14 @@ export default function App() {
   const [childName, setChildName] = useState('');
   const [previewKind, setPreviewKind] = useState<'school' | 'birthday' | 'tag'>('school');
   const [photoNotice, setPhotoNotice] = useState('');
-  const products = useMemo(readProducts, []);
+  const [products, setProducts] = useState<Product[]>(() => firebaseConfigured ? [] : readProducts());
+  const [catalogError, setCatalogError] = useState('');
+  useEffect(() => {
+    if (!firebaseConfigured) return;
+    return subscribeToActiveProducts(setProducts, () => {
+      setCatalogError('تعذر تحميل المنتجات من قاعدة البيانات. راجع إعداد Firebase وقواعد Firestore؛ لم نعرض بيانات الجهاز كبديل.');
+    });
+  }, []);
   const visibleProducts = useMemo(() => products.filter(p => p.active && (category === 'all' || p.category === category) && (p.name + ' ' + p.description).toLocaleLowerCase('ar').includes(query.trim().toLocaleLowerCase('ar'))), [products, category, query]);
 
   const uploadPhoto = (event: ChangeEvent<HTMLInputElement>) => {
@@ -83,7 +91,9 @@ export default function App() {
       <section className="catalog-section" id="catalog">
         <div className="section-heading"><div><span className="eyebrow">اختار اللي يناسبك</span><h2>اكتشف أقسام ستيكرز</h2><p>الكتالوج الفعلي هيتعرض هنا بعد إضافة المنتجات والأسعار من لوحة الإدارة.</p></div><label className="search-box"><span aria-hidden="true">⌕</span><span className="sr-only">ابحث في المنتجات</span><input type="search" aria-label="ابحث في المنتجات" placeholder="بتدور على إيه؟" value={query} onChange={event => setQuery(event.target.value)} /></label></div>
         <div className="category-list" aria-label="تصنيفات المنتجات">{categories.map(item => <button className={category === item.id ? 'category-chip active' : 'category-chip'} key={item.id} type="button" aria-pressed={category === item.id} onClick={() => setCategory(item.id as CategoryId | 'all')}>{item.label}</button>)}</div>
-        {visibleProducts.length ? <div className="store-product-grid">{visibleProducts.map(p => <article className="store-product-card" key={p.id}><div className="store-product-image">{p.image ? <img src={p.image} alt={p.name} /> : <span>✳</span>}</div><div className="store-product-copy"><small>{categoryNames[p.category]}</small><h3>{p.name}</h3>{p.description && <p>{p.description}</p>}<strong>{money(p.price)}</strong></div></article>)}</div> : <div className="empty-catalog"><div className="empty-illustration" aria-hidden="true"><span className="empty-sheet">✦<br /><small>ستيكر</small></span><span className="empty-spark spark-one">✧</span><span className="empty-spark spark-two">✿</span></div><h3>{query.trim() ? 'مفيش منتجات مطابقة للبحث' : 'لسه مفيش منتجات مضافة'}</h3><p>{query.trim() ? 'جرّب كلمة تانية أو امسح البحث.' : 'أقسام المدرسة، أعياد الميلاد، كتب التلوين وركن الأم جاهزة للتنظيم؛ المنتجات والأسعار الحقيقية لسه محتاجة إضافة.'}</p>{query.trim() && <button className="text-button" type="button" onClick={() => setQuery('')}>مسح البحث</button>}</div>}
+        {catalogError && <p className="photo-notice" role="alert">{catalogError}</p>}
+        {!firebaseConfigured && <p className="backup-help">وضع معاينة محلي: المنتجات محفوظة على هذا الجهاز فقط.</p>}
+        {visibleProducts.length ? <div className="store-product-grid">{visibleProducts.map(p => <article className="store-product-card" key={p.id}><div className="store-product-image">{(p.imageUrl || p.image) ? <img src={p.imageUrl || p.image} alt={p.name} /> : <span>✳</span>}</div><div className="store-product-copy"><small>{categoryNames[p.category]}</small><h3>{p.name}</h3>{p.description && <p>{p.description}</p>}<strong>{money(p.price)}</strong></div></article>)}</div> : <div className="empty-catalog"><div className="empty-illustration" aria-hidden="true"><span className="empty-sheet">✦<br /><small>ستيكر</small></span><span className="empty-spark spark-one">✧</span><span className="empty-spark spark-two">✿</span></div><h3>{query.trim() ? 'مفيش منتجات مطابقة للبحث' : 'لسه مفيش منتجات مضافة'}</h3><p>{query.trim() ? 'جرّب كلمة تانية أو امسح البحث.' : 'أقسام المدرسة، أعياد الميلاد، كتب التلوين وركن الأم جاهزة للتنظيم؛ المنتجات والأسعار الحقيقية لسه محتاجة إضافة.'}</p>{query.trim() && <button className="text-button" type="button" onClick={() => setQuery('')}>مسح البحث</button>}</div>}
       </section>
       <section className="how-section" id="how-it-works"><span className="eyebrow">بكل بساطة</span><h2>من الصورة للمنتج</h2><div className="steps-grid"><article><span className="step-number">01</span><h3>اختار القسم والمنتج</h3><p>مدرسة، عيد ميلاد، كتب تلوين أو منتجات للأم.</p></article><article><span className="step-number">02</span><h3>خصّص وشوف المعاينة</h3><p>ارفع الصورة وعدّل الاسم وشوف الشكل على الشاشة.</p></article><article><span className="step-number">03</span><h3>راجع التصميم قبل الطلب</h3><p>الربط بالإنتاج والطلبات والدفع هيتم في مرحلة لاحقة.</p></article></div><p className="coming-note">المعاينة التفاعلية نموذج أولي؛ الطلبات والدفع وحفظ ملفات الطباعة غير مفعّلين.</p></section>
       <section className="about-section" id="moms"><div className="about-icon" aria-hidden="true">♡</div><div><h2>ركن الأم كمان له مكان</h2><p>ستيكرز مش للطفل بس؛ هنضيف منتجات للأم وكتب تلوين وأنشطة وهدايا للمناسبات، مع تخصيص يناسب كل نوع منتج.</p></div></section>
