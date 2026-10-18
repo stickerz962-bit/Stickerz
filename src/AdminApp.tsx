@@ -1,4 +1,7 @@
 import { useEffect, useState, type FormEvent } from 'react';
+import type { User } from 'firebase/auth';
+import { firebaseConfigured } from './firebase';
+import { hasAdminClaim, observeAuth, signInAdmin, signOutAdmin } from './firebase-products';
 
 type CategoryId = 'school' | 'gifts' | 'bundles' | 'coloring' | 'moms' | 'party';
 type Product = { id: string; name: string; price: number; category: CategoryId; description: string; image: string; active: boolean };
@@ -8,7 +11,7 @@ const STORAGE_KEY = 'stickerz-preview-products-v1';
 const money = (price: number) => new Intl.NumberFormat('ar-EG', { style: 'currency', currency: 'EGP', maximumFractionDigits: 2 }).format(price);
 function readProducts(): Product[] { try { return JSON.parse(localStorage.getItem(STORAGE_KEY) || '[]') as Product[]; } catch { return []; } }
 
-export default function AdminApp() {
+function LocalAdminPreview() {
   const [products, setProducts] = useState<Product[]>(readProducts);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [name, setName] = useState(''); const [price, setPrice] = useState('');
@@ -86,4 +89,52 @@ export default function AdminApp() {
     </main>
     <footer className="site-footer"><a className="footer-brand" href="./">✳ ستيكرز</a><span>لوحة معاينة غير متصلة بقاعدة بيانات</span></footer>
   </div>;
+}
+
+
+export default function AdminApp() {
+  const [user, setUser] = useState<User | null>(null);
+  const [authReady, setAuthReady] = useState(false);
+  const [isAdmin, setIsAdmin] = useState(false);
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState('');
+
+  useEffect(() => observeAuth(async current => {
+    setUser(current);
+    setAuthReady(true);
+    setIsAdmin(false);
+    if (current) {
+      try { setIsAdmin(await hasAdminClaim(current)); }
+      catch { setError('تعذر التحقق من صلاحيات الحساب. حاول تسجيل الدخول مرة أخرى.'); }
+    }
+  }), []);
+
+  const submitLogin = async (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    setBusy(true); setError('');
+    try {
+      const verified = await signInAdmin(email.trim(), password);
+      setUser(verified); setIsAdmin(true); setPassword('');
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'تعذر تسجيل الدخول. راجع البيانات وإعداد Firebase.');
+    } finally { setBusy(false); }
+  };
+
+  if (!firebaseConfigured) return <div className="app-shell"><main className="admin-page"><h1>لوحة إدارة ستيكرز</h1><div className="preview-warning">إعداد Firebase غير مكتمل في هذا البناء. لوحة الإدارة مقفولة حفاظًا على أمان المنتجات. في وضع التطوير المحلي، لا تستخدم هذه الصفحة لإدارة بيانات حقيقية.</div><a className="secondary-button" href="./">العودة للمتجر</a></main></div>;
+  if (!authReady) return <div className="app-shell"><main className="admin-page"><p role="status">جارٍ التحقق من تسجيل الدخول…</p></main></div>;
+  if (!user || !isAdmin) return <div className="app-shell"><main className="admin-page">
+    <div className="admin-title"><div><span className="eyebrow">دخول آمن</span><h1>لوحة إدارة ستيكرز</h1><p>سجّل الدخول بحساب المدير المعتمد فقط.</p></div></div>
+    {user && <div className="preview-warning">الحساب مسجّل، لكنه لا يحمل صلاحية المدير المطلوبة. اطلب من مسؤول المشروع ضبط custom claim باسم admin من بيئة موثوقة.</div>}
+    <form className="product-form" onSubmit={submitLogin}>
+      <label>البريد الإلكتروني<input type="email" required autoComplete="username" value={email} onChange={e => setEmail(e.target.value)} /></label>
+      <label>كلمة المرور<input type="password" required autoComplete="current-password" value={password} onChange={e => setPassword(e.target.value)} /></label>
+      {error && <p className="form-error" role="alert">{error}</p>}
+      <button className="primary-button" type="submit" disabled={busy}>{busy ? 'جارٍ التحقق…' : 'تسجيل الدخول'}</button>
+    </form>
+    <p className="backup-help">لا يوجد إنشاء حساب مدير من هذه الصفحة. يجب تفعيل Email/Password وضبط صلاحية المدير في Firebase بشكل منفصل.</p>
+    <a className="secondary-button" href="./">العودة للمتجر</a>
+  </main></div>;
+  return <><div className="preview-warning"><strong>مهم:</strong> تم التحقق من حساب المدير، لكن تحرير المنتجات في هذه النسخة ما زال وضع معاينة محليًا ولا يكتب إلى Firestore. لا تعتمد عليه لمزامنة الكتالوج حتى تكتمل خطوة CRUD السحابي.</div><div className="header-actions"><button className="secondary-button" type="button" onClick={() => { void signOutAdmin(); }}>تسجيل الخروج</button></div><LocalAdminPreview /></>;
 }
