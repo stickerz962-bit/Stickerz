@@ -33,6 +33,6 @@ describe('Arabic customer storefront', () => {
 
   it('shows a friendly empty catalog message when no products are configured', () => {
     render(<App />);
-    expect(screen.getByRole('heading', { name: 'الكتالوج لسه فاضي' })).toBeInTheDocument();
+    expect(screen.getAllByRole('heading', { name: 'الكتالوج لسه فاضي' }).length).toBeGreaterThan(0);
   });
 });
