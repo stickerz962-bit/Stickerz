@@ -12,7 +12,7 @@ beforeEach(() => {
 describe('Arabic customer storefront', () => {
   it('renders the Arabic storefront without exposing admin controls', () => {
     render(<App />);
-    expect(screen.getByRole('heading', { name: /خلي حاجات طفلك/ })).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: /شوف صورة طفلك/ })).toBeInTheDocument();
     expect(screen.getByRole('navigation', { name: 'التنقل الرئيسي' })).toBeInTheDocument();
     expect(screen.queryByRole('link', { name: /لوحة الإدارة/ })).not.toBeInTheDocument();
     expect(screen.queryByRole('heading', { name: 'لوحة إدارة المنتجات' })).not.toBeInTheDocument();
@@ -20,8 +20,8 @@ describe('Arabic customer storefront', () => {
 
   it('switches product categories', () => {
     render(<App />);
-    fireEvent.click(screen.getByRole('button', { name: 'ملصقات مدرسية' }));
-    expect(screen.getByRole('button', { name: 'ملصقات مدرسية' })).toHaveAttribute('aria-pressed', 'true');
+    fireEvent.click(screen.getByRole('button', { name: 'المدرسة والحضانة' }));
+    expect(screen.getByRole('button', { name: 'المدرسة والحضانة' })).toHaveAttribute('aria-pressed', 'true');
   });
 
   it('opens and closes the cart notice', () => {
@@ -35,6 +35,6 @@ describe('Arabic customer storefront', () => {
 
   it('shows a friendly empty catalog message when no products are configured', () => {
     render(<App />);
-    expect(screen.getAllByRole('heading', { name: 'الكتالوج لسه فاضي' }).length).toBeGreaterThan(0);
+    expect(screen.getByRole('heading', { name: 'لسه مفيش منتجات مضافة' })).toBeInTheDocument();
   });
 });
