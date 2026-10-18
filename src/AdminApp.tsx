@@ -37,8 +37,16 @@ export default function AdminApp() {
   const [description, setDescription] = useState('');
   const [imageUrl, setImageUrl] = useState('');
   const [imageFile, setImageFile] = useState<File | null>(null);
+  const [imagePreviewUrl, setImagePreviewUrl] = useState('');
   const [formError, setFormError] = useState('');
   const [notice, setNotice] = useState('');
+
+  useEffect(() => {
+    if (!imageFile) { setImagePreviewUrl(''); return; }
+    const previewUrl = URL.createObjectURL(imageFile);
+    setImagePreviewUrl(previewUrl);
+    return () => URL.revokeObjectURL(previewUrl);
+  }, [imageFile]);
 
   useEffect(() => observeAuth(async current => {
     setUser(current); setAuthReady(true); setIsAdmin(false); setProducts([]);
@@ -117,7 +125,7 @@ export default function AdminApp() {
           <label>التصنيف<select value={category} onChange={e => setCategory(e.target.value as CategoryId)}>{categories.map(c => <option key={c.id} value={c.id}>{c.label}</option>)}</select></label>
           <label>وصف المنتج<textarea rows={3} maxLength={500} value={description} onChange={e => setDescription(e.target.value)} placeholder="تفاصيل المنتج والمقاس والخامة..." /></label>
           <label>صورة المنتج<input type="file" accept="image/*" onChange={e => setImageFile(e.target.files?.[0] || null)} /></label>
-          {imageFile && <p className="backup-help">الصورة المختارة: {imageFile.name}</p>}
+          {imageFile && <div className="image-preview"><img src={imagePreviewUrl} alt="معاينة الصورة المختارة للمنتج" /><p className="backup-help">الصورة المختارة: {imageFile.name}</p></div>}
           {!imageFile && imageUrl && <div className="image-preview"><img src={imageUrl} alt="صورة المنتج الحالية" /><button type="button" className="text-button" onClick={() => setImageUrl('')}>إزالة الصورة</button></div>}
           {formError && <p className="form-error" role="alert">{formError}</p>}{notice && <p className="form-success" role="status">{notice}</p>}
           <div className="form-actions"><button className="primary-button" type="submit" disabled={busy}>{busy ? 'جارٍ الحفظ…' : editingId ? 'حفظ التعديلات' : 'إضافة المنتج'}</button>{editingId && <button type="button" className="secondary-button" onClick={resetForm}>إلغاء</button>}</div>
