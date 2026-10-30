@@ -5,6 +5,7 @@ on:
     branches:
       - main
       - feat/storefront-scaffold
+      - anti-pressure/homepage-foundation
   workflow_dispatch:
 
 permissions:
