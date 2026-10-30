@@ -94,7 +94,7 @@ export default function App() {
       <section className="gallery-section section-wrap" id="gallery">
         <div className="section-heading heading-row"><div><span className="eyebrow">كل رسمة ليها مود</span><h2>اختاري اللي شبهك</h2><p>مكتبة متنوعة فيها تفاصيل من يومنا وضحكنا وحاجات بنفكر فيها.</p></div><span className="side-note">10 تصنيفات · 100 رسمة عند اكتمال المكتبة</span></div>
         <div className="category-chips">{categories.map((category, index) => <span key={category}>{category}<i>{String(index + 1).padStart(2, '0')}</i></span>)}</div>
-        <div className="artwork-grid">{artworks.map((art, index) => <article className="artwork-card" key={art.title}><div className={'artwork-preview ' + art.tone}><span className="artwork-sun">✧</span><span className="artwork-symbol">{art.mark}</span><span className="artwork-line">﹏﹏﹏</span><small>فُكّي الضغط</small></div><div className="artwork-caption"><b>{art.title}</b><span>نموذج توضيحي</span></div></article>)}</div>
+        <div className="artwork-grid">{artworks.map(art => <article className="artwork-card" key={art.title}><div className={'artwork-preview ' + art.tone}><span className="artwork-sun">✧</span><span className="artwork-symbol">{art.mark}</span><span className="artwork-line">﹏﹏﹏</span><small>فُكّي الضغط</small></div><div className="artwork-caption"><b>{art.title}</b><span>نموذج توضيحي</span></div></article>)}</div>
         <p className="gallery-disclaimer">دي معاينات توضيحية لروح المكتبة؛ الرسومات النهائية هتتعرض بعد تجهيزها واعتمادها.</p>
       </section>
 
