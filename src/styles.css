@@ -47,3 +47,25 @@
 .cover-selected-summary b{font-size:11px;color:#202b49;margin-bottom:2px}
 @media(max-width:900px){.cover-builder-layout{grid-template-columns:1fr}.cover-live-panel{order:-1}.cover-live-art{width:min(68%,290px)}}
 @media(max-width:620px){.cover-controls,.cover-live-panel{padding:15px}.cover-controls h2{font-size:14px}.cover-picker-grid{grid-template-columns:repeat(3,minmax(0,1fr));gap:8px}.cover-picker-art{height:118px}.cover-picker-art b{font-size:11px}.cover-live-art{width:min(78%,270px);gap:9px}.cover-live-decoration{font-size:55px}.cover-live-art>strong{font-size:14px}.cover-step-actions{flex-direction:column}.cover-step-actions button{width:100%}}
+
+
+/* ANTI PRESSURE full book review */
+.book-preview-main{max-width:1120px}
+.book-preview-layout{display:grid;grid-template-columns:.75fr 1.25fr;gap:24px;align-items:start}
+.book-preview-cover-column,.book-artwork-review{background:#fffdf9;border:1px solid #eee5df;border-radius:18px;padding:20px;box-shadow:0 8px 24px #6d4e3909}
+.book-preview-cover-column{text-align:center;position:sticky;top:20px}
+.book-final-cover{width:min(100%,285px);margin:12px auto 20px}
+.book-preview-cover-column>.clear-selection{width:100%}
+.book-review-heading{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:15px}
+.book-review-heading>div{display:grid;gap:4px;text-align:right}
+.book-review-heading b{font-size:15px}.book-review-heading small{font-size:10px;color:#898796}
+.book-review-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:9px}
+.book-review-item{display:flex;align-items:center;gap:8px;min-width:0;background:#fff8f5;border:1px solid #f1e8e3;border-radius:10px;padding:7px}
+.book-review-art{width:43px;height:48px;flex:0 0 43px;border-radius:7px;display:grid;place-items:center;font-size:23px}
+.book-review-item>span:last-child{display:grid;gap:4px;min-width:0}
+.book-review-item b{font-size:9px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.book-review-item small{font-size:8px;color:#8b8995}
+.book-preview-note{font-size:10px;line-height:1.9;color:#8a6d55;background:#fff5e8;border-radius:10px;padding:11px;margin-top:15px}
+.book-preview-actions{display:flex;gap:10px;margin-top:15px}.book-preview-actions>*{flex:1}
+@media(max-width:800px){.book-preview-layout{grid-template-columns:1fr}.book-preview-cover-column{position:static;order:-1}.book-final-cover{width:min(65%,260px)}.book-review-grid{grid-template-columns:repeat(2,minmax(0,1fr))}}
+@media(max-width:480px){.book-preview-cover-column,.book-artwork-review{padding:13px}.book-review-heading{align-items:flex-start}.book-review-heading b{font-size:12px}.book-review-heading .clear-selection{font-size:8px;padding:8px}.book-review-grid{gap:6px}.book-review-item{padding:6px;gap:6px}.book-review-art{width:36px;height:40px;flex-basis:36px;font-size:20px}.book-preview-actions{flex-direction:column}}
