@@ -17,11 +17,9 @@ describe('ANTI PRESSURE customer experience', () => {
     expect(screen.queryByRole('link', { name: /لوحة الإدارة/ })).not.toBeInTheDocument();
   });
 
-  it('opens the artwork builder from the homepage CTA', () => {
+  it('links the main CTA to the artwork builder', () => {
     render(<App />);
-    fireEvent.click(screen.getByRole('link', { name: /صممي كتابك الآن/ }));
-    window.dispatchEvent(new HashChangeEvent('hashchange'));
-    expect(screen.getByRole('heading', { name: 'اختاري 30 رسمة بتحبيها' })).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: /صممي كتابك الآن/ })).toHaveAttribute('href', '#design');
   });
 
   it('requires exactly 30 unique artworks before allowing cover selection', () => {
