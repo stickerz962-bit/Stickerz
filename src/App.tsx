@@ -1,4 +1,5 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
+import Builder from './Builder';
 
 const steps = [
   { number: '01', icon: '✎', title: 'اختاري 30 رسمة', text: 'من مكتبتنا اختاري الرسومات اللي شبه يومك ومزاجك.' },
@@ -42,6 +43,13 @@ function Brand({ footer = false }: { footer?: boolean }) {
 
 export default function App() {
   const [openFaq, setOpenFaq] = useState<number | null>(0);
+  const [builderOpen, setBuilderOpen] = useState(window.location.hash === '#design');
+  useEffect(() => {
+    const syncRoute = () => setBuilderOpen(window.location.hash === '#design');
+    window.addEventListener('hashchange', syncRoute);
+    return () => window.removeEventListener('hashchange', syncRoute);
+  }, []);
+  if (builderOpen) return <Builder />;
   return <div className="anti-shell" dir="rtl">
     <div className="top-note">مساحتك الصغيرة للضحك والتلوين ♡</div>
     <header className="site-header">
@@ -49,7 +57,7 @@ export default function App() {
       <nav className="main-nav" aria-label="القائمة الرئيسية">
         <a className="active" href="#home">الرئيسية</a><a href="#how">كيف تصممي كتابك؟</a><a href="#covers">الأغلفة</a><a href="#gallery">الرسومات</a><a href="#about">عنّا</a><a href="#faq">الأسئلة الشائعة</a>
       </nav>
-      <a className="header-cta" href="#how">صممي كتابك <span>←</span></a>
+      <a className="header-cta" href="#design">صممي كتابك <span>←</span></a>
     </header>
 
     <main>
@@ -60,7 +68,7 @@ export default function App() {
           <h1>فُكّي الضغط!</h1>
           <p className="hero-tagline">كتابك... <em>على مزاجك!</em></p>
           <p className="hero-description">اختاري 30 رسمة من مكتبتنا، اكتبي اسمك على الغلاف، واعملي كتاب تلوين شخصي مطبوع ومجلّد يوصل لحد باب بيتك.</p>
-          <div className="hero-actions"><a className="primary-button" href="#how">صممي كتابك الآن <span>←</span></a><a className="quiet-link" href="#gallery">اتفرجي على الرسومات <span>↓</span></a></div>
+          <div className="hero-actions"><a className="primary-button" href="#design">صممي كتابك الآن <span>←</span></a><a className="quiet-link" href="#gallery">اتفرجي على الرسومات <span>↓</span></a></div>
           <div className="hero-facts"><span>♡ 30 رسمة من اختيارك</span><span>✿ غلاف باسمك</span><span>✦ توصيل لحد البيت</span></div>
         </div>
         <div className="hero-visual" aria-label="رسم توضيحي لكتاب تلوين مخصص" role="img">
@@ -98,7 +106,7 @@ export default function App() {
       </section>
 
       <section className="price-section section-wrap" id="about">
-        <div className="price-copy"><span className="eyebrow">تفصيلة صغيرة تفرق</span><h2>مساحتك... وكتابك... ومزاجك</h2><p>كتاب تلوين متفصّل على اختياراتك، بغلاف مخصص و30 رسمة مختلفة، علشان تاخدي وقت لنفسك وتلوّني على رواق.</p><a className="primary-button" href="#how">ابدئي تصميم كتابك <span>←</span></a></div>
+        <div className="price-copy"><span className="eyebrow">تفصيلة صغيرة تفرق</span><h2>مساحتك... وكتابك... ومزاجك</h2><p>كتاب تلوين متفصّل على اختياراتك، بغلاف مخصص و30 رسمة مختلفة، علشان تاخدي وقت لنفسك وتلوّني على رواق.</p><a className="primary-button" href="#design">ابدئي تصميم كتابك <span>←</span></a></div>
         <div className="price-card"><span className="price-label">سعر الكتاب</span><div className="price-number">230 <small>جنيه</small></div><span className="price-includes">30 رسمة + غلاف باسمك + تجليد سلك</span><div className="price-divider"></div><p>الشحن بيتحسب حسب منطقتك وبيظهر قبل تأكيد الطلب.</p><small className="price-footnote">طرق الدفع: عند الاستلام أو InstaPay بعد مراجعة التحويل.</small></div>
       </section>
 
@@ -106,7 +114,7 @@ export default function App() {
         <div className="section-heading"><span className="eyebrow">حاجات ممكن تسألي عنها</span><h2>الأسئلة الشائعة</h2></div>
         <div className="faq-list">{faqs.map((faq, index) => <article className={'faq-item ' + (openFaq === index ? 'is-open' : '')} key={faq.q}><button type="button" aria-expanded={openFaq === index} onClick={() => setOpenFaq(openFaq === index ? null : index)}><span>{faq.q}</span><b>{openFaq === index ? '−' : '+'}</b></button>{openFaq === index && <p>{faq.a}</p>}</article>)}</div>
       </section>
-      <section className="final-cta"><span>♡</span><h2>جاهزة تفكّي الضغط؟</h2><p>اعملي كتابك بطريقتك، واختاري كل رسمة على مزاجك.</p><a className="primary-button" href="#how">يلا نصمم كتابي <span>←</span></a></section>
+      <section className="final-cta"><span>♡</span><h2>جاهزة تفكّي الضغط؟</h2><p>اعملي كتابك بطريقتك، واختاري كل رسمة على مزاجك.</p><a className="primary-button" href="#design">يلا نصمم كتابي <span>←</span></a></section>
     </main>
 
     <footer className="site-footer"><div className="footer-main"><Brand footer /><p>مساحة لطيفة، رسومات على مزاجك، وكتاب معمول ليكي.</p><nav><a href="#how">كيف تصممي كتابك؟</a><a href="#gallery">الرسومات</a><a href="#covers">الأغلفة</a><a href="#faq">الأسئلة الشائعة</a></nav></div><div className="footer-bottom"><span>© {new Date().getFullYear()} ANTI PRESSURE — فُكّي الضغط</span><span>كتابك... على مزاجك! ♡</span></div></footer>
