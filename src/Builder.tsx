@@ -47,7 +47,7 @@ export default function Builder() {
   const [preview, setPreview] = useState<(typeof catalog)[number] | null>(null);
   const [loaded, setLoaded] = useState(false);
   const [notice, setNotice] = useState('');
-  const [step, setStep] = useState<'artworks' | 'cover'>('artworks');
+  const [step, setStep] = useState<'artworks' | 'cover' | 'book'>('artworks');
   const [draft, setDraft] = useState<Draft>({ coverId: 'calm', name: '' });
 
   useEffect(() => {
@@ -127,7 +127,7 @@ export default function Builder() {
         <div className="selection-message">{remaining === 0 ? 'عاش! اخترتي 30 رسمة مختلفة.' : 'فاضلك ' + remaining + ' رسمة علشان تكملي اختيارك.'}</div>
         <div className="selection-actions"><button type="button" className="clear-selection" onClick={clearAll} disabled={!selected.length}>مسح الاختيارات</button><button type="button" className="continue-selection" disabled={selected.length !== 30} onClick={() => { setStep('cover'); setNotice(''); window.scrollTo({ top: 0, behavior: 'smooth' }); }}>اختاري الغلاف <span>←</span></button></div>
       </aside>
-    </> : <>
+    </> : step === 'cover' ? <>
       <main className="builder-main cover-builder-main">
         <div className="builder-intro">
           <span className="eyebrow">الخطوة الثانية · لمستك الشخصية</span>
@@ -148,7 +148,7 @@ export default function Builder() {
             <div className="name-help">ممكن تكتبي الاسم بالعربي أو بالإنجليزي · 40 حرف كحد أقصى</div>
             <div className="cover-step-actions">
               <button type="button" className="clear-selection" onClick={() => { setStep('artworks'); window.scrollTo({ top: 0, behavior: 'smooth' }); }}>→ تعديل الرسومات</button>
-              <button type="button" className="continue-selection" disabled={!draft.name.trim()} onClick={() => setNotice('تم حفظ اختيار الغلاف والاسم في معاينة التصميم على هذا الجهاز.')}>حفظ اختيارات الغلاف <span>✓</span></button>
+              <button type="button" className="continue-selection" disabled={!draft.name.trim()} onClick={() => { setNotice(''); setStep('book'); window.scrollTo({ top: 0, behavior: 'smooth' }); }}>حفظ اختيارات الغلاف <span>✓</span></button>
             </div>
             {notice && <div className="cover-save-note" role="status">{notice}</div>}
           </div>
@@ -163,6 +163,34 @@ export default function Builder() {
             </div>
             <p>دي معاينة تصميمية مبدئية، مش ملف الطباعة النهائي. شكل الغلاف النهائي هيتراجع بعد اعتماد الرسومات والأغلفة الأصلية.</p>
             <div className="cover-selected-summary"><b>اختيارات كتابك</b><span>30 رسمة مختارة</span><span>غلاف: {activeCover.title}</span><span>الاسم: {draft.name.trim() || 'لم يُكتب بعد'}</span></div>
+          </div>
+        </section>
+      </main>
+    </> : <>
+      <main className="builder-main book-preview-main">
+        <div className="builder-intro">
+          <span className="eyebrow">الخطوة الثالثة · كتابك بقى جاهز للمعاينة</span>
+          <h1>بصي على كتابك قبل ما نكمل</h1>
+          <p>راجعي الغلاف والاسم والـ30 رسمة اللي اخترتيهم. ترتيب الرسومات بيكون تلقائي، وتقدري ترجعي لأي خطوة وتعدلي اختياراتك.</p>
+        </div>
+        <section className="book-preview-layout">
+          <div className="book-preview-cover-column">
+            <span className="cover-preview-caption">الغلاف المختار</span>
+            <div className={'cover-live-art book-final-cover ' + activeCover.tone}>
+              <span className="cover-live-decoration">{activeCover.mark}</span>
+              <span className="cover-live-brand">ANTI PRESSURE · فُكّي الضغط</span>
+              <strong>كتابك... على مزاجك!</strong>
+              <span className="cover-live-name" style={{ fontSize: fittedNameSize + 'px' }}>{draft.name.trim()}</span>
+              <span className="cover-live-bottom">{activeCover.subtitle}</span>
+            </div>
+            <button type="button" className="clear-selection" onClick={() => setStep('cover')}>تعديل الغلاف أو الاسم</button>
+          </div>
+          <div className="book-artwork-review">
+            <div className="book-review-heading"><div><b>رسومات كتابك</b><small>30 رسمة مختارة · ترتيب تلقائي</small></div><button type="button" className="clear-selection" onClick={() => setStep('artworks')}>تعديل الرسومات</button></div>
+            <div className="book-review-grid">{selected.map((id, index) => { const item = catalog.find(entry => entry.id === id); if (!item) return null; return <div className="book-review-item" key={id}><span className={'book-review-art ' + item.tone}>{item.mark}</span><span><b>{item.title}</b><small>صفحة {index + 1}</small></span></div>; })}</div>
+            <div className="book-preview-note">دي مراجعة لاختياراتك وشكل الغلاف فقط. ملفات الطباعة النهائية، بيانات الشحن، وحساب تكلفة التوصيل لسه مش مفعّلين.</div>
+            <div className="book-preview-actions"><button type="button" className="clear-selection" onClick={() => setStep('cover')}>رجوع</button><button type="button" className="continue-selection" onClick={() => setNotice('معاينة كتابك محفوظة على هذا الجهاز. مرحلة بيانات الشحن والطلب لم تُفعّل بعد.')}>اعتماد المعاينة مبدئيًا <span>✓</span></button></div>
+            {notice && step === 'book' && <div className="cover-save-note" role="status">{notice}</div>}
           </div>
         </section>
       </main>
