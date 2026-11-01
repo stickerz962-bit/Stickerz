@@ -42,7 +42,7 @@ function readDraft(): Draft {
   } catch { return { coverId: 'calm', name: '' }; }
 }
 
-export default function Builder() {export default function Builder() {
+export default function Builder() {
   const [selected, setSelected] = useState<string[]>([]);
   const [catalogItems, setCatalogItems] = useState(catalog);
   const [coverItems, setCoverItems] = useState(covers);
@@ -56,6 +56,37 @@ export default function Builder() {export default function Builder() {
   const [notice, setNotice] = useState('');
   const [step, setStep] = useState<'artworks' | 'cover' | 'book'>('artworks');
   const [draft, setDraft] = useState<Draft>({ coverId: 'calm', name: '' });
+
+  useEffect(() => {
+    const demoData: CatalogData = {
+      categories: categories.map((title, index) => ({ id: String(index + 1), title, slug: String(index + 1), sortOrder: index, active: true })),
+      artworks: catalog.map((item, index) => ({ id: item.id, title: item.title, categoryId: String(Math.floor(index / 10) + 1), previewAssetRef: '', sortOrder: index, version: 1, active: true })),
+      covers: covers.map((item, index) => ({ id: item.id, title: item.title, subtitle: item.subtitle, previewAssetRef: '', sortOrder: index, version: 1, active: true })),
+    };
+    let cancelled = false;
+    loadCatalog(demoData).then(result => {
+      if (cancelled) return;
+      setCatalogSource(result.source);
+      setCatalogWarning(result.warning || '');
+      if (result.source === 'firestore') {
+        const categoryTitles = new Map(result.data.categories.map(item => [item.id, item.title]));
+        const tones = ['peach', 'lilac', 'mint', 'yellow', 'pink', 'blue'];
+        const marks = ['✿','☕','♡','☼','☁','✧','❀','⌂','♫','☆'];
+        setCategoryItems(result.data.categories.map(item => item.title));
+        setCatalogItems(result.data.artworks.map((item, index) => ({
+          id: item.id, title: item.title, category: categoryTitles.get(item.categoryId) || 'تصنيفات أخرى',
+          mark: marks[index % marks.length], tone: tones[index % tones.length],
+        })));
+        setCoverItems(result.data.covers.map((item, index) => ({
+          id: item.id, title: item.title, subtitle: item.subtitle || '',
+          tone: ['cover-calm','cover-fun','cover-flowers','cover-bold','cover-space'][index % 5],
+          mark: ['☾','✿','❀','✦','☾'][index % 5],
+        })));
+        setSelected(current => current.filter(id => result.data.artworks.some(item => item.id === id)).slice(0, 30));
+      }
+    }).catch(() => setCatalogWarning('تعذر تحميل مكتبة الرسومات حاليًا.'));
+    return () => { cancelled = true; };
+  }, []);
 
   useEffect(() => {
     try {
