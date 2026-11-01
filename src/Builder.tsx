@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
+import { OfferTimer } from './OfferTimer';
 
 const categories = [
   'فوضى المسؤوليات', 'تقلبات المزاج', 'الناس والعلاقات', 'قهوة وأكل', 'حب وعلاقات',
@@ -90,7 +91,7 @@ export default function Builder() {
   return <div className="builder-shell" dir="rtl">
     <header className="builder-header">
       <a className="builder-brand" href="#home"><span>✳</span><b>ANTI PRESSURE</b><small>فُكّي الضغط</small></a>
-      <a className="builder-back" href="#home">← الرجوع للرئيسية</a>
+      <div className="builder-header-side"><OfferTimer compact /><a className="builder-back" href="#home">← الرجوع للرئيسية</a></div>
     </header>
 
     {step === 'artworks' ? <>
@@ -99,7 +100,7 @@ export default function Builder() {
           <span className="eyebrow">الخطوة الأولى · اختياراتك على مزاجك</span>
           <h1>اختاري 30 رسمة بتحبيها</h1>
           <p>خدي وقتك، قلّبي في التصنيفات، واختاري الرسومات اللي حابة تكون في كتابك. ترتيب الصفحات هيتحدد تلقائيًا.</p>
-          <div className="demo-alert"><span>✦</span><div><b>معاينة تجريبية للمكتبة</b><small>الأشكال الحالية نماذج مؤقتة لا تمثل الرسومات النهائية. هنستبدلها بالرسومات الأصلية بعد اعتمادها.</small></div></div>
+          <div className="demo-alert"><span>✦</span><div><b>معاينة تجريبية للمكتبة</b><small>الأشكال الحالية نماذج مؤقتة. الرسومات الأصلية هتُرفع وتُنشر من لوحة الإدارة بعد تجهيز نظام التخزين الآمن.</small></div></div>
         </div>
         <section className="selection-toolbar" aria-label="أدوات البحث والتصفية">
           <label className="art-search"><span>⌕</span><input value={search} onChange={e => setSearch(e.target.value)} placeholder="دوري على رسمة أو تصنيف..." aria-label="ابحثي عن رسمة" /></label>
@@ -188,7 +189,7 @@ export default function Builder() {
           <div className="book-artwork-review">
             <div className="book-review-heading"><div><b>رسومات كتابك</b><small>30 رسمة مختارة · ترتيب تلقائي</small></div><button type="button" className="clear-selection" onClick={() => setStep('artworks')}>تعديل الرسومات</button></div>
             <div className="book-review-grid">{selected.map((id, index) => { const item = catalog.find(entry => entry.id === id); if (!item) return null; return <div className="book-review-item" key={id}><span className={'book-review-art ' + item.tone}>{item.mark}</span><span><b>{item.title}</b><small>صفحة {index + 1}</small></span></div>; })}</div>
-            <div className="book-preview-note">دي مراجعة لاختياراتك وشكل الغلاف فقط. ملفات الطباعة النهائية، بيانات الشحن، وحساب تكلفة التوصيل لسه مش مفعّلين.</div>
+            <div className="book-preview-note">دي مراجعة لاختياراتك وشكل الغلاف فقط. السعر الحالي ظاهر في عرض الساعة أعلى الصفحة. ملفات الطباعة النهائية وبيانات الشحن وتأكيد الطلب لم تُفعّل بعد.</div>
             <div className="book-preview-actions"><button type="button" className="clear-selection" onClick={() => setStep('cover')}>رجوع</button><button type="button" className="continue-selection" onClick={() => setNotice('معاينة كتابك محفوظة على هذا الجهاز. مرحلة بيانات الشحن والطلب لم تُفعّل بعد.')}>اعتماد المعاينة مبدئيًا <span>✓</span></button></div>
             {notice && step === 'book' && <div className="cover-save-note" role="status">{notice}</div>}
           </div>
