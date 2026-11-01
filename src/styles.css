@@ -69,3 +69,42 @@
 .book-preview-actions{display:flex;gap:10px;margin-top:15px}.book-preview-actions>*{flex:1}
 @media(max-width:800px){.book-preview-layout{grid-template-columns:1fr}.book-preview-cover-column{position:static;order:-1}.book-final-cover{width:min(65%,260px)}.book-review-grid{grid-template-columns:repeat(2,minmax(0,1fr))}}
 @media(max-width:480px){.book-preview-cover-column,.book-artwork-review{padding:13px}.book-review-heading{align-items:flex-start}.book-review-heading b{font-size:12px}.book-review-heading .clear-selection{font-size:8px;padding:8px}.book-review-grid{gap:6px}.book-review-item{padding:6px;gap:6px}.book-review-art{width:36px;height:40px;flex-basis:36px;font-size:20px}.book-preview-actions{flex-direction:column}}
+
+
+/* ANTI PRESSURE v2: warm character moments and introductory offer */
+.top-note{display:flex;justify-content:center;align-items:center;gap:10px;flex-wrap:wrap}
+.top-note span{font-weight:800;color:#a94f70}
+.mascot-note{display:flex;align-items:center;gap:12px;width:fit-content;max-width:100%;margin:22px 0 0;padding:12px 17px;background:#fff8ef;border:1px solid #f1dfc9;border-radius:18px 18px 18px 5px;box-shadow:0 8px 22px #76523b0b}
+.mascot-doodle{width:48px;height:48px;display:grid;place-items:center;border-radius:50%;background:#fbe4eb;font-size:29px;flex:0 0 48px}
+.mascot-note>span:last-child{display:grid;gap:3px}
+.mascot-note b{font-size:12px;color:#9d5270}
+.mascot-note small{font-size:10px;color:#716775;line-height:1.7}
+.launch-offer{display:grid;justify-items:center;gap:5px;padding:17px 20px;margin:12px 0;background:linear-gradient(135deg,#fff1f4,#fff8e8 55%,#f5effb);border:1px solid #f0d7df;border-radius:18px;text-align:center;color:#59465a}
+.launch-offer .offer-kicker{font-size:11px;font-weight:900;color:#a64d70}
+.launch-offer strong{font-size:31px;font-weight:1000;color:#a8476a;line-height:1.2}
+.launch-offer strong del{font-size:17px;color:#a69aa0;font-weight:700;margin-left:6px}
+.launch-offer .offer-count-label{font-size:10px;color:#817582}
+.offer-countdown{font:900 25px 'Nunito',sans-serif;letter-spacing:2px;color:#55436b;background:#fff;border:1px solid #eadce9;border-radius:10px;padding:5px 13px;min-width:124px}
+.launch-offer>small{font-size:9px;color:#8d818b;line-height:1.7}
+.launch-offer-compact{display:flex;align-items:center;justify-content:center;gap:5px 9px;flex-wrap:wrap;padding:7px 11px;margin:0;border-radius:12px}
+.launch-offer-compact .offer-kicker{font-size:9px}
+.launch-offer-compact strong{font-size:15px}
+.launch-offer-compact strong del{font-size:10px}
+.launch-offer-compact .offer-count-label{font-size:8px}
+.launch-offer-compact .offer-countdown{font-size:13px;min-width:72px;padding:3px 7px;letter-spacing:1px}
+.launch-offer-compact>small{display:none}
+.builder-header-side{display:flex;align-items:center;gap:12px}
+.price-card .launch-offer{margin:16px 0}
+.builder-art-visual,.cover-live-art{-webkit-user-select:none;user-select:none;-webkit-touch-callout:none}
+@media(max-width:620px){
+ .top-note{font-size:9px;padding:7px 10px}
+ .mascot-note{margin-top:16px;padding:10px 12px}
+ .mascot-note b{font-size:10px}
+ .mascot-note small{font-size:9px}
+ .builder-header-side{gap:6px;flex-direction:column;align-items:flex-end}
+ .launch-offer-compact{gap:3px 6px;padding:5px 7px}
+ .launch-offer-compact .offer-kicker{display:none}
+ .launch-offer-compact strong{font-size:12px}
+ .launch-offer-compact .offer-count-label{display:none}
+ .launch-offer-compact .offer-countdown{font-size:11px;min-width:65px}
+}
