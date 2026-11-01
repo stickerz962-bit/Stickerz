@@ -83,6 +83,7 @@ export default function Builder() {
           mark: ['☾','✿','❀','✦','☾'][index % 5],
         })));
         setSelected(current => current.filter(id => result.data.artworks.some(item => item.id === id)).slice(0, 30));
+        setDraft(current => result.data.covers.some(item => item.id === current.coverId) ? current : { ...current, coverId: result.data.covers[0]?.id || '' });
       }
     }).catch(() => setCatalogWarning('تعذر تحميل مكتبة الرسومات حاليًا.'));
     return () => { cancelled = true; };
