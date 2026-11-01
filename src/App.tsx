@@ -119,14 +119,14 @@ export default function App() {
         <div className="section-heading heading-row"><div><span className="eyebrow">كل رسمة ليها مود</span><h2>اختاري اللي شبهك</h2><p>مكتبة متنوعة فيها تفاصيل من يومنا وضحكنا وحاجات بنفكر فيها.</p></div><span className="side-note">10 تصنيفات · 100 رسمة عند اكتمال المكتبة</span></div>
         {catalogNotice && <p className="gallery-disclaimer" role="status">{catalogNotice}</p>}
         <div className="category-chips">{catalogData.categories.map((category, index) => <span key={category.id}>{category.title}<i>{String(index + 1).padStart(2, '0')}</i></span>)}</div>
-        <div className="artwork-grid">{catalogData.artworks.slice(0, 6).map((art, index) => <article className="artwork-card" key={art.id}><div className={'artwork-preview ' + art.tone}><span className="artwork-sun">✧</span><span className="artwork-symbol">{['☕','☼','✿','☁','♡','✧'][index % 6]}</span><span className="artwork-line">﹏﹏﹏</span><small>فُكّي الضغط</small></div><div className="artwork-caption"><b>{art.title}</b><span>{catalogMode === 'demo' ? 'نموذج توضيحي' : art.id}</span></div></article>)}</div>
+        <div className="artwork-grid">{catalogData.artworks.slice(0, 6).map((art, index) => <article className="artwork-card" key={art.id}><div className={'artwork-preview ' + ['peach','lilac','mint','yellow','pink','blue'][index % 6]}><span className="artwork-sun">✧</span><span className="artwork-symbol">{['☕','☼','✿','☁','♡','✧'][index % 6]}</span><span className="artwork-line">﹏﹏﹏</span><small>فُكّي الضغط</small></div><div className="artwork-caption"><b>{art.title}</b><span>{catalogMode === 'demo' ? 'نموذج توضيحي' : art.id}</span></div></article>)}</div>
         <p className="gallery-disclaimer">دي معاينات توضيحية لروح المكتبة؛ الرسومات النهائية هتتعرض بعد تجهيزها واعتمادها.</p>
       </section>
 
       <section className="covers-section" id="covers">
         <div className="section-wrap">
           <div className="section-heading"><span className="eyebrow">الغلاف اللي على مزاجك</span><h2>اختاري حكاية الغلاف</h2><p>اختاري التصميم الأقرب ليكي، واسمك هيكون جزء منه.</p></div>
-          <div className="covers-grid">{catalogData.covers.map((cover, index) => <article className="cover-option" key={cover.id}><div className={'cover-art ' + cover.tone}><span className="cover-decoration">{['☾','✿','❀','✦','☾'][index % 5]}</span><b>{cover.title}</b><small>{cover.subtitle}</small><span className="cover-person">☺</span></div><strong>{cover.title}</strong></article>)}</div>
+          <div className="covers-grid">{catalogData.covers.map((cover, index) => <article className="cover-option" key={cover.id}><div className={'cover-art ' + ['cover-calm','cover-fun','cover-flowers','cover-bold','cover-space'][index % 5]}><span className="cover-decoration">{['☾','✿','❀','✦','☾'][index % 5]}</span><b>{cover.title}</b><small>{cover.subtitle}</small><span className="cover-person">☺</span></div><strong>{cover.title}</strong></article>)}</div>
         </div>
       </section>
 
