@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import Builder from './Builder';
+import { OfferTimer } from './OfferTimer';
 
 const steps = [
   { number: '01', icon: '✎', title: 'اختاري 30 رسمة', text: 'من مكتبتنا اختاري الرسومات اللي شبه يومك ومزاجك.' },
@@ -51,7 +52,7 @@ export default function App() {
   }, []);
   if (builderOpen) return <Builder />;
   return <div className="anti-shell" dir="rtl">
-    <div className="top-note">مساحتك الصغيرة للضحك والتلوين ♡</div>
+    <div className="top-note">مساحتك الصغيرة للضحك والتلوين ♡ <span>وعلى فكرة... العرض ليكي لأول ساعة من زيارتك!</span></div>
     <header className="site-header">
       <Brand />
       <nav className="main-nav" aria-label="القائمة الرئيسية">
@@ -67,7 +68,7 @@ export default function App() {
           <span className="eyebrow"><i /> مساحة صغيرة على مزاجك</span>
           <h1>فُكّي الضغط!</h1>
           <p className="hero-tagline">كتابك... <em>على مزاجك!</em></p>
-          <p className="hero-description">اختاري 30 رسمة من مكتبتنا، اكتبي اسمك على الغلاف، واعملي كتاب تلوين شخصي مطبوع ومجلّد يوصل لحد باب بيتك.</p>
+          <p className="hero-description">اختاري 30 رسمة من مكتبتنا، اكتبي اسمك على الغلاف، واعملي كتاب تلوين شخصي مطبوع ومجلّد يوصل لحد باب بيتك.</p><div className="mascot-note"><span className="mascot-doodle" aria-hidden="true">🙋🏻‍♀️</span><span><b>أنا صاحبتك في فكّ الضغط!</b><small>كنت هرتاح شوية... بس افتكرت إن عندي حاجات تانية 😂</small></span></div>
           <div className="hero-actions"><a className="primary-button" href="#design">صممي كتابك الآن <span>←</span></a><a className="quiet-link" href="#gallery">اتفرجي على الرسومات <span>↓</span></a></div>
           <div className="hero-facts"><span>♡ 30 رسمة من اختيارك</span><span>✿ غلاف باسمك</span><span>✦ توصيل لحد البيت</span></div>
         </div>
@@ -107,7 +108,7 @@ export default function App() {
 
       <section className="price-section section-wrap" id="about">
         <div className="price-copy"><span className="eyebrow">تفصيلة صغيرة تفرق</span><h2>مساحتك... وكتابك... ومزاجك</h2><p>كتاب تلوين متفصّل على اختياراتك، بغلاف مخصص و30 رسمة مختلفة، علشان تاخدي وقت لنفسك وتلوّني على رواق.</p><a className="primary-button" href="#design">ابدئي تصميم كتابك <span>←</span></a></div>
-        <div className="price-card"><span className="price-label">سعر الكتاب</span><div className="price-number">230 <small>جنيه</small></div><span className="price-includes">30 رسمة + غلاف باسمك + تجليد سلك</span><div className="price-divider"></div><p>الشحن بيتحسب حسب منطقتك وبيظهر قبل تأكيد الطلب.</p><small className="price-footnote">طرق الدفع: عند الاستلام أو InstaPay بعد مراجعة التحويل.</small></div>
+        <div className="price-card"><span className="price-label">سعر الكتاب</span><OfferTimer /><span className="price-includes">30 رسمة + غلاف باسمك + تجليد سلك</span><div className="price-divider"></div><p>الشحن بيتحسب حسب منطقتك وبيظهر قبل تأكيد الطلب.</p><small className="price-footnote">طرق الدفع: عند الاستلام أو InstaPay بعد مراجعة التحويل.</small></div>
       </section>
 
       <section className="faq-section section-wrap" id="faq">
