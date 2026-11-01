@@ -1,4 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
+import { loadCatalog } from './catalog/repository';
+import type { CatalogData } from './catalog/types';
 
 const categories = [
   'فوضى المسؤوليات', 'تقلبات المزاج', 'الناس والعلاقات', 'قهوة وأكل', 'حب وعلاقات',
@@ -42,6 +44,11 @@ function readDraft(): Draft {
 
 export default function Builder() {
   const [selected, setSelected] = useState<string[]>([]);
+  const [catalogItems, setCatalogItems] = useState(catalog);
+  const [coverItems, setCoverItems] = useState(covers);
+  const [categoryItems, setCategoryItems] = useState(categories);
+  const [catalogSource, setCatalogSource] = useState<'demo' | 'firestore'>('demo');
+  const [catalogWarning, setCatalogWarning] = useState('');
   const [activeCategory, setActiveCategory] = useState('الكل');
   const [search, setSearch] = useState('');
   const [preview, setPreview] = useState<(typeof catalog)[number] | null>(null);
@@ -51,9 +58,41 @@ export default function Builder() {
   const [draft, setDraft] = useState<Draft>({ coverId: 'calm', name: '' });
 
   useEffect(() => {
+    const demoData: CatalogData = {
+      categories: categories.map((title, index) => ({ id: String(index + 1), title, slug: String(index + 1), sortOrder: index, active: true })),
+      artworks: catalog.map((item, index) => ({ id: item.id, title: item.title, categoryId: String(Math.floor(index / 10) + 1), previewAssetRef: '', sortOrder: index, version: 1, active: true })),
+      covers: covers.map((item, index) => ({ id: item.id, title: item.title, subtitle: item.subtitle, previewAssetRef: '', sortOrder: index, version: 1, active: true })),
+    };
+    let cancelled = false;
+    loadCatalog(demoData).then(result => {
+      if (cancelled) return;
+      setCatalogSource(result.source);
+      setCatalogWarning(result.warning || '');
+      if (result.source === 'firestore') {
+        const categoryTitles = new Map(result.data.categories.map(item => [item.id, item.title]));
+        const tones = ['peach', 'lilac', 'mint', 'yellow', 'pink', 'blue'];
+        const marks = ['✿','☕','♡','☼','☁','✧','❀','⌂','♫','☆'];
+        setCategoryItems(result.data.categories.map(item => item.title));
+        setCatalogItems(result.data.artworks.map((item, index) => ({
+          id: item.id, title: item.title, category: categoryTitles.get(item.categoryId) || 'تصنيفات أخرى',
+          mark: marks[index % marks.length], tone: tones[index % tones.length],
+        })));
+        setCoverItems(result.data.covers.map((item, index) => ({
+          id: item.id, title: item.title, subtitle: item.subtitle || '',
+          tone: ['cover-calm','cover-fun','cover-flowers','cover-bold','cover-space'][index % 5],
+          mark: ['☾','✿','❀','✦','☾'][index % 5],
+        })));
+        setSelected(current => current.filter(id => result.data.artworks.some(item => item.id === id)).slice(0, 30));
+        setDraft(current => result.data.covers.some(item => item.id === current.coverId) ? current : { ...current, coverId: result.data.covers[0]?.id || '' });
+      }
+    }).catch(() => setCatalogWarning('تعذر تحميل مكتبة الرسومات حاليًا.'));
+    return () => { cancelled = true; };
+  }, []);
+
+  useEffect(() => {
     try {
       const saved = JSON.parse(localStorage.getItem(STORAGE_KEY) || '[]');
-      if (Array.isArray(saved)) setSelected([...new Set(saved.filter((id: unknown) => typeof id === 'string' && catalog.some(item => item.id === id)) as string[])].slice(0, 30));
+      if (Array.isArray(saved)) setSelected([...new Set(saved.filter((id: unknown) => typeof id === 'string' && catalogItems.some(item => item.id === id)) as string[])].slice(0, 30));
     } catch { setSelected([]); }
     setDraft(readDraft());
     setLoaded(true);
@@ -68,13 +107,13 @@ export default function Builder() {
     }
   }, [selected, draft, loaded]);
 
-  const visible = useMemo(() => catalog.filter(item =>
+  const visible = useMemo(() => catalogItems.filter(item =>
     (activeCategory === 'الكل' || item.category === activeCategory) &&
     (item.title.includes(search.trim()) || item.category.includes(search.trim()) || item.id.toLowerCase().includes(search.trim().toLowerCase()))
-  ), [activeCategory, search]);
+  ), [catalogItems, activeCategory, search]);
   const selectedSet = useMemo(() => new Set(selected), [selected]);
   const remaining = 30 - selected.length;
-  const activeCover = covers.find(c => c.id === draft.coverId) || covers[0];
+  const activeCover = coverItems.find(c => c.id === draft.coverId) || coverItems[0];
   const fittedNameSize = Math.max(13, Math.min(25, 25 - Math.max(0, draft.name.trim().length - 8) * 0.55));
 
   function toggle(id: string) {
@@ -103,8 +142,9 @@ export default function Builder() {
         </div>
         <section className="selection-toolbar" aria-label="أدوات البحث والتصفية">
           <label className="art-search"><span>⌕</span><input value={search} onChange={e => setSearch(e.target.value)} placeholder="دوري على رسمة أو تصنيف..." aria-label="ابحثي عن رسمة" /></label>
-          <div className="filter-chips"><button className={activeCategory === 'الكل' ? 'chosen' : ''} onClick={() => setActiveCategory('الكل')}>كل الرسومات <small>100</small></button>{categories.map((category, i) => <button key={category} className={activeCategory === category ? 'chosen' : ''} onClick={() => setActiveCategory(category)}>{category}<small>{String(i + 1).padStart(2, '0')}</small></button>)}</div>
+          <div className="filter-chips"><button className={activeCategory === 'الكل' ? 'chosen' : ''} onClick={() => setActiveCategory('الكل')}>كل الرسومات <small>{catalogItems.length}</small></button>{categoryItems.map((category, i) => <button key={category} className={activeCategory === category ? 'chosen' : ''} onClick={() => setActiveCategory(category)}>{category}<small>{String(i + 1).padStart(2, '0')}</small></button>)}</div>
         </section>
+        {catalogWarning && <div className="demo-alert" role="status"><span>✦</span><div><b>{catalogSource === 'demo' ? 'المكتبة التجريبية' : 'تنبيه تحميل المكتبة'}</b><small>{catalogWarning}</small></div></div>}
         <div className="builder-results"><span>{visible.length} رسمة في العرض</span><span>اختاري 30 رسمة مختلفة فقط</span></div>
         <section className="builder-grid" aria-label="مكتبة الرسومات">
           {visible.map(item => {
@@ -138,7 +178,7 @@ export default function Builder() {
           <div className="cover-controls">
             <h2>اختاري الغلاف اللي شبهك</h2>
             <div className="cover-picker-grid">
-              {covers.map(cover => <button type="button" key={cover.id} className={'cover-picker ' + (draft.coverId === cover.id ? 'active' : '')} onClick={() => setDraft(current => ({ ...current, coverId: cover.id }))} aria-pressed={draft.coverId === cover.id}>
+              {coverItems.map(cover => <button type="button" key={cover.id} className={'cover-picker ' + (draft.coverId === cover.id ? 'active' : '')} onClick={() => setDraft(current => ({ ...current, coverId: cover.id }))} aria-pressed={draft.coverId === cover.id}>
                 <span className={'cover-picker-art ' + cover.tone}><i>{cover.mark}</i><b>{cover.title}</b><small>{cover.subtitle}</small></span>
                 <span className="cover-picker-label">{cover.title}{draft.coverId === cover.id ? ' ✓' : ''}</span>
               </button>)}
@@ -187,7 +227,7 @@ export default function Builder() {
           </div>
           <div className="book-artwork-review">
             <div className="book-review-heading"><div><b>رسومات كتابك</b><small>30 رسمة مختارة · ترتيب تلقائي</small></div><button type="button" className="clear-selection" onClick={() => setStep('artworks')}>تعديل الرسومات</button></div>
-            <div className="book-review-grid">{selected.map((id, index) => { const item = catalog.find(entry => entry.id === id); if (!item) return null; return <div className="book-review-item" key={id}><span className={'book-review-art ' + item.tone}>{item.mark}</span><span><b>{item.title}</b><small>صفحة {index + 1}</small></span></div>; })}</div>
+            <div className="book-review-grid">{selected.map((id, index) => { const item = catalogItems.find(entry => entry.id === id); if (!item) return null; return <div className="book-review-item" key={id}><span className={'book-review-art ' + item.tone}>{item.mark}</span><span><b>{item.title}</b><small>صفحة {index + 1}</small></span></div>; })}</div>
             <div className="book-preview-note">دي مراجعة لاختياراتك وشكل الغلاف فقط. ملفات الطباعة النهائية، بيانات الشحن، وحساب تكلفة التوصيل لسه مش مفعّلين.</div>
             <div className="book-preview-actions"><button type="button" className="clear-selection" onClick={() => setStep('cover')}>رجوع</button><button type="button" className="continue-selection" onClick={() => setNotice('معاينة كتابك محفوظة على هذا الجهاز. مرحلة بيانات الشحن والطلب لم تُفعّل بعد.')}>اعتماد المعاينة مبدئيًا <span>✓</span></button></div>
             {notice && step === 'book' && <div className="cover-save-note" role="status">{notice}</div>}
