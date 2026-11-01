@@ -1,5 +1,7 @@
 import { useEffect, useState } from 'react';
 import Builder from './Builder';
+import { loadCatalog } from './catalog/repository';
+import type { CatalogData } from './catalog/types';
 
 const steps = [
   { number: '01', icon: '✎', title: 'اختاري 30 رسمة', text: 'من مكتبتنا اختاري الرسومات اللي شبه يومك ومزاجك.' },
@@ -43,6 +45,28 @@ function Brand({ footer = false }: { footer?: boolean }) {
 
 export default function App() {
   const [openFaq, setOpenFaq] = useState<number | null>(0);
+  const [catalogData, setCatalogData] = useState<CatalogData>({
+    categories: categories.map((title, index) => ({ id: String(index + 1), title, slug: String(index + 1), sortOrder: index, active: true })),
+    artworks: artworks.map((item, index) => ({ id: 'AP-' + String(index + 1).padStart(3, '0'), title: item.title, categoryId: String(index + 1), previewAssetRef: '', sortOrder: index, version: 1, active: true })),
+    covers: covers.map((item, index) => ({ id: 'cover-' + String(index + 1), title: item.title, subtitle: item.subtitle, previewAssetRef: '', sortOrder: index, version: 1, active: true })),
+  });
+  const [catalogMode, setCatalogMode] = useState<'demo' | 'firestore'>('demo');
+  const [catalogNotice, setCatalogNotice] = useState('');
+  useEffect(() => {
+    let cancelled = false;
+    const demoData: CatalogData = {
+      categories: categories.map((title, index) => ({ id: String(index + 1), title, slug: String(index + 1), sortOrder: index, active: true })),
+      artworks: artworks.map((item, index) => ({ id: 'AP-' + String(index + 1).padStart(3, '0'), title: item.title, categoryId: String(index + 1), previewAssetRef: '', sortOrder: index, version: 1, active: true })),
+      covers: covers.map((item, index) => ({ id: 'cover-' + String(index + 1), title: item.title, subtitle: item.subtitle, previewAssetRef: '', sortOrder: index, version: 1, active: true })),
+    };
+    loadCatalog(demoData).then(result => {
+      if (cancelled) return;
+      setCatalogData(result.data);
+      setCatalogMode(result.source);
+      setCatalogNotice(result.warning || '');
+    }).catch(() => setCatalogNotice('تعذر تحميل المكتبة حاليًا.'));
+    return () => { cancelled = true; };
+  }, []);
   const [builderOpen, setBuilderOpen] = useState(window.location.hash === '#design');
   useEffect(() => {
     const syncRoute = () => setBuilderOpen(window.location.hash === '#design');
@@ -93,15 +117,16 @@ export default function App() {
 
       <section className="gallery-section section-wrap" id="gallery">
         <div className="section-heading heading-row"><div><span className="eyebrow">كل رسمة ليها مود</span><h2>اختاري اللي شبهك</h2><p>مكتبة متنوعة فيها تفاصيل من يومنا وضحكنا وحاجات بنفكر فيها.</p></div><span className="side-note">10 تصنيفات · 100 رسمة عند اكتمال المكتبة</span></div>
-        <div className="category-chips">{categories.map((category, index) => <span key={category}>{category}<i>{String(index + 1).padStart(2, '0')}</i></span>)}</div>
-        <div className="artwork-grid">{artworks.map(art => <article className="artwork-card" key={art.title}><div className={'artwork-preview ' + art.tone}><span className="artwork-sun">✧</span><span className="artwork-symbol">{art.mark}</span><span className="artwork-line">﹏﹏﹏</span><small>فُكّي الضغط</small></div><div className="artwork-caption"><b>{art.title}</b><span>نموذج توضيحي</span></div></article>)}</div>
+        {catalogNotice && <p className="gallery-disclaimer" role="status">{catalogNotice}</p>}
+        <div className="category-chips">{catalogData.categories.map((category, index) => <span key={category.id}>{category.title}<i>{String(index + 1).padStart(2, '0')}</i></span>)}</div>
+        <div className="artwork-grid">{catalogData.artworks.slice(0, 6).map((art, index) => <article className="artwork-card" key={art.id}><div className={'artwork-preview ' + art.tone}><span className="artwork-sun">✧</span><span className="artwork-symbol">{['☕','☼','✿','☁','♡','✧'][index % 6]}</span><span className="artwork-line">﹏﹏﹏</span><small>فُكّي الضغط</small></div><div className="artwork-caption"><b>{art.title}</b><span>{catalogMode === 'demo' ? 'نموذج توضيحي' : art.id}</span></div></article>)}</div>
         <p className="gallery-disclaimer">دي معاينات توضيحية لروح المكتبة؛ الرسومات النهائية هتتعرض بعد تجهيزها واعتمادها.</p>
       </section>
 
       <section className="covers-section" id="covers">
         <div className="section-wrap">
           <div className="section-heading"><span className="eyebrow">الغلاف اللي على مزاجك</span><h2>اختاري حكاية الغلاف</h2><p>اختاري التصميم الأقرب ليكي، واسمك هيكون جزء منه.</p></div>
-          <div className="covers-grid">{covers.map(cover => <article className="cover-option" key={cover.title}><div className={'cover-art ' + cover.tone}><span className="cover-decoration">{cover.mark}</span><b>{cover.title}</b><small>{cover.subtitle}</small><span className="cover-person">☺</span></div><strong>{cover.title}</strong></article>)}</div>
+          <div className="covers-grid">{catalogData.covers.map((cover, index) => <article className="cover-option" key={cover.id}><div className={'cover-art ' + cover.tone}><span className="cover-decoration">{['☾','✿','❀','✦','☾'][index % 5]}</span><b>{cover.title}</b><small>{cover.subtitle}</small><span className="cover-person">☺</span></div><strong>{cover.title}</strong></article>)}</div>
         </div>
       </section>
 
