@@ -4,17 +4,20 @@ Arabic-first, RTL storefront prototype for a personalized women's coloring book.
 
 ## Current project state
 
-- The current `main` branch contains the customer-facing visual prototype and a local-only catalog admin preview.
-- The admin page is not authenticated and stores edits in the current browser only. It is not a production control panel.
+- The current `main` branch contains the customer-facing storefront prototype and an authenticated Firestore catalog administration interface.
+- The admin page at `/admin.html` signs in through Firebase Authentication and requires the trusted custom claim `admin: true`. It does not allow self-registration or self-granted roles.
+- The admin interface manages categories, artwork metadata, and cover metadata in Firestore. New artworks/covers start unpublished; publishing requires a preview reference and the artwork phrase.
+- File upload is intentionally not implemented: Firebase Storage is not enabled, and original print assets must never be entered as public preview references.
 - The customer artwork and cover visuals are placeholders. Do not treat them as final printable assets.
-- Firebase client initialization and a read-only Firestore catalog repository exist in the source, but live production operations are not enabled.
+- Firebase web configuration is supplied through `VITE_FIREBASE_*` environment variables. The public storefront reads only active catalog documents; the admin writes catalog metadata under Firestore rules.
 
 ## Security and backend status
 
-- `firestore.rules` in the security-foundation branch is a proposed deny-by-default baseline. Automated Firebase Emulator Suite tests are included in the PR; deployment remains pending review and explicit approval.
+- `firestore.rules` is a deny-by-default baseline in `main`. Firebase rules deployment remains a separate operation requiring review and explicit approval.
 - Public reads are limited to published catalog documents and safe public settings. Catalog writes require a trusted Firebase Authentication custom claim (`admin: true`).
 - Orders, payments, and order-event writes are denied from browser clients, including admin clients, until a trusted server-side workflow exists.
 - See [the admin access guide](docs/security/admin-access.md) and [the Firestore data model](docs/architecture/firestore-schema.md).
+- Administrator provisioning is still a one-time trusted setup task; see [the admin access guide](docs/security/admin-access.md).
 - Do not enter real customer data or accept orders through this prototype.
 
 ## Locked product behavior

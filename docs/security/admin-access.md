@@ -4,7 +4,8 @@ Status: implementation guide only. This repository change does not publish Fires
 
 ## Current boundary
 
-- The existing `admin.html` remains a localStorage-only development preview. It is not protected by sign-in and must not be used for real customer, payment, or production data.
+- The `admin.html` entry now provides an authenticated catalog-management interface. It signs in with Firebase Authentication Email/Password and verifies the ID token's `admin: true` custom claim before reading or writing catalog data.
+- The interface manages categories, artwork metadata, and cover metadata only. It does not upload files, manage orders, approve payments, or generate production PDFs.
 - Firebase client configuration may be present in the public web build. Those values identify the Firebase project; they are not an authorization mechanism.
 - Firestore catalog access is designed around a trusted Firebase Authentication custom claim: `admin: true`.
 - A user must never be able to grant themselves this claim from the browser or by editing a Firestore profile document.
@@ -24,7 +25,7 @@ initializeApp({ credential: applicationDefault() });
 await getAuth().setCustomUserClaims('<AUTH_USER_UID>', { admin: true });
 ```
 
-This snippet is explanatory only and is not run by the website. Before using it:
+This snippet is explanatory only and is not run by the website. The admin interface will deny access until this trusted provisioning step is completed. Before using it:
 1. Create the intended admin account through Firebase Authentication.
 2. Obtain that account's UID from the Firebase Console.
 3. Run the operation locally on a trusted machine with Application Default Credentials configured securely, or use another trusted Admin SDK environment.
@@ -34,7 +35,7 @@ This snippet is explanatory only and is not run by the website. Before using it:
 
 Do not create a client-side "first admin" button, public email allowlist, or self-service role editor.
 
-## Firestore rules in this branch
+## Firestore rules in main
 
 The accompanying `firestore.rules` file is a proposed security baseline:
 

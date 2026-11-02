@@ -1,4 +1,5 @@
 import { getApp, getApps, initializeApp } from 'firebase/app';
+import { getAuth } from 'firebase/auth';
 import { getFirestore } from 'firebase/firestore';
 
 type FirebaseWebConfig = {
@@ -23,9 +24,9 @@ function readFirebaseConfig(): FirebaseWebConfig | null {
 }
 
 const config = readFirebaseConfig();
+const app = config ? (getApps().length ? getApp() : initializeApp(config)) : null;
 
-/** Firebase is optional until public web-app settings are supplied through environment variables. */
+/** Public Firebase web configuration only; authorization is enforced by Auth claims and Firestore rules. */
 export const firebaseConfigured = config !== null;
-export const firestore = config
-  ? getFirestore(getApps().length ? getApp() : initializeApp(config))
-  : null;
+export const auth = app ? getAuth(app) : null;
+export const firestore = app ? getFirestore(app) : null;
