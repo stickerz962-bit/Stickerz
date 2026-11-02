@@ -44,7 +44,7 @@ The accompanying `firestore.rules` file is a proposed security baseline:
 - All unlisted paths are denied.
 - Catalog documents should contain only fields safe for public display when active. Never place original file URLs, private notes, customer data, or secret values in public catalog documents.
 
-These rules have not been tested in the Firebase Emulator Suite and must not be published yet. Before deployment, add automated allow/deny tests for anonymous users, authenticated non-admin users, admins, inactive documents, and artwork whose category is inactive or missing.
+Automated Firebase Emulator Suite tests are now included at `tests/firestore.rules.test.ts`. They cover anonymous and non-admin access, trusted admin catalog CRUD, inactive catalog documents/categories, protected order/payment/event paths, and default-deny behavior. Run them with `npm run test:emulator`. The suite must pass in CI and be reviewed before deployment; the rules are still not deployed and must not be published without explicit approval.
 
 ## Free-tier and file-hosting constraints
 
@@ -58,7 +58,7 @@ These rules have not been tested in the Firebase Emulator Suite and must not be 
 
 Do not connect the public storefront to a live catalog or accept real orders until:
 1. Admin claim provisioning is completed and verified.
-2. Rules are tested with the Firebase Emulator Suite.
+2. Firebase Emulator Suite rules tests pass in CI and are reviewed.
 3. A suitable preview asset-hosting approach is approved.
 4. A trusted server-side order and pricing workflow is designed, tested, and deployed.
 5. Privacy, retention, spam prevention, and manual InstaPay review are addressed.
