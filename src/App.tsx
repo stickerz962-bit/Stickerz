@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { getOfferEndAt, getOfferRemainingMs, formatOfferCountdown } from './lib/offer';
-import Builder from './Builder';\nimport HeroBookAnimation from './HeroBookAnimation';
+import Builder from './Builder';
+import HeroBookAnimation from './HeroBookAnimation';
 import { loadCatalog } from './catalog/repository';
 import type { CatalogData } from './catalog/types';
 
