@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { loadCatalog } from './catalog/repository';
 import type { CatalogData } from './catalog/types';
+import { getOfferEndAt, getOfferRemainingMs, formatOfferCountdown } from './lib/offer';
 
 const categories = [
   'فوضى المسؤوليات', 'تقلبات المزاج', 'الناس والعلاقات', 'قهوة وأكل', 'حب وعلاقات',
@@ -56,6 +57,16 @@ export default function Builder() {
   const [notice, setNotice] = useState('');
   const [step, setStep] = useState<'artworks' | 'cover' | 'book'>('artworks');
   const [draft, setDraft] = useState<Draft>({ coverId: 'calm', name: '' });
+  const [offerRemainingMs, setOfferRemainingMs] = useState<number | null>(null);
+
+  // Reuse the homepage's original deadline; entering or changing builder stages never restarts the offer.
+  useEffect(() => {
+    const endAt = getOfferEndAt(localStorage, 'anti-pressure-intro-offer-end-v1', Date.now());
+    const update = () => setOfferRemainingMs(getOfferRemainingMs(endAt, Date.now()));
+    update();
+    const timer = window.setInterval(update, 1000);
+    return () => window.clearInterval(timer);
+  }, []);
 
   useEffect(() => {
     const demoData: CatalogData = {
@@ -230,9 +241,18 @@ export default function Builder() {
         </section>
       </main>
     </>}
-    <aside className={'selection-dock journey-dock journey-' + step} aria-label="تقدم تصميم كتابك" aria-live="polite">
+    <aside className={'selection-dock journey-dock journey-' + step} aria-label="تقدم تصميم كتابك والعرض السعري" aria-live="polite">
       <div className="journey-count"><strong>{selected.length}<i>/30</i></strong><span>{remaining === 0 ? 'اختياراتك اكتملت' : 'رسمة مختارة'}</span></div>
-      <div className="journey-progress-area"><div className="journey-progress-copy"><b>{remaining === 0 ? 'يا سلام! خلصتي اختيار الرسومات' : 'كتابك بيتكوّن واحدة واحدة'}</b><span>{remaining === 0 ? '30 من 30 رسمة' : 'فاضلك ' + remaining + ' رسمة'}</span></div><div className="selection-progress" role="progressbar" aria-label="عدد الرسومات المختارة" aria-valuemin={0} aria-valuemax={30} aria-valuenow={selected.length}><span style={{width: (selected.length / 30 * 100) + '%'}} /></div><div className="journey-steps"><span className={step === 'artworks' ? 'current' : 'done'}>١ · الرسومات</span><span className={step === 'cover' ? 'current' : step === 'book' ? 'done' : ''}>٢ · الغلاف والاسم</span><span className={step === 'book' ? 'current' : ''}>٣ · المعاينة</span></div></div>
+      <div className="journey-progress-area">
+        <div className="journey-progress-copy"><b>{remaining === 0 ? 'يا سلام! خلصتي اختيار الرسومات' : 'كتابك بيتكوّن واحدة واحدة'}</b><span>{remaining === 0 ? '30 من 30 رسمة' : 'فاضلك ' + remaining + ' رسمة'}</span></div>
+        <div className="selection-progress" role="progressbar" aria-label="عدد الرسومات المختارة" aria-valuemin={0} aria-valuemax={30} aria-valuenow={selected.length}><span style={{width: (selected.length / 30 * 100) + '%'}} /></div>
+        <div className="journey-steps"><span className={step === 'artworks' ? 'current' : 'done'}>١ · الرسومات</span><span className={step === 'cover' ? 'current' : step === 'book' ? 'done' : ''}>٢ · الغلاف والاسم</span><span className={step === 'book' ? 'current' : ''}>٣ · المعاينة</span></div>
+        <div className={'journey-offer ' + (offerRemainingMs !== null && offerRemainingMs > 0 ? 'is-active' : 'is-ended')} role="timer" aria-live="off">
+          <span>{offerRemainingMs !== null && offerRemainingMs > 0 ? 'عرضك مستمر طوال رحلتك' : 'انتهى العرض الترحيبي'}</span>
+          <strong>{offerRemainingMs !== null && offerRemainingMs > 0 ? '190 جنيه' : '240 جنيه'}</strong>
+          {offerRemainingMs !== null && offerRemainingMs > 0 && <small>ينتهي خلال {formatOfferCountdown(offerRemainingMs)}</small>}
+        </div>
+      </div>
       <div className="journey-actions">{step === 'artworks' ? <><button type="button" className="clear-selection" onClick={clearAll} disabled={!selected.length}>مسح</button><button type="button" className="continue-selection" disabled={selected.length !== 30} onClick={() => {setStep('cover');setNotice('');window.scrollTo({top:0,behavior:'smooth'});}}>اختاري الغلاف ←</button></> : step === 'cover' ? <><button type="button" className="clear-selection" onClick={() => {setStep('artworks');window.scrollTo({top:0,behavior:'smooth'});}}>الرسومات</button><button type="button" className="continue-selection" disabled={!draft.name.trim()} onClick={() => {setNotice('');setStep('book');window.scrollTo({top:0,behavior:'smooth'});}}>معاينة كتابي ←</button></> : <><button type="button" className="clear-selection" onClick={() => {setStep('cover');window.scrollTo({top:0,behavior:'smooth'});}}>تعديل الغلاف</button><button type="button" className="continue-selection" onClick={() => {setStep('artworks');window.scrollTo({top:0,behavior:'smooth'});}}>تعديل الرسومات</button></>}</div>
     </aside>
     {preview && step === 'artworks' && <div className="preview-backdrop" role="presentation" onMouseDown={e => { if (e.target === e.currentTarget) setPreview(null); }}>

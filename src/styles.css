@@ -218,3 +218,13 @@ body{background:#fff9f2;color:#302b48}.anti-shell{background:linear-gradient(180
 @keyframes page-turn-right{from{transform:perspective(700px) rotateY(-72deg);opacity:.45}to{transform:perspective(700px) rotateY(0);opacity:1}}
 @media(max-width:620px){.hero-coloring-scene{height:330px}.coloring-book{width:92%;height:215px}.coloring-caption{bottom:13px;min-width:190px;padding:7px 15px}.coloring-caption strong{font-size:13px}}
 @media(prefers-reduced-motion:reduce){.coloring-spread,.coloring-page.left,.coloring-page.right,.coloring-spark{animation:none!important}.coloring-pagination span{transition:none}}
+
+
+/* Unified journey + offer dock: the same persisted deadline follows every builder stage */
+.journey-offer{display:flex;align-items:center;justify-content:flex-start;gap:9px;flex-wrap:wrap;margin-top:8px;padding:7px 10px;border:1px solid #f0cbd7;border-radius:11px;background:#fff4f7;color:#a65376;font-size:9px}
+.journey-offer span{font-weight:800}.journey-offer strong{font:900 12px 'Nunito',sans-serif;white-space:nowrap}.journey-offer small{font:800 10px 'Nunito',sans-serif;direction:ltr;font-variant-numeric:tabular-nums}
+.journey-offer.is-ended{background:#f5f1f2;border-color:#e7dfe3;color:#776d7a}
+.journey-dock{grid-template-columns:85px minmax(180px,1fr) auto}
+@media(max-width:900px){.journey-dock{grid-template-columns:70px minmax(150px,1fr) auto}}
+@media(max-width:620px){.journey-dock{grid-template-columns:52px minmax(0,1fr) auto}.journey-offer{gap:6px;margin-top:6px;padding:6px 8px;font-size:8px}.journey-offer strong{font-size:10px}.journey-offer small{font-size:9px}}
+@media(max-width:390px){.journey-dock{grid-template-columns:45px minmax(0,1fr) 82px}.journey-offer{gap:4px;padding:5px 6px}.journey-offer span{font-size:7px}.journey-offer strong{font-size:9px}.journey-offer small{font-size:8px}}

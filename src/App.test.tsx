@@ -44,6 +44,30 @@ describe('ANTI PRESSURE customer experience', () => {
     expect(screen.getByRole('heading', { name: 'اختاري غلاف كتابك واكتبي اسمك' })).toBeInTheDocument();
   });
 
+  it('keeps the introductory offer countdown visible and unchanged as the customer moves through builder stages', () => {
+    window.location.hash = '#design';
+    localStorage.setItem('anti-pressure-intro-offer-end-v1', String(Date.now() + 45_000));
+    render(<App />);
+    expect(screen.getByText('عرضك مستمر طوال رحلتك')).toBeInTheDocument();
+    expect(screen.getByText('190 جنيه')).toBeInTheDocument();
+    screen.getAllByRole('button', { name: '+ اختاري' }).slice(0, 30).forEach(button => fireEvent.click(button));
+    fireEvent.click(screen.getByRole('button', { name: /اختاري الغلاف/ }));
+    expect(screen.getByText('عرضك مستمر طوال رحلتك')).toBeInTheDocument();
+    expect(screen.getByText('190 جنيه')).toBeInTheDocument();
+    fireEvent.change(screen.getByLabelText('الاسم اللي يظهر على الغلاف'), { target: { value: 'سارة' } });
+    fireEvent.click(screen.getByRole('button', { name: /حفظ اختيارات الغلاف/ }));
+    expect(screen.getByText('عرضك مستمر طوال رحلتك')).toBeInTheDocument();
+    expect(screen.getByText('190 جنيه')).toBeInTheDocument();
+  });
+
+  it('shows the regular price in the journey dock after the persisted offer expires', () => {
+    window.location.hash = '#design';
+    localStorage.setItem('anti-pressure-intro-offer-end-v1', String(Date.now() - 1));
+    render(<App />);
+    expect(screen.getByText('انتهى العرض الترحيبي')).toBeInTheDocument();
+    expect(screen.getByText('240 جنيه')).toBeInTheDocument();
+  });
+
   it('saves cover personalization and displays the complete 30-artwork review', () => {
     window.location.hash = '#design';
     render(<App />);
