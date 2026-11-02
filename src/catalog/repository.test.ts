@@ -1,5 +1,4 @@
-import { describe, expect, it } from 'vitest';
-import { loadCatalog } from './repository';
+import { describe, expect, it, vi } from 'vitest';
 import type { CatalogData } from './types';
 
 const demo: CatalogData = {
@@ -9,9 +8,18 @@ const demo: CatalogData = {
 };
 
 describe('catalog repository safe fallback', () => {
-  it('returns the supplied demo catalog when Firebase is not configured', async () => {
+  it('returns the supplied demo catalog when demo mode is explicitly enabled', async () => {
+    // CI may provide Firebase secrets, so make this test independent of runner configuration.
+    vi.stubEnv('VITE_CATALOG_MODE', 'demo');
+    vi.resetModules();
+
+    const { loadCatalog } = await import('./repository');
     const result = await loadCatalog(demo);
+
     expect(result.source).toBe('demo');
     expect(result.data).toEqual(demo);
+
+    vi.unstubAllEnvs();
+    vi.resetModules();
   });
 });
