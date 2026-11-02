@@ -11,7 +11,7 @@ Arabic-first, RTL storefront prototype for a personalized women's coloring book.
 
 ## Security and backend status
 
-- `firestore.rules` in the security-foundation branch is a proposed deny-by-default baseline. It has not been deployed or emulator-tested.
+- `firestore.rules` in the security-foundation branch is a proposed deny-by-default baseline. Automated Firebase Emulator Suite tests are included in the PR; deployment remains pending review and explicit approval.
 - Public reads are limited to published catalog documents and safe public settings. Catalog writes require a trusted Firebase Authentication custom claim (`admin: true`).
 - Orders, payments, and order-event writes are denied from browser clients, including admin clients, until a trusted server-side workflow exists.
 - See [the admin access guide](docs/security/admin-access.md) and [the Firestore data model](docs/architecture/firestore-schema.md).
@@ -46,5 +46,6 @@ npm run dev
 
 ```sh
 npm test
+npm run test:emulator
 npm run build
 ```
