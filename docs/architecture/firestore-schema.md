@@ -1,196 +1,241 @@
-# Firestore Data Model — ANTI PRESSURE (فُكّي الضغط)
+# Firestore Data Model v1 — ANTI PRESSURE
 
-Status: Architecture proposal for review. Nothing in this document creates collections, deploys rules, enables billing, or changes Firebase resources.
+Status: versioned implementation contract. This file documents the exact collection paths, document IDs, fields, types, ownership, and lifecycle. It does not create production documents or deploy Firebase resources.
 
-## Product scope and locked behavior
+Project: `stickerz-922b`  
+Currency: EGP  
+Standard book price: 240 EGP  
+Introductory price: 190 EGP for 3,600 seconds from first eligible visit  
+Book contents: exactly 30 distinct artworks and one personalized cover  
+Checkout: guest; COD or InstaPay with manual review  
+Shipping: separate from book price
 
-- Arabic-first, RTL storefront for a personalized, spiral-bound women's coloring book.
-- A guest chooses exactly 30 unique published artworks from the library. The system determines page order; customers do not reorder pages.
-- The customer chooses one published cover and enters a personalized name (Arabic or Latin, max 40 characters in the current UI).
-- Customer flow: artwork selection → cover/name → preview → shipping details → payment choice → order confirmation.
-- Payment methods: cash on delivery (COD) and InstaPay with manual review. InstaPay evidence is never automatically approved.
-- Shipping is configured by area and shown before order confirmation.
-- Current commercial decision: standard book price 240 EGP; introductory price 190 EGP for one hour from the first visit. Shipping is separate. The browser timer is prototype-only; the server must determine eligibility and lock the order price.
-- No customer account is required. Optional customer accounts may be added later.
-- Original artwork and cover files must not be public. Firestore stores metadata and asset references, not image binaries.
-- Current Firebase Storage activation requires a paid-plan upgrade in the user's console. Do not enable Storage, Blaze billing, Cloud Functions, or any paid service without explicit approval.
+## 1. Collection map
 
-## Design principles
+| Path | Document ID | Purpose | Access |
+|---|---|---|---|
+| `categories/{categoryId}` | stable slug | Public artwork categories | Public reads active; admin writes |
+| `artworks/{artworkId}` | `AP-001` … `AP-100` | Artwork metadata and asset references | Public reads active in active category; admin writes |
+| `covers/{coverId}` | `AP-COVER-01` … `AP-COVER-05` | Cover metadata and asset references | Public reads active; admin writes |
+| `settings/public` | fixed ID `public` | Safe storefront prices and display settings | Public read; admin write |
+| `settings/shipping` | fixed ID `shipping` | Private shipping fee table | Admin only; trusted server |
+| `orders/{orderId}` | random Firestore ID | Customer order and immutable snapshots | Admin read; trusted server write |
+| `payments/{paymentId}` | random Firestore ID | Payment attempts/review | Admin read; trusted server write |
+| `orderEvents/{eventId}` | random Firestore ID | Append-only audit trail | Admin read; trusted server write |
+| `adminUsers/{uid}` | Firebase Auth UID | Admin display/profile metadata only | Admin reads; trusted provisioning only |
+| `offerSessions/{sessionId}` | random opaque ID | Optional server-validated offer session | Trusted server only |
 
-1. Keep public catalog metadata separate from private operational and customer data.
-2. Treat all browser-submitted values as untrusted. The browser must never be authoritative for price, discount eligibility, shipping fee, payment state, order status, or staff identity.
-3. Do not store image binaries, base64 images, payment evidence files, print-ready PDFs, or secrets in Firestore.
-4. Guest order lookup must use a high-entropy reference/token and a carefully limited server-validated response; never expose orders through guessable IDs.
-5. Admin access must be granted by a trusted server-controlled mechanism (for example, custom claims or a separately provisioned staff allowlist), never by a client-editable user profile field.
-6. Keep audit events append-oriented. Customers cannot write privileged events or impersonate staff.
-7. Use deny-by-default rules and Firebase Emulator Suite tests before any rules deployment.
-8. Do not create or deploy collections merely by documenting this proposal.
+No collection is to be populated with fake artwork or sample customer orders. Seed only the ten real category documents when an authorized admin chooses the seed action.
 
-## Proposed collections
+## 2. Shared conventions
 
-### Public catalog
+- All document IDs are stable and case-sensitive.
+- All timestamps are Firestore Timestamp values. Use server timestamps for writes.
+- Monetary values are integer EGP piastres only if fractional amounts are ever needed; current whole-pound prices may be stored as integer EGP. Never use floating-point money.
+- `active` means published and customer-visible; new catalog documents start with `active: false`.
+- `sortOrder` is a non-negative integer. Ties are resolved by document ID in application code.
+- `version` is a positive integer incremented on every approved catalog revision.
+- Asset references are opaque provider/storage object references, not credentials and not original public URLs. Never store image bytes/base64 in Firestore.
+- Unknown fields are ignored by clients; trusted server validation must reject unsupported fields in customer submissions.
 
-#### `categories/{categoryId}`
-Fields:
-- `title`: string
-- `slug`: string
-- `description`: string (optional)
-- `sortOrder`: integer
-- `active`: boolean
-- `createdAt`, `updatedAt`: server timestamps
+## 3. Public catalog documents
 
-Initial category set (IDs should be stable slugs):
-1. `responsibilities` — فوضى المسؤوليات
-2. `moods` — تقلبات المزاج
-3. `people-relationships` — الناس والعلاقات
-4. `coffee-food` — قهوة وأكل
-5. `love-relationships` — حب وعلاقات
-6. `work-money` — شغل وفلوس
-7. `home-family` — البيت والعيلة
-8. `self-care` — اهتمام بنفسي
-9. `overthinking` — تفكير زيادة
-10. `wisdom-humor` — حكمة وضحك
+### `categories/{categoryId}`
 
-#### `artworks/{artworkId}`
-Use stable IDs such as `AP-001` through `AP-100`.
-Fields:
-- `title`: string
-- `categoryId`: string (references categories)
-- `phrase`: string (short Egyptian Arabic phrase printed with the artwork, when applicable)
-- `previewAssetRef`: string (reference to a controlled preview derivative)
-- `originalAssetRef`: string (private storage/provider reference; never a public download URL)
-- `active`: boolean
-- `sortOrder`: integer
-- `version`: integer
-- `createdAt`, `updatedAt`: server timestamps
+Required fields:
 
-Only active artworks in active categories appear in the customer library. An order must snapshot the exact selected IDs and artwork versions so later catalog edits cannot change an existing order.
+| Field | Type | Example |
+|---|---|---|
+| `title` | string, 1–60 chars | `فوضى المسؤوليات` |
+| `slug` | string, unique stable slug | `responsibilities` |
+| `description` | string, optional, max 240 | short category intro |
+| `sortOrder` | integer >= 0 | `1` |
+| `active` | boolean | `true` |
+| `createdAt` | Timestamp | server timestamp |
+| `updatedAt` | Timestamp | server timestamp |
 
-#### `covers/{coverId}`
-Fields:
-- `title`: string
-- `subtitle`: string
-- `previewAssetRef`: string
-- `originalAssetRef`: string (private reference)
-- `active`: boolean
-- `sortOrder`: integer
-- `version`: integer
-- `namePlacement`: object describing allowed name area, alignment, font constraints, and maximum size
-- `createdAt`, `updatedAt`: server timestamps
+Initial IDs and titles:
+- `responsibilities`: فوضى المسؤوليات
+- `moods`: تقلبات المزاج
+- `people-relationships`: الناس والعلاقات
+- `coffee-food`: قهوة وأكل
+- `love-relationships`: حب وعلاقات
+- `work-money`: شغل وفلوس
+- `home-family`: البيت والعيلة
+- `self-care`: اهتمام بنفسي
+- `overthinking`: تفكير زيادة
+- `wisdom-humor`: حكمة وضحك
 
-The five initial cover concepts are content, not fixed schema values. Admins can add, edit, sort, publish, or unpublish covers.
+### `artworks/{artworkId}`
 
-### Orders and payment
+IDs are exactly `AP-001` through `AP-100`.
 
-#### `orders/{orderId}`
-Create orders only through a trusted server-side path after that path is implemented and tested.
-Fields:
-- `publicReference`: random, non-sequential customer-facing reference
-- `lookupTokenHash`: hash of a high-entropy guest lookup token (never store the raw token)
-- `customer`: object containing name, phone, and any minimum required contact fields
-- `shipping`: object containing governorate, area, address details, delivery notes, and a server-calculated fee snapshot
-- `book`: object containing exactly 30 unique artwork snapshots (ID, version, title/phrase snapshot and print order), cover snapshot (ID/version), and personalized name
-- `pricing`: object containing server-calculated base price, discount, final book price, shipping fee, currency (EGP), offer identifier, and server-calculated offer eligibility/expiry decision
-- `paymentMethod`: `cod` or `instapay`
-- `paymentStatus`: controlled enum such as `unpaid`, `pending_review`, `paid`, `rejected`, `refunded`
-- `fulfillmentStatus`: controlled enum such as `new`, `confirmed`, `pdf_generating`, `ready_for_printing`, `printing`, `quality_check`, `ready_for_shipping`, `shipped`, `delivered`, `cancelled`
-- `createdAt`, `updatedAt`: server timestamps
+| Field | Type | Required | Notes |
+|---|---|---:|---|
+| `title` | string (1–80) | yes | Customer-facing title |
+| `categoryId` | string | yes | Existing category document ID |
+| `phrase` | string (0–180) | yes | Egyptian Arabic phrase printed with page |
+| `previewAssetRef` | string | before publish | Approved low-resolution preview reference |
+| `originalAssetRef` | string | no | Private original reference; never returned publicly |
+| `printAssetRef` | string | no | Private print-ready source reference |
+| `active` | boolean | yes | Default false |
+| `sortOrder` | integer >= 0 | yes | Library ordering |
+| `version` | integer >= 1 | yes | Starts at 1 |
+| `createdAt` | Timestamp | yes | Immutable creation time |
+| `updatedAt` | Timestamp | yes | Updated on every edit |
+| `publishedAt` | Timestamp or null | no | Set by trusted/admin publish operation |
 
-Do not accept client-supplied totals, shipping fees, discount values, payment status, fulfillment status, or staff actions as authoritative. Enforce exactly 30 distinct currently published artwork IDs and one currently published cover at order creation. Preserve the price and catalog snapshots on the order.
+Publishing requires a valid approved preview reference, non-empty title and phrase, and an active category. A preview URL is not a substitute for the private original or print source. The public storefront must never request or receive `originalAssetRef` or `printAssetRef`.
 
-#### `payments/{paymentId}`
-Fields:
-- `orderId`: string
-- `method`: `cod` or `instapay`
-- `amount`: server-calculated number
-- `currency`: `EGP`
-- `status`: `pending_review`, `approved`, `rejected`, or `refunded`
-- `transferReference`: optional customer-entered reference
-- `evidenceAssetRef`: optional private reference only if a compliant file-storage solution is later approved
-- `reviewerUid`: staff UID when reviewed
-- `reviewedAt`, `createdAt`, `updatedAt`: server timestamps
+### `covers/{coverId}`
 
-InstaPay remains manual review. The customer cannot approve their own payment. Do not upload evidence to Firestore or expose evidence publicly.
+IDs: `AP-COVER-01` through `AP-COVER-05`.
 
-#### `orderEvents/{eventId}`
-Append-oriented audit record:
-- `orderId`: string
-- `eventType`: string from a controlled list
-- `fromStatus`, `toStatus`: optional status values
-- `actorType`: `customer`, `admin`, or `system`
-- `actorUid`: trusted UID when available; never trust a client-supplied staff identity
-- `note`: optional bounded text
-- `createdAt`: server timestamp
+| Field | Type | Required | Notes |
+|---|---|---:|---|
+| `title` | string (1–60) | yes | Cover concept |
+| `subtitle` | string (0–120) | no | Supporting line |
+| `previewAssetRef` | string | before publish | Approved public preview |
+| `originalAssetRef` | string | no | Private original reference |
+| `printAssetRef` | string | no | Private print-ready source |
+| `namePlacement` | map | no | `x`, `y`, `width`, `height`, `alignment`, `fontMin`, `fontMax` |
+| `active` | boolean | yes | Default false |
+| `sortOrder` | integer >= 0 | yes | Display order |
+| `version` | integer >= 1 | yes | Starts at 1 |
+| `createdAt`, `updatedAt` | Timestamp | yes | Server timestamps |
+| `publishedAt` | Timestamp or null | no | Publication time |
 
-### Configuration and access control
+## 4. Storefront configuration
 
-#### `settings/public`
-Only safe storefront configuration:
-- `currency`: `EGP`
-- `standardBookPrice`: 240
-- `introductoryBookPrice`: 190
-- `introductoryOfferDurationSeconds`: 3600
-- `offerEnabled`: boolean
-- `shippingDisplayMode`: string
-- `updatedAt`: server timestamp
+### `settings/public`
 
-Public settings are display hints only. Trusted order creation must read authoritative settings and calculate the final amount itself. Never put secrets, payment credentials, staff data, or private provider URLs here.
+Only safe customer-visible values belong here:
 
-#### `settings/shipping`
-Operational shipping configuration, readable only by trusted server-side code or authorized staff:
-- `areas`: structured area-to-fee configuration
-- `active`: boolean
-- `updatedAt`: server timestamp
+| Field | Type | Initial value |
+|---|---|---|
+| `brandName` | string | `ANTI PRESSURE` |
+| `brandNameAr` | string | `فُكّي الضغط` |
+| `currency` | string | `EGP` |
+| `standardBookPrice` | integer | `240` |
+| `introductoryBookPrice` | integer | `190` |
+| `introductoryOfferDurationSeconds` | integer | `3600` |
+| `offerEnabled` | boolean | `true` |
+| `bookArtworkCount` | integer | `30` |
+| `shippingDisplayMode` | string | `quote_before_confirmation` |
+| `paymentMethods` | array<string> | `[\"cod\", \"instapay\"]` |
+| `updatedAt` | Timestamp | server timestamp |
 
-A public, sanitized shipping quote may be exposed through a controlled endpoint when implemented.
+This document is display configuration only. A trusted order service must independently read authoritative price/offer settings and calculate the final total. Never put private InstaPay account details, secrets, shipping rates, staff data, or original asset references here.
 
-#### `adminUsers/{uid}`
-Optional staff profile/role metadata, readable only by authorized staff and trusted server-side code. This document alone must not grant privileges unless its provisioning and rules are server-controlled. Prefer custom claims or a server-managed allowlist.
+### `settings/shipping`
 
-#### `offerSessions/{sessionId}` (optional, only if needed)
-Server-managed first-visit offer session:
-- `sessionTokenHash`: hash of a high-entropy opaque token
-- `startedAt`, `expiresAt`: server timestamps
-- `createdAt`: server timestamp
+Private admin/server-only document:
 
-Do not use browser time or localStorage as proof of offer eligibility. Avoid collecting unnecessary device identifiers. Define retention and abuse controls before implementation.
+| Field | Type | Notes |
+|---|---|---|
+| `active` | boolean | Whether shipping quotes can be issued |
+| `currency` | string | `EGP` |
+| `areas` | map | keyed by stable area ID |
+| `areas.{areaId}.governorate` | string | Governorate |
+| `areas.{areaId}.areaName` | string | Area/district |
+| `areas.{areaId}.fee` | integer >= 0 | Shipping fee in EGP |
+| `areas.{areaId}.active` | boolean | Available for new quotes |
+| `updatedAt` | Timestamp | Server timestamp |
 
-## Image and file hosting decision
+Do not invent shipping prices. Admin must enter verified carrier rates before enabling this document.
 
-Firebase Storage is not enabled because the user has explicitly chosen to remain on the current free plan and the console requests an upgrade. Therefore:
-- Do not enable Storage or change the Firebase billing plan.
-- Do not put original images or base64 blobs in Firestore.
-- Keep the current demo placeholders clearly labeled as demos until a hosting option is selected.
-- Evaluate repository-hosted optimized preview assets or a suitable external provider only after checking free-tier limits, terms, privacy, file size, and operational reliability.
-- Public preview assets can be copied from a browser; no web implementation can guarantee they are impossible to screenshot or save.
-- Original print assets must remain private and must not be linked directly from customer-facing pages.
+## 5. Orders
 
-## Security and validation requirements
+### `orders/{orderId}`
 
-- Firestore rules: deny by default; public read only for explicitly approved catalog fields/documents; no public writes.
-- Customers must not be able to list all orders, payments, users, or events.
-- Admin reads/writes require trusted staff authorization.
-- Prefer trusted server-side order creation and state transitions. Do not deploy client-only order writes as a substitute.
-- Validate phone/contact formats, field lengths, allowed enum values, maximum payload sizes, exactly 30 distinct artwork IDs, published status, cover availability, price, offer expiry, and shipping fee on trusted code.
-- Rate-limit order creation and guest lookup when a trusted backend is introduced.
-- Never store raw lookup tokens, credentials, private API keys, or service-account material in the repository or Firestore.
-- Test rules and trusted workflows in emulators before deployment.
+Create only through a trusted server endpoint after validation. Use a random Firestore ID; never sequential customer-facing IDs.
 
-## Implementation sequence
+| Field | Type | Notes |
+|---|---|---|
+| `publicReference` | string | Random, non-sequential order reference |
+| `lookupTokenHash` | string | Hash only; never store raw guest lookup token |
+| `customer.name` | string (1–80) | Required |
+| `customer.phone` | string (normalized) | Required |
+| `customer.email` | string or null | Optional |
+| `shipping.governorateId` | string | Selected configured area |
+| `shipping.governorateName` | string | Immutable display snapshot |
+| `shipping.areaId` | string | Selected configured area |
+| `shipping.areaName` | string | Immutable display snapshot |
+| `shipping.address` | string (1–300) | Required |
+| `shipping.deliveryNotes` | string (0–300) | Optional |
+| `shipping.fee` | integer >= 0 | Server-calculated snapshot |
+| `book.artworks` | array of 30 maps | Unique IDs, each with `artworkId`, `version`, `titleSnapshot`, `phraseSnapshot`, `printOrder` |
+| `book.cover` | map | `coverId`, `version`, `titleSnapshot` |
+| `book.personalizedName` | string (1–40) | Customer-selected cover name |
+| `pricing.currency` | string | `EGP` |
+| `pricing.standardBookPrice` | integer | Snapshot |
+| `pricing.discountAmount` | integer | Server-calculated |
+| `pricing.bookPrice` | integer | Server-calculated final book price |
+| `pricing.shippingFee` | integer | Same as shipping fee snapshot |
+| `pricing.totalAmount` | integer | Server-calculated book + shipping |
+| `pricing.offerId` | string or null | Offer applied |
+| `pricing.offerExpiresAt` | Timestamp or null | Server decision snapshot |
+| `paymentMethod` | `cod` or `instapay` | Customer selection |
+| `paymentStatus` | enum | `unpaid`, `pending_review`, `paid`, `rejected`, `refunded` |
+| `fulfillmentStatus` | enum | See lifecycle below |
+| `createdAt`, `updatedAt` | Timestamp | Server timestamps |
 
-1. Approve this data model and confirm the commercial values and guest checkout flow.
-2. Add Firebase Web SDK configuration using public web-app configuration only; keep secrets out of source control.
-3. Create a typed catalog repository and replace hardcoded customer catalog data with a loading/empty/error state. Keep demo data behind an explicit demo mode until real content exists.
-4. Build an ANTI PRESSURE admin experience for categories, artworks, covers, and order operations. Do not reuse the legacy Stickerz product admin as-is.
-5. Select and approve an image-hosting approach compatible with the user's free-tier requirement.
-6. Write Firestore rules and tests; deploy only after explicit review and approval.
-7. Implement a trusted backend for order creation, pricing/offer validation, payment review, and status transitions only after reviewing free-tier availability and cost. Do not enable paid services without explicit approval.
-8. Add print-PDF generation and private production asset delivery after a secure, cost-reviewed file-hosting/backend decision.
+Fulfillment lifecycle values:
+`new` → `confirmed` → `pdf_generating` → `ready_for_printing` → `printing` → `quality_check` → `ready_for_shipping` → `shipped` → `delivered`; terminal alternatives: `cancelled`.
 
-## Explicitly out of scope for this proposal
+A customer submission contains only selected IDs, cover ID, name, and contact/shipping choices. Ignore/reject all client-supplied prices, discounts, totals, payment status, fulfillment status, and staff identity. Require exactly 30 distinct currently published artwork IDs, active category membership, and one published cover. Snapshot versions and text at order creation so future catalog edits do not mutate old orders.
 
-- Creating Firestore collections or sample production data.
-- Deploying Firestore or Storage rules.
-- Enabling Firebase Storage, Cloud Functions, Cloud Run, Blaze billing, or any paid service.
-- Accepting real customer orders or payments.
-- Claiming that demo artworks/covers are final approved artwork.
+## 6. Payments and audit
+
+### `payments/{paymentId}`
+
+| Field | Type | Notes |
+|---|---|---|
+| `orderId` | string | Parent order ID |
+| `method` | `cod` or `instapay` | Payment method |
+| `amount` | integer | Server-derived EGP amount |
+| `currency` | string | `EGP` |
+| `status` | enum | `unpaid`, `pending_review`, `approved`, `rejected`, `refunded` |
+| `transferReference` | string or null | Customer-provided reference, bounded |
+| `evidenceAssetRef` | string or null | Private file reference only if storage is later approved |
+| `reviewerUid` | string or null | Trusted staff UID |
+| `reviewNote` | string or null | Bounded internal note |
+| `reviewedAt` | Timestamp or null | Set by authorized review action |
+| `createdAt`, `updatedAt` | Timestamp | Server timestamps |
+
+InstaPay remains pending until a human admin reviews and approves/rejects it. Customer cannot set payment status. Do not upload payment screenshots to Firestore.
+
+### `orderEvents/{eventId}`
+
+Append-only event fields:
+`orderId:string`, `eventType:string`, `fromStatus:string|null`, `toStatus:string|null`, `actorType:customer|admin|system`, `actorUid:string|null`, `note:string|null`, `metadata:map`, `createdAt:Timestamp`.
+
+Only trusted server code creates events. Never accept actor identity or privileged state transitions from browser input.
+
+## 7. Admin and offer-session metadata
+
+### `adminUsers/{uid}`
+
+Fields: `displayName:string`, `email:string`, `role:string`, `active:boolean`, `createdAt:Timestamp`, `updatedAt:Timestamp`, `lastLoginAt:Timestamp|null`. This is descriptive metadata only; it never grants privileges. Authorization remains the trusted Auth custom claim `admin:true`.
+
+### `offerSessions/{sessionId}` (only when server-side offer enforcement is implemented)
+
+Fields: `tokenHash:string`, `startedAt:Timestamp`, `expiresAt:Timestamp`, `consumedAt:Timestamp|null`, `createdAt:Timestamp`. The raw opaque token exists only with the guest/browser and is never stored. Avoid device fingerprinting.
+
+## 8. Firestore indexes
+
+The companion `firestore.indexes.json` defines composite indexes for active catalog ordering and common admin order/payment/event queues. Single-field indexes are handled by Firestore defaults.
+
+## 9. Security invariants
+
+- Default deny. Only active public catalog records and `settings/public` are anonymously readable.
+- Admin catalog access requires trusted Firebase Auth custom claim `admin:true`.
+- Customer browsers never write orders, payments, order events, shipping settings, admin metadata, or offer sessions.
+- Admin browser may read protected operational records but must use trusted server endpoints for state changes.
+- Private original/print references never leave trusted server/admin context.
+- No Storage, Cloud Functions, Cloud Run, Blaze billing, or paid service is enabled by this schema.
+- No real orders/payments until a trusted backend validates the entire order and pricing lifecycle.
+
+## 10. Implementation status
+
+This schema and index file are versioned in GitHub. They are not yet deployed to Firebase. Firestore collections are document-driven and appear when the first authorized document is written; do not create empty placeholder collections. The only approved initial seed action is the ten category records from the admin panel. Prices in `settings/public` should be seeded from the locked values above. Shipping fee rows must wait for verified carrier rates.
