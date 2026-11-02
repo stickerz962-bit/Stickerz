@@ -133,6 +133,18 @@ export default function Builder() {
     if (selected.length >= 30) { setNotice('اختيارك اكتمل 30 رسمة. شيلي رسمة الأول لو حابة تختاري غيرها.'); return; }
     setSelected(current => [...current, id]);
   }
+  function moveArtwork(id: string, direction: -1 | 1) {
+    setSelected(current => {
+      const index = current.indexOf(id);
+      const target = index + direction;
+      if (index < 0 || target < 0 || target >= current.length) return current;
+      const reordered = [...current];
+      [reordered[index], reordered[target]] = [reordered[target], reordered[index]];
+      return reordered;
+    });
+    setNotice('');
+  }
+
   function clearAll() {
     if (selected.length && window.confirm('متأكدة إنك عايزة تمسحي كل الرسومات المختارة؟')) setSelected([]);
   }
@@ -148,7 +160,7 @@ export default function Builder() {
         <div className="builder-intro">
           <span className="eyebrow">الخطوة الأولى · اختياراتك على مزاجك</span>
           <h1>اختاري 30 رسمة بتحبيها</h1>
-          <p>خدي وقتك، قلّبي في التصنيفات، واختاري الرسومات اللي حابة تكون في كتابك. ترتيب الصفحات هيتحدد تلقائيًا.</p>
+          <p>خدي وقتك، قلّبي في التصنيفات، واختاري الرسومات اللي حابة تكون في كتابك، وبعدها رتّبي صفحات كتابك بنفسك قبل المعاينة.</p>
           <div className="demo-alert"><span>✦</span><div><b>معاينة تجريبية للمكتبة</b><small>الأشكال الحالية نماذج مؤقتة لا تمثل الرسومات النهائية. هنستبدلها بالرسومات الأصلية بعد اعتمادها.</small></div></div>
         </div>
         <section className="selection-toolbar" aria-label="أدوات البحث والتصفية">
@@ -232,8 +244,8 @@ export default function Builder() {
             <button type="button" className="clear-selection" onClick={() => setStep('cover')}>تعديل الغلاف أو الاسم</button>
           </div>
           <div className="book-artwork-review">
-            <div className="book-review-heading"><div><b>رسومات كتابك</b><small>30 رسمة مختارة · ترتيب تلقائي</small></div><button type="button" className="clear-selection" onClick={() => setStep('artworks')}>تعديل الرسومات</button></div>
-            <div className="book-review-grid">{selected.map((id, index) => { const item = catalogItems.find(entry => entry.id === id); if (!item) return null; return <div className="book-review-item" key={id}><span className={'book-review-art ' + item.tone}>{item.mark}</span><span><b>{item.title}</b><small>صفحة {index + 1}</small></span></div>; })}</div>
+            <div className="book-review-heading"><div><b>رسومات كتابك</b><small>رتّبي الصفحات زي ما تحبي · 30 رسمة</small></div><button type="button" className="clear-selection" onClick={() => setStep('artworks')}>تعديل الرسومات</button></div>
+            <div className="book-review-grid">{selected.map((id, index) => { const item = catalogItems.find(entry => entry.id === id); if (!item) return null; return <div className="book-review-item" key={id}><span className={'book-review-art ' + item.tone}>{item.mark}</span><span><b>{item.title}</b><small>صفحة {index + 1}</small></span><span className="book-review-order"><button type="button" aria-label={'نقل ' + item.title + ' لأعلى'} disabled={index === 0} onClick={() => moveArtwork(id, -1)}>↑</button><button type="button" aria-label={'نقل ' + item.title + ' لأسفل'} disabled={index === selected.length - 1} onClick={() => moveArtwork(id, 1)}>↓</button></span></div>; })}</div>
             <div className="book-preview-note">دي مراجعة لاختياراتك وشكل الغلاف فقط. ملفات الطباعة النهائية، بيانات الشحن، وحساب تكلفة التوصيل لسه مش مفعّلين.</div>
             <div className="book-preview-actions"><button type="button" className="clear-selection" onClick={() => setStep('cover')}>رجوع</button><button type="button" className="continue-selection" onClick={() => setNotice('معاينة كتابك محفوظة على هذا الجهاز. مرحلة بيانات الشحن والطلب لم تُفعّل بعد.')}>اعتماد المعاينة مبدئيًا <span>✓</span></button></div>
             {notice && step === 'book' && <div className="cover-save-note" role="status">{notice}</div>}
