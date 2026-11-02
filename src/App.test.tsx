@@ -17,6 +17,13 @@ describe('ANTI PRESSURE customer experience', () => {
     expect(screen.queryByRole('link', { name: /لوحة الإدارة/ })).not.toBeInTheDocument();
   });
 
+  it('shows the demo artwork gallery and the animated open-book scene on the homepage', () => {
+    render(<App />);
+    expect(screen.getByRole('img', { name: /كتاب تلوين مفتوح/ })).toBeInTheDocument();
+    expect(screen.getAllByText('نموذج توضيحي').length).toBeGreaterThan(0);
+    expect(screen.getByRole('heading', { name: 'اختاري اللي شبهك' })).toBeInTheDocument();
+  });
+
   it('links the main CTA to the artwork builder', () => {
     render(<App />);
     expect(screen.getByRole('link', { name: /صممي كتابك الآن/ })).toHaveAttribute('href', '#design');
@@ -27,9 +34,11 @@ describe('ANTI PRESSURE customer experience', () => {
     render(<App />);
     const continueButton = screen.getByRole('button', { name: /اختاري الغلاف/ });
     expect(continueButton).toBeDisabled();
+    expect(screen.getByRole('progressbar', { name: 'عدد الرسومات المختارة' })).toHaveAttribute('aria-valuenow', '0');
     const choices = screen.getAllByRole('button', { name: '+ اختاري' });
     choices.slice(0, 30).forEach(button => fireEvent.click(button));
     expect(screen.getByText('30')).toBeInTheDocument();
+    expect(screen.getByRole('progressbar', { name: 'عدد الرسومات المختارة' })).toHaveAttribute('aria-valuenow', '30');
     expect(continueButton).toBeEnabled();
     fireEvent.click(continueButton);
     expect(screen.getByRole('heading', { name: 'اختاري غلاف كتابك واكتبي اسمك' })).toBeInTheDocument();

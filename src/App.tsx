@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { getOfferEndAt, getOfferRemainingMs, formatOfferCountdown } from './lib/offer';
 import Builder from './Builder';
+import HeroBookAnimation from './HeroBookAnimation';
 import { loadCatalog } from './catalog/repository';
 import type { CatalogData } from './catalog/types';
 
@@ -106,12 +107,7 @@ export default function App() {
           <div className="hero-actions"><a className="primary-button" href="#design">صممي كتابك الآن <span>←</span></a><a className="quiet-link" href="#gallery">اتفرجي على الرسومات <span>↓</span></a></div>
           <div className="hero-facts"><span>♡ 30 رسمة من اختيارك</span><span>✿ غلاف باسمك</span><span>✦ توصيل لحد البيت</span></div>
         </div>
-        <div className="hero-visual" aria-label="رسم توضيحي لكتاب تلوين مخصص" role="img">
-          <div className="hero-sun"></div><span className="float-star star-a">✦</span><span className="float-star star-b">✧</span><span className="float-heart">♡</span>
-          <div className="hero-book"><div className="book-spiral">••••••••••••</div><div className="book-cover-art"><span className="cover-mini-flower">✿</span><span className="cover-mini-heart">♡</span><span className="cover-girl">☺</span><strong>فُكّي الضغط</strong><small>كتابك... على مزاجك!</small><span className="cover-leaf">❧</span></div><span className="book-name">كتاب سارة</span></div>
-          <div className="pencil pencil-one"></div><div className="pencil pencil-two"></div>
-          <div className="hero-sticker">30 رسمة<br /><b>من اختيارك</b></div>
-        </div>
+        <HeroBookAnimation />
       </section>
 
       <section className="promise-strip" aria-label="مميزات الكتاب">
