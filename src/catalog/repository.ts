@@ -70,7 +70,11 @@ export async function loadCatalog(demoData: CatalogData): Promise<CatalogResult>
       readActive('artworks', parseArtwork),
       readActive('covers', parseCover),
     ]);
-    // Keep the prototype usable while the real artwork library is still empty. Never mix demo art into a partially populated live catalog.\n    if (artworks.length === 0) {\n      return { data: demoData, source: 'demo', warning: 'المكتبة الأصلية لسه بتتجهز؛ بنعرض الرسومات التجريبية مؤقتًا.' };\n    }\n    return { data: { categories, artworks, covers: covers.length ? covers : demoData.covers }, source: 'firestore', ...(covers.length ? {} : { warning: 'الأغلفة الأصلية لسه بتتجهز؛ بنعرض نماذج الأغلفة مؤقتًا.' }) };
+    // Keep the prototype usable while the real artwork library is still empty. Never mix demo art into a partially populated live catalog.
+    if (artworks.length === 0) {
+      return { data: demoData, source: 'demo', warning: 'المكتبة الأصلية لسه بتتجهز؛ بنعرض الرسومات التجريبية مؤقتًا.' };
+    }
+    return { data: { categories, artworks, covers: covers.length ? covers : demoData.covers }, source: 'firestore', ...(covers.length ? {} : { warning: 'الأغلفة الأصلية لسه بتتجهز؛ بنعرض نماذج الأغلفة مؤقتًا.' }) };
   } catch {
     return { data: emptyCatalog, source: 'firestore', warning: 'The live catalog could not be loaded.' };
   }
