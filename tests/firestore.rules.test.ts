@@ -1,4 +1,5 @@
 import { readFileSync } from 'node:fs';
+import { resolve } from 'node:path';
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import {
   initializeTestEnvironment,
@@ -11,7 +12,7 @@ import { collection, doc, getDoc, getDocs, query, where, setDoc, updateDoc, dele
 const projectId = 'demo-anti-pressure';
 let testEnv: RulesTestEnvironment;
 
-const rules = readFileSync(new URL('../firestore.rules', import.meta.url), 'utf8');
+const rules = readFileSync(resolve(process.cwd(), 'firestore.rules'), 'utf8');
 
 async function seed() {
   await testEnv.withSecurityRulesDisabled(async (context) => {
