@@ -6,7 +6,7 @@ import {
   assertFails,
   assertSucceeds,
 } from '@firebase/rules-unit-testing';
-import { collection, doc, getDoc, getDocs, setDoc, updateDoc, deleteDoc } from 'firebase/firestore';
+import { collection, doc, getDoc, getDocs, query, where, setDoc, updateDoc, deleteDoc } from 'firebase/firestore';
 
 const projectId = 'demo-anti-pressure';
 let testEnv: RulesTestEnvironment;
@@ -70,9 +70,9 @@ describe('Firestore security rules — public catalog reads', () => {
 
   it('allows anonymous query of published category/artwork/cover documents', async () => {
     const db = testEnv.unauthenticatedContext().firestore();
-    await assertSucceeds(getDocs(collection(db, 'categories')));
-    await assertSucceeds(getDocs(collection(db, 'artworks')));
-    await assertSucceeds(getDocs(collection(db, 'covers')));
+    await assertSucceeds(getDocs(query(collection(db, 'categories'), where('active', '==', true))));
+    await assertSucceeds(getDocs(query(collection(db, 'artworks'), where('active', '==', true), where('categoryId', '==', 'published'))));
+    await assertSucceeds(getDocs(query(collection(db, 'covers'), where('active', '==', true))));
   });
 
   it('allows only the explicitly public settings document', async () => {
