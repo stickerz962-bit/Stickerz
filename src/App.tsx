@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { getOfferEndAt, getOfferRemainingMs, formatOfferCountdown } from './lib/offer';
 import Builder from './Builder';
 import { loadCatalog } from './catalog/repository';
 import type { CatalogData } from './catalog/types';
@@ -45,6 +46,16 @@ function Brand({ footer = false }: { footer?: boolean }) {
 
 export default function App() {
   const [openFaq, setOpenFaq] = useState<number | null>(0);
+  const [offerRemainingMs, setOfferRemainingMs] = useState<number | null>(null);
+  useEffect(() => {
+    const storageKey = 'anti-pressure-intro-offer-end-v1';
+    const endAt = getOfferEndAt(localStorage, storageKey, Date.now());
+    const update = () => setOfferRemainingMs(getOfferRemainingMs(endAt, Date.now()));
+    update();
+    const timer = window.setInterval(update, 1000);
+    return () => window.clearInterval(timer);
+  }, []);
+  const offerActive = offerRemainingMs !== null && offerRemainingMs > 0;
   const [catalogData, setCatalogData] = useState<CatalogData>({
     categories: categories.map((title, index) => ({ id: String(index + 1), title, slug: String(index + 1), sortOrder: index, active: true })),
     artworks: artworks.map((item, index) => ({ id: 'AP-' + String(index + 1).padStart(3, '0'), title: item.title, categoryId: String(index + 1), previewAssetRef: '', sortOrder: index, version: 1, active: true })),
@@ -132,7 +143,7 @@ export default function App() {
 
       <section className="price-section section-wrap" id="about">
         <div className="price-copy"><span className="eyebrow">تفصيلة صغيرة تفرق</span><h2>مساحتك... وكتابك... ومزاجك</h2><p>كتاب تلوين متفصّل على اختياراتك، بغلاف مخصص و30 رسمة مختلفة، علشان تاخدي وقت لنفسك وتلوّني على رواق.</p><a className="primary-button" href="#design">ابدئي تصميم كتابك <span>←</span></a></div>
-        <div className="price-card"><span className="price-label">سعر الكتاب</span><div className="price-number">230 <small>جنيه</small></div><span className="price-includes">30 رسمة + غلاف باسمك + تجليد سلك</span><div className="price-divider"></div><p>الشحن بيتحسب حسب منطقتك وبيظهر قبل تأكيد الطلب.</p><small className="price-footnote">طرق الدفع: عند الاستلام أو InstaPay بعد مراجعة التحويل.</small></div>
+        <div className="price-card"><span className="price-label">سعر الكتاب</span><div className="offer-price-row"><div className="price-number">{offerActive ? "190" : "240"} <small>جنيه</small></div>{offerActive && <span className="old-price">240 جنيه</span>}</div><span className="offer-status">{offerActive ? "عرض ترحيبي لمدة ساعة" : "انتهى العرض — السعر الأساسي"}</span>{offerActive && <div className="offer-countdown" role="timer" aria-live="off"><span>الوقت المتبقي للعرض</span><strong>{formatOfferCountdown(offerRemainingMs ?? 0)}</strong></div>}<span className="price-includes">30 رسمة + غلاف باسمك + تجليد سلك</span><div className="price-divider"></div><p>الشحن بيتحسب حسب منطقتك وبيظهر قبل تأكيد الطلب.</p><small className="price-footnote">طرق الدفع: عند الاستلام أو InstaPay بعد مراجعة التحويل.</small></div>
       </section>
 
       <section className="faq-section section-wrap" id="faq">
