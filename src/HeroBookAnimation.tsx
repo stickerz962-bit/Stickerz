@@ -1,34 +1,77 @@
+import { useEffect, useState } from 'react';
 import './styles.css';
 
+const scenes = [
+  { caption: 'شدي الفيشة', title: 'فصلّي شوية من دوشة اليوم' },
+  { caption: 'فكّي الضغط', title: 'سيبي اللي مش مستاهل' },
+  { caption: 'سكتي الأصوات الي في دماغك', title: 'مش كل فكرة محتاجة رد' },
+  { caption: 'اشحني طاقتك', title: 'خدي وقتك وارجعي لنفسك' },
+];
+
+function Drawing({ scene, colored }: { scene: number; colored: boolean }) {
+  const ink = '#514b59';
+  const accent = colored ? ['#e98eaa', '#b7a4d9', '#e7bd68', '#9fc8ae'][scene] : 'none';
+  const secondary = colored ? ['#f2c7d5', '#d9c8eb', '#f5dfaa', '#c9e2d2'][scene] : 'none';
+  return <svg viewBox="0 0 220 190" role="presentation" aria-hidden="true">
+    {scene === 0 && <>
+      <path d="M110 160V111 M110 111L83 86 M110 111L137 86" fill="none" stroke={ink} strokeWidth="4" strokeLinecap="round"/>
+      <path d="M65 55h35v48H65z M120 55h35v48h-35z" fill={secondary} stroke={ink} strokeWidth="3" strokeLinejoin="round"/>
+      <path d="M77 55V38h11v17 M132 55V38h11v17 M73 78h19 M128 78h19" fill="none" stroke={ink} strokeWidth="3" strokeLinecap="round"/>
+      <path d="M91 158q19-17 38 0 M75 171q35-18 70 0" fill="none" stroke={ink} strokeWidth="3" strokeLinecap="round"/>
+      {colored && <path d="M110 111L83 86L65 55h35v48 M110 111l27-25 18-31h-35z" fill={accent} opacity=".9"/>}
+    </>}
+    {scene === 1 && <>
+      <path d="M45 112c-19-26 5-53 30-42 3-34 45-41 57-11 26-15 56 6 44 34 25 22 6 54-22 49H72c-16 0-25-12-27-30z" fill={secondary} stroke={ink} strokeWidth="3"/>
+      <path d="M76 98q12-12 24 0 M122 98q12-12 24 0 M96 122q14 13 28 0" fill="none" stroke={ink} strokeWidth="3.5" strokeLinecap="round"/>
+      <path d="M109 37v-15 M53 58L42 47 M165 58l11-11" stroke={ink} strokeWidth="3" strokeLinecap="round"/>
+      {colored && <path d="M76 98q12-12 24 0 M122 98q12-12 24 0" stroke={accent} strokeWidth="5" fill="none" strokeLinecap="round"/>}
+    </>}
+    {scene === 2 && <>
+      <path d="M42 62q-20-20 0-36t40 0q20 20 0 40 M140 45q20-20 40 0t0 40q-20 20-40 0" fill={secondary} stroke={ink} strokeWidth="3"/>
+      <path d="M70 104q-12-20 7-30 18-9 33 7 15-16 33-7 19 10 7 30l-40 48z" fill={accent} stroke={ink} strokeWidth="3" strokeLinejoin="round"/>
+      <path d="M88 111q10 9 22 0 12 9 22 0" fill="none" stroke={ink} strokeWidth="3" strokeLinecap="round"/>
+      <path d="M109 16v-9 M28 100H16 M194 100h-12 M54 153l-8 8 M164 153l8 8" stroke={ink} strokeWidth="3" strokeLinecap="round"/>
+    </>}
+    {scene === 3 && <>
+      <rect x="80" y="38" width="60" height="112" rx="13" fill={secondary} stroke={ink} strokeWidth="3"/>
+      <rect x="91" y="50" width="38" height="72" rx="7" fill={colored ? '#fff9e9' : 'none'} stroke={ink} strokeWidth="2"/>
+      <path d="M99 34v-9h22v9 M96 139h28" stroke={ink} strokeWidth="3" strokeLinecap="round"/>
+      <path d="M110 105V76 M98 89l12-13 12 13" fill="none" stroke={accent === 'none' ? ink : accent} strokeWidth="5" strokeLinecap="round" strokeLinejoin="round"/>
+      <path d="M56 63q-14-13-25 0 M164 63q14-13 25 0 M54 132q-14 13-25 0 M166 132q14 13 25 0" fill="none" stroke={ink} strokeWidth="3" strokeLinecap="round"/>
+    </>}
+  </svg>;
+}
+
 export default function HeroBookAnimation() {
-  return <div className="hero-coloring-scene" role="img" aria-label="كتاب تلوين مفتوح ورسمة زهور تتحول تدريجيًا إلى ألوان مع حركة قلم">
+  const [active, setActive] = useState(0);
+  useEffect(() => {
+    const timer = window.setInterval(() => setActive(current => (current + 1) % scenes.length), 4200);
+    return () => window.clearInterval(timer);
+  }, []);
+
+  const scene = scenes[active];
+  return <div className="hero-coloring-scene" role="img" aria-label={`كتاب تلوين مفتوح، ${scene.caption}، رسمة أبيض وأسود وأخرى ملونة`}>
     <div className="hero-coloring-glow" />
     <span className="coloring-spark one">✦</span><span className="coloring-spark two">✧</span>
-    <div className="coloring-book">
-      <div className="coloring-page left">
-        <svg viewBox="0 0 180 250" aria-hidden="true">
-          <path className="coloring-outline" d="M90 218 C88 175 92 130 91 76 M90 150 C57 135 45 110 50 88 M91 129 C120 113 133 91 130 67 M91 178 C117 165 130 150 134 130" />
-          <path className="coloring-outline" d="M50 89 C29 78 29 51 48 43 C67 38 75 62 50 89 M50 89 C75 81 82 56 67 45 C52 36 38 58 50 89 M130 68 C111 57 112 33 132 27 C150 25 157 49 130 68 M130 68 C151 64 166 40 151 29 C135 19 119 43 130 68" />
-          <path className="coloring-outline" d="M65 143 C42 150 29 135 35 119 C45 105 63 119 65 143 M65 143 C82 128 79 106 62 104 C45 104 43 128 65 143 M133 131 C151 111 171 121 168 140 C163 157 143 151 133 131 M133 131 C119 109 132 91 148 98 C164 106 154 126 133 131" />
-          <path className="coloring-outline" d="M91 77 C77 61 83 43 98 43 C113 46 109 67 91 77 M91 77 C106 59 126 63 126 79 C124 96 102 91 91 77" />
-          <path className="coloring-outline" d="M25 220 Q90 205 155 220 M35 230 Q90 218 145 230" />
-        </svg>
-      </div>
-      <div className="coloring-page right">
-        <svg viewBox="0 0 180 250" aria-hidden="true">
-          <path className="coloring-fill" d="M89 80 C65 57 73 34 92 35 C111 35 111 61 89 80Z" />
-          <path className="coloring-fill leaf" d="M51 89 C27 78 29 52 48 44 C67 39 75 63 51 89Z" />
-          <path className="coloring-fill sun" d="M130 68 C111 57 112 33 132 27 C150 25 157 49 130 68Z" />
-          <path className="coloring-outline" d="M90 218 C88 175 92 130 91 76 M90 150 C57 135 45 110 50 88 M91 129 C120 113 133 91 130 67 M91 178 C117 165 130 150 134 130 M50 89 C29 78 29 51 48 43 C67 38 75 62 50 89 M130 68 C111 57 112 33 132 27 C150 25 157 49 130 68 M25 220 Q90 205 155 220" />
-        </svg>
+    <div className="coloring-book" aria-live="off">
+      <div className="coloring-spread" key={active}>
+        <div className="coloring-page left">
+          <Drawing scene={active} colored={false} />
+          <span className="page-label">لوّنيني</span>
+        </div>
+        <div className="coloring-page right">
+          <Drawing scene={active} colored={true} />
+          <span className="page-label">على مزاجك</span>
+        </div>
       </div>
       <span className="coloring-spine" />
-      <svg className="coloring-hand" viewBox="0 0 150 155" aria-hidden="true">
-        <path className="pencil-body" d="M25 18 L38 11 L104 115 L91 123 Z" />
-        <path className="pencil-tip" d="M91 123 L104 115 L109 137 Z" />
-        <path className="hand-skin" d="M74 93 C64 83 52 73 45 62 C39 52 44 44 51 47 C59 51 67 62 73 66 L62 43 C57 31 68 25 75 37 L91 63 L83 31 C80 17 94 14 99 28 L110 65 L109 42 C109 29 123 29 125 43 L130 84 C132 108 119 126 99 134 L78 139 C68 141 58 133 54 124Z" />
-      </svg>
     </div>
-    <div className="coloring-caption">لحظة تلوين... على مزاجك ♡</div>
+    <div className="coloring-caption" aria-live="polite">
+      <strong>{scene.caption}</strong>
+      <span>{scene.title}</span>
+    </div>
+    <div className="coloring-pagination" aria-label={`المشهد ${active + 1} من 4`}>
+      {scenes.map((item, index) => <span key={item.caption} className={index === active ? 'active' : ''} />)}
+    </div>
   </div>;
 }
