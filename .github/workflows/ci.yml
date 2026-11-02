@@ -21,8 +21,8 @@ jobs:
           distribution: temurin
           java-version: 21
       - name: Install dependencies
-        run: npm install
-      - name: Run existing tests
+        run: npm install --no-audit --no-fund
+      - name: Run application and bootstrap tests
         run: npm test
       - name: Run Firestore Security Rules tests in emulator
         run: npm run test:emulator
