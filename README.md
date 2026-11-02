@@ -23,8 +23,9 @@ Arabic-first, RTL storefront prototype for a personalized women's coloring book.
 - Customer chooses exactly 30 unique artworks; page order is assigned automatically.
 - Customer chooses one cover and personalizes it with a name.
 - Cash on delivery and InstaPay with manual review are the planned payment methods.
-- Standard price: 240 EGP; introductory price: 190 EGP for one hour from the first visit. Shipping is separate.
-- The browser timer is a visual prototype only. A trusted server must calculate offer eligibility, shipping, and the final order amount before real checkout.
+- Standard price: 240 EGP; introductory price: 190 EGP for one hour from the first visit on the same browser. Shipping is separate.
+- The offer end timestamp is persisted in localStorage so refreshes do not restart the hour. Clearing browser storage or using another browser/device can start a new client-side timer.
+- This is a storefront display timer only. Before real checkout, a trusted server must enforce offer eligibility and calculate shipping and the final order amount; client-side storage is not authoritative.
 
 ## Hosting and billing guardrails
 

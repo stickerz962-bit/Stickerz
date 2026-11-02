@@ -121,3 +121,12 @@
 .ap-admin-footer{display:flex;justify-content:space-between;gap:15px;flex-wrap:wrap;font-size:10px}
 @media(max-width:850px){.ap-admin-layout{grid-template-columns:1fr}.ap-admin-layout .product-form{position:static}.ap-cover-grid{grid-template-columns:repeat(3,minmax(0,1fr))}}
 @media(max-width:560px){.ap-admin-page{padding:22px 14px}.ap-admin-stats{gap:6px}.ap-admin-stats>div{padding:11px 8px;display:block;text-align:center}.ap-admin-stats b{display:block;font-size:22px}.ap-admin-stats span{font-size:8px}.ap-admin-tabs button{padding:10px 9px;font-size:9px}.ap-admin-layout .product-form,.ap-admin-layout .admin-products,.ap-cover-admin{padding:13px}.ap-admin-filters{grid-template-columns:1fr}.ap-admin-layout .admin-product-row{align-items:flex-start}.ap-admin-layout .admin-product-actions{flex-direction:column}.ap-cover-grid{grid-template-columns:repeat(2,minmax(0,1fr))}.ap-admin-footer{padding:25px 18px 15px;font-size:8px}}
+
+
+/* One-hour introductory offer */
+.offer-price-row{display:flex;align-items:baseline;justify-content:center;gap:12px}
+.old-price{font-size:15px;font-weight:800;color:#96909a;text-decoration:line-through}
+.offer-status{display:block;margin-top:5px;color:#b65376;font-size:11px;font-weight:900}
+.offer-countdown{display:flex;align-items:center;justify-content:center;gap:12px;margin:15px auto 17px;padding:10px 13px;max-width:260px;border:1px solid #f0c4d0;border-radius:12px;background:#fff4f7;color:#a84e70}
+.offer-countdown span{font-size:10px;font-weight:800}
+.offer-countdown strong{font:900 19px 'Nunito',sans-serif;direction:ltr;font-variant-numeric:tabular-nums}
