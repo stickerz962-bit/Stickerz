@@ -161,12 +161,7 @@ export default function Builder() {
         </section>
         {visible.length === 0 && <div className="builder-empty">ملقيناش رسومات بالكلمة دي. جربي كلمة تانية أو اختاري تصنيف مختلف.</div>}
       </main>
-      <aside className="selection-dock" aria-live="polite">
-        <div className="selection-count"><strong>{selected.length}<i>/30</i></strong><span>{remaining === 0 ? 'اختيارك اكتمل!' : 'رسمة مختارة'}</span></div>
-        <div className="selection-progress"><span style={{width: (selected.length / 30 * 100) + '%'}} /></div>
-        <div className="selection-message">{remaining === 0 ? 'عاش! اخترتي 30 رسمة مختلفة.' : 'فاضلك ' + remaining + ' رسمة علشان تكملي اختيارك.'}</div>
-        <div className="selection-actions"><button type="button" className="clear-selection" onClick={clearAll} disabled={!selected.length}>مسح الاختيارات</button><button type="button" className="continue-selection" disabled={selected.length !== 30} onClick={() => { setStep('cover'); setNotice(''); window.scrollTo({ top: 0, behavior: 'smooth' }); }}>اختاري الغلاف <span>←</span></button></div>
-      </aside>
+
     </> : step === 'cover' ? <>
       <main className="builder-main cover-builder-main">
         <div className="builder-intro">
@@ -235,6 +230,11 @@ export default function Builder() {
         </section>
       </main>
     </>}
+    <aside className={'selection-dock journey-dock journey-' + step} aria-label="تقدم تصميم كتابك">
+      <div className="journey-count"><strong>{selected.length}<i>/30</i></strong><span>{remaining === 0 ? 'اختياراتك اكتملت' : 'رسمة مختارة'}</span></div>
+      <div className="journey-progress-area"><div className="journey-progress-copy"><b>{remaining === 0 ? 'يا سلام! خلصتي اختيار الرسومات' : 'كتابك بيتكوّن واحدة واحدة'}</b><span>{remaining === 0 ? '30 من 30 رسمة' : 'فاضلك ' + remaining + ' رسمة'}</span></div><div className="selection-progress"><span style={{width: (selected.length / 30 * 100) + '%'}} /></div><div className="journey-steps"><span className="done">١ · الرسومات</span><span className={step !== 'artworks' ? 'done' : ''}>٢ · الغلاف والاسم</span><span className={step === 'book' ? 'done' : ''}>٣ · المعاينة</span></div></div>
+      <div className="journey-actions">{step === 'artworks' ? <><button type="button" className="clear-selection" onClick={clearAll} disabled={!selected.length}>مسح</button><button type="button" className="continue-selection" disabled={selected.length !== 30} onClick={() => {setStep('cover');setNotice('');window.scrollTo({top:0,behavior:'smooth'});}}>اختاري الغلاف ←</button></> : step === 'cover' ? <><button type="button" className="clear-selection" onClick={() => {setStep('artworks');window.scrollTo({top:0,behavior:'smooth'});}}>الرسومات</button><button type="button" className="continue-selection" disabled={!draft.name.trim()} onClick={() => {setNotice('');setStep('book');window.scrollTo({top:0,behavior:'smooth'});}}>معاينة كتابي ←</button></> : <><button type="button" className="clear-selection" onClick={() => {setStep('cover');window.scrollTo({top:0,behavior:'smooth'});}}>تعديل الغلاف</button><button type="button" className="continue-selection" onClick={() => {setStep('artworks');window.scrollTo({top:0,behavior:'smooth'});}}>تعديل الرسومات</button></>}</div>
+    </aside>
     {preview && step === 'artworks' && <div className="preview-backdrop" role="presentation" onMouseDown={e => { if (e.target === e.currentTarget) setPreview(null); }}>
       <section className="art-preview-modal" role="dialog" aria-modal="true" aria-label="معاينة الرسمة">
         <button className="preview-close" type="button" onClick={() => setPreview(null)} aria-label="إغلاق">×</button>
