@@ -13,11 +13,11 @@ Arabic-first, RTL storefront prototype for a personalized women's coloring book.
 
 ## Security and backend status
 
-- `firestore.rules` is a deny-by-default baseline in `main`. Firebase rules deployment remains a separate operation requiring review and explicit approval.
+- `firestore.rules` is a deny-by-default baseline in `main`.
 - Public reads are limited to published catalog documents and safe public settings. Catalog writes require a trusted Firebase Authentication custom claim (`admin: true`).
 - Orders, payments, and order-event writes are denied from browser clients, including admin clients, until a trusted server-side workflow exists.
-- See [the admin access guide](docs/security/admin-access.md) and [the Firestore data model](docs/architecture/firestore-schema.md).
-- Administrator provisioning is still a one-time trusted setup task; see [the admin access guide](docs/security/admin-access.md).
+- See [the admin access guide](docs/security/admin-access.md), [the Firestore data model](docs/architecture/firestore-schema.md), and [the GitHub Firebase bootstrap guide](docs/security/github-firebase-bootstrap.md).
+- The opt-in GitHub Actions workflow can deploy Firestore rules/indexes, create missing starter categories and public settings, and grant the admin claim to an existing Auth user using short-lived GitHub OIDC credentials.
 - Do not enter real customer data or accept orders through this prototype.
 
 ## Locked product behavior
@@ -33,7 +33,7 @@ Arabic-first, RTL storefront prototype for a personalized women's coloring book.
 ## Hosting and billing guardrails
 
 - Firebase Storage is not enabled. Do not activate it or upgrade the Firebase billing plan.
-- Do not enable Cloud Functions, Cloud Run, or any paid service without explicit approval.
+- Do not enable Cloud Functions, Cloud Run, or any paid service.
 - Do not store image binaries, originals, payment evidence, or production PDFs in Firestore.
 - Until an approved preview-hosting solution is available, keep final artwork unpublished and originals private.
 
@@ -53,3 +53,5 @@ npm test
 npm run test:emulator
 npm run build
 ```
+
+See [the Firebase bootstrap setup guide](docs/security/github-firebase-bootstrap.md) before dispatching the live workflow.

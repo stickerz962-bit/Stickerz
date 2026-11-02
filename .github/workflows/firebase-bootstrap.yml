@@ -1,0 +1,97 @@
+name: Firebase Bootstrap
+
+on:
+  workflow_dispatch:
+    inputs:
+      project_id:
+        description: "Firebase project ID (must be stickerz-922b9)"
+        required: true
+        default: "stickerz-922b9"
+        type: string
+      admin_email:
+        description: "Email of the existing Firebase Auth user to grant admin:true"
+        required: true
+        type: string
+      confirm_live_deploy:
+        description: "I approve deploying Firestore rules/indexes and seeding this Firebase project"
+        required: true
+        default: false
+        type: boolean
+
+permissions:
+  contents: read
+  id-token: write
+
+concurrency:
+  group: firebase-bootstrap-${{ inputs.project_id }}
+  cancel-in-progress: false
+
+jobs:
+  bootstrap:
+    if: ${{ inputs.confirm_live_deploy == true }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Validate target project and federation configuration
+        env:
+          PROJECT_ID: ${{ inputs.project_id }}
+          ADMIN_EMAIL: ${{ inputs.admin_email }}
+          WIF_PROVIDER: ${{ vars.GCP_WORKLOAD_IDENTITY_PROVIDER }}
+          SERVICE_ACCOUNT: ${{ vars.GCP_SERVICE_ACCOUNT }}
+        run: |
+          set -euo pipefail
+          if [ "$PROJECT_ID" != "stickerz-922b9" ]; then
+            echo "::error::Refusing to run against an unexpected Firebase project."
+            exit 1
+          fi
+          if [ -z "$ADMIN_EMAIL" ] || [ -z "$WIF_PROVIDER" ] || [ -z "$SERVICE_ACCOUNT" ]; then
+            echo "::error::Set admin_email and the GCP_WORKLOAD_IDENTITY_PROVIDER / GCP_SERVICE_ACCOUNT repository variables first."
+            exit 1
+          fi
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Install project dependencies
+        run: npm install --no-audit --no-fund
+
+      - name: Authenticate using short-lived GitHub OIDC credentials
+        uses: google-github-actions/auth@v2
+        with:
+          workload_identity_provider: ${{ vars.GCP_WORKLOAD_IDENTITY_PROVIDER }}
+          service_account: ${{ vars.GCP_SERVICE_ACCOUNT }}
+          create_credentials_file: true
+
+      - name: Verify credentials and Firebase project access
+        env:
+          PROJECT_ID: ${{ inputs.project_id }}
+        run: |
+          node --input-type=module <<'NODE'
+          import { applicationDefault, initializeApp } from 'firebase-admin/app';
+          import { getFirestore } from 'firebase-admin/firestore';
+          const app = initializeApp({ credential: applicationDefault(), projectId: process.env.PROJECT_ID });
+          await getFirestore(app).listCollections();
+          console.log('Authenticated and connected to the intended Firestore project.');
+          NODE
+
+      - name: Deploy Firestore security rules and indexes
+        env:
+          PROJECT_ID: ${{ inputs.project_id }}
+        run: npx --yes firebase-tools@13.29.2 deploy --only firestore:rules,firestore:indexes --project "$PROJECT_ID" --non-interactive
+
+      - name: Seed storefront data and grant admin claim
+        env:
+          PROJECT_ID: ${{ inputs.project_id }}
+          ADMIN_EMAIL: ${{ inputs.admin_email }}
+        run: npm run firebase:bootstrap
+
+      - name: Report completion
+        run: |
+          echo "Firebase bootstrap completed for project stickerz-922b9."
+          echo "Created missing starter documents only; existing documents were preserved."
+          echo "No Storage, Cloud Functions, Cloud Run, or billing plan was enabled."
