@@ -1,0 +1,72 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+    function isAdmin() {
+      return request.auth != null && request.auth.token.admin == true;
+    }
+
+    function categoryIsActive(categoryId) {
+      return categoryId is string
+        && exists(/databases/$(database)/documents/categories/$(categoryId))
+        && get(/databases/$(database)/documents/categories/$(categoryId)).data.active == true;
+    }
+
+    // Public catalog: only published content is readable by visitors.
+    // Trusted admins can read drafts and manage catalog documents.
+    match /categories/{categoryId} {
+      allow read: if isAdmin() || resource.data.active == true;
+      allow create, update, delete: if isAdmin();
+    }
+
+    match /artworks/{artworkId} {
+      allow read: if isAdmin()
+        || (resource.data.active == true && categoryIsActive(resource.data.categoryId));
+      allow create, update, delete: if isAdmin();
+    }
+
+    match /covers/{coverId} {
+      allow read: if isAdmin() || resource.data.active == true;
+      allow create, update, delete: if isAdmin();
+    }
+
+    // Only non-sensitive storefront display settings are public.
+    // Order creation must be server-authoritative; no browser writes are allowed.
+    match /settings/public {
+      allow read: if true;
+      allow write: if isAdmin();
+    }
+
+    match /settings/{settingId} {
+      allow read, write: if isAdmin();
+    }
+
+    // Customer, payment, audit, and fulfillment records are never public.
+    // This first foundation intentionally has no client-side order/payment writes,
+    // including admin-client writes, until a trusted server workflow is implemented.
+    match /orders/{orderId} {
+      allow read: if isAdmin();
+      allow write: if false;
+    }
+
+    match /payments/{paymentId} {
+      allow read: if isAdmin();
+      allow write: if false;
+    }
+
+    match /orderEvents/{eventId} {
+      allow read: if isAdmin();
+      allow write: if false;
+    }
+
+    match /adminUsers/{uid} {
+      allow read: if isAdmin() && request.auth.uid == uid;
+      allow write: if false;
+    }
+
+    // Explicit deny-by-default for every collection not listed above.
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}

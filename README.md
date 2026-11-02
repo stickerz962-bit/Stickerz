@@ -1,19 +1,37 @@
-# Stickerz
+# ANTI PRESSURE — فُكّي الضغط
 
-Arabic-first, RTL storefront preview for personalized children's stickers and gifts.
+Arabic-first, RTL storefront prototype for a personalized women's coloring book.
 
-## Current preview features
+## Current project state
 
-- Responsive Arabic RTL storefront.
-- Browser-based product admin at `/#admin`: create, edit, hide/show, and delete products; set EGP prices; upload a small product image; add a description and category.
-- Product catalog, search, category filtering, and price display.
-- Product entries are saved in the current browser's localStorage only, so they do not sync between devices or browsers.
+- The current `main` branch contains the customer-facing visual prototype and a local-only catalog admin preview.
+- The admin page is not authenticated and stores edits in the current browser only. It is not a production control panel.
+- The customer artwork and cover visuals are placeholders. Do not treat them as final printable assets.
+- Firebase client initialization and a read-only Firestore catalog repository exist in the source, but live production operations are not enabled.
 
-## Important limitations
+## Security and backend status
 
-The admin screen is a prototype, **not a secure production admin**. There is no sign-in, shared database, or access control yet. Do not use it for real business operations or sensitive information. Product data and uploaded images remain on the same browser/device and can be lost when browser storage is cleared.
+- `firestore.rules` in the security-foundation branch is a proposed deny-by-default baseline. Automated Firebase Emulator Suite tests are included in the PR; deployment remains pending review and explicit approval.
+- Public reads are limited to published catalog documents and safe public settings. Catalog writes require a trusted Firebase Authentication custom claim (`admin: true`).
+- Orders, payments, and order-event writes are denied from browser clients, including admin clients, until a trusted server-side workflow exists.
+- See [the admin access guide](docs/security/admin-access.md) and [the Firestore data model](docs/architecture/firestore-schema.md).
+- Do not enter real customer data or accept orders through this prototype.
 
-Firebase Authentication, Firestore, and Storage are not connected. Checkout, orders, payment review, customer accounts, template editing, and print workflows are not enabled. Do not deploy Firebase resources or accept real customer data until access control, privacy requirements, and emulator-based rules tests have been implemented and reviewed.
+## Locked product behavior
+
+- Guest checkout; no customer account required.
+- Customer chooses exactly 30 unique artworks; page order is assigned automatically.
+- Customer chooses one cover and personalizes it with a name.
+- Cash on delivery and InstaPay with manual review are the planned payment methods.
+- Standard price: 240 EGP; introductory price: 190 EGP for one hour from the first visit. Shipping is separate.
+- The browser timer is a visual prototype only. A trusted server must calculate offer eligibility, shipping, and the final order amount before real checkout.
+
+## Hosting and billing guardrails
+
+- Firebase Storage is not enabled. Do not activate it or upgrade the Firebase billing plan.
+- Do not enable Cloud Functions, Cloud Run, or any paid service without explicit approval.
+- Do not store image binaries, originals, payment evidence, or production PDFs in Firestore.
+- Until an approved preview-hosting solution is available, keep final artwork unpublished and originals private.
 
 ## Run locally
 
@@ -28,7 +46,6 @@ npm run dev
 
 ```sh
 npm test
+npm run test:emulator
 npm run build
 ```
-
-The Firestore data-model proposal is in `docs/architecture/firestore-schema.md`.
