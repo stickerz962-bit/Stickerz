@@ -53,8 +53,8 @@ async function readActive<T>(
 }
 
 /**
- * Explicit demo mode preserves the existing prototype while real catalog content is being prepared.
- * Firestore mode never silently substitutes demo content: an empty or failed live catalog stays empty.
+ * Demo catalog is used only when demo mode is explicitly selected or Firebase is not configured.
+ * Once connected to Firestore, missing real catalog content must never be replaced by mock artwork.
  */
 export async function loadCatalog(demoData: CatalogData): Promise<CatalogResult> {
   if (import.meta.env.VITE_CATALOG_MODE === 'demo') {
