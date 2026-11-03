@@ -2,6 +2,7 @@ import { useMemo, useState, type FormEvent } from 'react';
 import { createUserWithEmailAndPassword } from 'firebase/auth';
 import { doc, serverTimestamp, setDoc } from 'firebase/firestore';
 import { auth, firestore, firebaseConfigured } from './firebase/client';
+import { PARTNER_COMMISSION_EGP } from './lib/commission';
 
 function normalizeEgyptianWhatsApp(value: string): string {
   const digits = value.replace(/\\D/g, '');
@@ -68,10 +69,10 @@ export default function PartnerApp() {
       <div className="section-heading">
         <span className="eyebrow">♡ شراكة لطيفة ومكسب واضح</span>
         <h1 style={{fontSize:'clamp(32px,5vw,48px)'}}>انضم كشريك</h1>
-        <p>شاركي كتاب «فُكّي الضغط» مع جمهورك، وخدي <strong>20 جنيه عن كل طلب يتم تسليمه بنجاح</strong>.</p>
+        <p>شاركي كتاب «فُكّي الضغط» مع جمهورك، وخدي <strong>{PARTNER_COMMISSION_EGP} جنيه عن كل طلب يتم تسليمه بنجاح</strong>.</p>
       </div>
       <div className="promise-strip" style={{gridTemplateColumns:'repeat(3,1fr)',marginBottom:28}}>
-        <div><span>♡</span><p><b>20 جنيه</b><small>عن كل طلب مستلَم</small></p></div>
+        <div><span>♡</span><p><b>{PARTNER_COMMISSION_EGP} جنيه</b><small>عن كل طلب مستلَم</small></p></div>
         <div><span>↗</span><p><b>لينك خاص</b><small>بعد اعتماد الحساب</small></p></div>
         <div><span>☏</span><p><b>واتساب</b><small>للتواصل مع الإدارة</small></p></div>
       </div>
