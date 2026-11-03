@@ -1,9 +1,7 @@
 import { useMemo, useState, type FormEvent } from 'react';
 
-const referralCodePattern = /^[A-Za-z0-9_-]{4,32}$/;
-
 function normalizeEgyptianWhatsApp(value: string): string {
-  const digits = value.replace(/\\D/g, '');
+  const digits = value.replace(/\D/g, '');
   if (digits.startsWith('0020')) return digits.slice(2);
   if (digits.startsWith('20')) return digits;
   if (digits.startsWith('0')) return '20' + digits.slice(1);
@@ -22,7 +20,7 @@ export default function PartnerApp() {
     event.preventDefault();
     setError('');
     if (name.trim().length < 2) return setError('اكتبي اسمك بشكل صحيح.');
-    if (!/^20\\d{10}$/.test(normalizedPhone)) return setError('اكتبي رقم واتساب مصري صحيح (11 رقم محليًا).');
+    if (!/^20\d{10}$/.test(normalizedPhone)) return setError('اكتبي رقم واتساب مصري صحيح (11 رقم محليًا).');
     if (social.trim().length < 2) return setError('اكتبي رابط أو اسم حسابك على السوشيال ميديا.');
     setSubmitted(true);
   };
