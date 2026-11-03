@@ -212,7 +212,17 @@ Append-only event fields:
 
 Only trusted server code creates events. Never accept actor identity or privileged state transitions from browser input.
 
-## 7. Admin and offer-session metadata
+## 7. Partner referrals and commission ledger
+
+### `partners/{uid}`
+Admin-created profile for an approved partner. The profile includes `uid`, `name`, `whatsapp`, unique `code`, `status` (`approved` or `paused`), and `commissionRate: 15`. Despite the legacy field name, this is a fixed EGP amount per delivered order, not a percentage.
+
+### `commissions/{commissionId}`
+Reserved for a trusted, admin-authorized delivery workflow. Each record must include `orderId` (unique/idempotency key), `partnerUid`, `partnerCodeSnapshot`, `amount: 15`, `currency: EGP`, `status: pending|approved|paid|reversed`, `deliveryEventId`, `createdAt`, and optional payout audit fields. Enforce at most one commission for each order. Partner may read only records where `partnerUid == request.auth.uid`; only trusted admin/server actions may create or change ledger/payout records. Partners must never be able to create, edit, reverse, or mark commissions paid.
+
+Referral query parameters are untrusted input. The checkout service must validate an active approved partner code and store an immutable attribution snapshot on the order. No commission is earned until an authorized admin confirms delivery. The current storefront has no order creation or delivery workflow, so this collection is a schema contract only and must not be populated with simulated balances.
+
+## 8. Admin and offer-session metadata
 
 ### `adminUsers/{uid}`
 
