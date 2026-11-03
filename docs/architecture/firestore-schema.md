@@ -232,11 +232,11 @@ Fields: `displayName:string`, `email:string`, `role:string`, `active:boolean`, `
 
 Fields: `tokenHash:string`, `startedAt:Timestamp`, `expiresAt:Timestamp`, `consumedAt:Timestamp|null`, `createdAt:Timestamp`. The raw opaque token exists only with the guest/browser and is never stored. Avoid device fingerprinting.
 
-## 8. Firestore indexes
+## 9. Firestore indexes
 
 The companion `firestore.indexes.json` defines composite indexes for active catalog ordering and common admin order/payment/event queues. Single-field indexes are handled by Firestore defaults.
 
-## 9. Security invariants
+## 10. Security invariants
 
 - Default deny. Only active public catalog records and `settings/public` are anonymously readable.
 - Admin catalog access requires trusted Firebase Auth custom claim `admin:true`.
@@ -246,6 +246,6 @@ The companion `firestore.indexes.json` defines composite indexes for active cata
 - No Storage, Cloud Functions, Cloud Run, Blaze billing, or paid service is enabled by this schema.
 - No real orders/payments until a trusted backend validates the entire order and pricing lifecycle.
 
-## 10. Implementation status
+## 11. Implementation status
 
 This schema and index file are versioned in GitHub. They are not yet deployed to Firebase. Firestore collections are document-driven and appear when the first authorized document is written; do not create empty placeholder collections. The only approved initial seed action is the ten category records from the admin panel. Prices in `settings/public` should be seeded from the locked values above. Shipping fee rows must wait for verified carrier rates.
