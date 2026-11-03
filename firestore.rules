@@ -6,14 +6,16 @@ service cloud.firestore {
       return request.auth != null && request.auth.token.admin == true;
     }
 
+    function isOwner(uid) {
+      return request.auth != null && request.auth.uid == uid;
+    }
+
     function categoryIsActive(categoryId) {
       return categoryId is string
         && exists(/databases/$(database)/documents/categories/$(categoryId))
         && get(/databases/$(database)/documents/categories/$(categoryId)).data.active == true;
     }
 
-    // Public catalog: only published content is readable by visitors.
-    // Trusted admins can read drafts and manage catalog documents.
     match /categories/{categoryId} {
       allow read: if isAdmin() || resource.data.active == true;
       allow create, update, delete: if isAdmin();
@@ -30,8 +32,6 @@ service cloud.firestore {
       allow create, update, delete: if isAdmin();
     }
 
-    // Only non-sensitive storefront display settings are public.
-    // Order creation must be server-authoritative; no browser writes are allowed.
     match /settings/public {
       allow read: if true;
       allow write: if isAdmin();
@@ -41,9 +41,42 @@ service cloud.firestore {
       allow read, write: if isAdmin();
     }
 
-    // Customer, payment, audit, and fulfillment records are never public.
-    // This first foundation intentionally has no client-side order/payment writes,
-    // including admin-client writes, until a trusted server workflow is implemented.
+    // Partner applications: the signed-in applicant may create exactly one
+    // application at their own UID and read only their own status.
+    // Approval and partner profile creation are admin-only.
+    match /partnerApplications/{uid} {
+      allow create: if isOwner(uid)
+        && request.resource.data.keys().hasOnly([
+          'uid', 'name', 'whatsapp', 'social', 'status', 'createdAt', 'updatedAt'
+        ])
+        && request.resource.data.keys().hasAll([
+          'uid', 'name', 'whatsapp', 'social', 'status', 'createdAt', 'updatedAt'
+        ])
+        && request.resource.data.uid == request.auth.uid
+        && request.resource.data.name is string
+        && request.resource.data.name.size() >= 2
+        && request.resource.data.name.size() <= 80
+        && request.resource.data.whatsapp is string
+        && request.resource.data.whatsapp.matches('^20[0-9]{10}$')
+        && request.resource.data.social is string
+        && request.resource.data.social.size() >= 2
+        && request.resource.data.social.size() <= 250
+        && request.resource.data.status == 'pending'
+        && request.resource.data.createdAt is timestamp
+        && request.resource.data.updatedAt is timestamp;
+      allow read: if isAdmin() || isOwner(uid);
+      allow update, delete: if isAdmin();
+    }
+
+    // Approved partner profiles are created/updated only by trusted admins.
+    match /partners/{uid} {
+      allow read: if isAdmin() || isOwner(uid);
+      allow create, update, delete: if isAdmin();
+    }
+
+    // Customer, payment, audit, and fulfillment records are intentionally
+    // server/admin-write only. Do not enable client order writes until a
+    // trusted order/pricing workflow has been validated.
     match /orders/{orderId} {
       allow read: if isAdmin();
       allow write: if false;
@@ -64,7 +97,6 @@ service cloud.firestore {
       allow write: if false;
     }
 
-    // Explicit deny-by-default for every collection not listed above.
     match /{document=**} {
       allow read, write: if false;
     }
