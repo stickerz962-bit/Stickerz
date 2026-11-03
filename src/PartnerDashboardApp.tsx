@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { onAuthStateChanged, signInWithEmailAndPassword, signOut, type User } from 'firebase/auth';
 import { doc, getDoc } from 'firebase/firestore';
 import { auth, firestore, firebaseConfigured } from './firebase/client';
+import { PARTNER_COMMISSION_EGP } from './lib/commission';
 
 type Application = { name: string; status: string; whatsapp: string; social: string };
 type Partner = { code?: string; status?: string; commissionRate?: number };
@@ -53,7 +54,7 @@ export default function PartnerDashboardApp() {
         {error&&<p role="alert">{error}</p>}<button className="primary-button">دخول</button>
       </form></section>:
       <><div className="section-heading"><span className="eyebrow">مساحتك الخاصة ♡</span><h1>أهلًا {appData?.name||user.email}</h1><p>حالة طلب الشراكة: <b>{partner?.status==='approved'?'معتمد':appData?.status==='pending'?'قيد مراجعة الإدارة':appData?.status||'لم يتم العثور على الطلب'}</b></p></div>
-      {partner?.status==='approved'?<section className="ap-admin-form"><h2>لينك الإحالة الخاص بك</h2><p>كود الشريك: <b>{partner.code||'لم يتم إنشاء الكود بعد'}</b></p><button className="primary-button" disabled={!partner.code} onClick={()=>void copyReferral()}>نسخ لينك الإحالة</button><p>العمولة تُحتسب بعد تأكيد تسليم الطلب من الإدارة، ولا تُحتسب للطلبات الملغاة أو غير المستلمة.</p></section>:<section className="ap-admin-form"><h2>طلبك تحت المراجعة</h2><p>بعد اعتماد الإدارة هيتفعّل لينك الإحالة. لا توجد عمولات أو طلبات معتمدة قبل الموافقة.</p></section>}
+      {partner?.status==='approved'?<section className="ap-admin-form"><h2>لينك الإحالة الخاص بك</h2><p>كود الشريك: <b>{partner.code||'لم يتم إنشاء الكود بعد'}</b></p><button className="primary-button" disabled={!partner.code} onClick={()=>void copyReferral()}>نسخ لينك الإحالة</button><p>العمولة {PARTNER_COMMISSION_EGP} جنيه عن كل طلب يتم تسليمه بنجاح، مرة واحدة فقط. لا تُحتسب للطلبات الملغاة أو غير المستلمة.</p></section>:<section className="ap-admin-form"><h2>طلبك تحت المراجعة</h2><p>بعد اعتماد الإدارة هيتفعّل لينك الإحالة. لا توجد عمولات أو طلبات معتمدة قبل الموافقة.</p></section>}
       {error&&<p role="status">{error}</p>}<button className="header-cta" onClick={()=>auth&&void signOut(auth)}>تسجيل الخروج</button></>}
     </main><footer className="site-footer"><a href="./">ANTI PRESSURE – فُكّي الضغط</a></footer>
   </div>;

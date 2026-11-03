@@ -212,7 +212,17 @@ Append-only event fields:
 
 Only trusted server code creates events. Never accept actor identity or privileged state transitions from browser input.
 
-## 7. Admin and offer-session metadata
+## 7. Partner referrals and commission ledger
+
+### `partners/{uid}`
+Admin-created profile for an approved partner. The profile includes `uid`, `name`, `whatsapp`, unique `code`, `status` (`approved` or `paused`), and `commissionRate: 15`. Despite the legacy field name, this is a fixed EGP amount per delivered order, not a percentage.
+
+### `commissions/{commissionId}`
+Reserved for a trusted, admin-authorized delivery workflow. Each record must include `orderId` (unique/idempotency key), `partnerUid`, `partnerCodeSnapshot`, `amount: 15`, `currency: EGP`, `status: pending|approved|paid|reversed`, `deliveryEventId`, `createdAt`, and optional payout audit fields. Enforce at most one commission for each order. Partner may read only records where `partnerUid == request.auth.uid`; only trusted admin/server actions may create or change ledger/payout records. Partners must never be able to create, edit, reverse, or mark commissions paid.
+
+Referral query parameters are untrusted input. The checkout service must validate an active approved partner code and store an immutable attribution snapshot on the order. No commission is earned until an authorized admin confirms delivery. The current storefront has no order creation or delivery workflow, so this collection is a schema contract only and must not be populated with simulated balances.
+
+## 8. Admin and offer-session metadata
 
 ### `adminUsers/{uid}`
 
@@ -222,11 +232,11 @@ Fields: `displayName:string`, `email:string`, `role:string`, `active:boolean`, `
 
 Fields: `tokenHash:string`, `startedAt:Timestamp`, `expiresAt:Timestamp`, `consumedAt:Timestamp|null`, `createdAt:Timestamp`. The raw opaque token exists only with the guest/browser and is never stored. Avoid device fingerprinting.
 
-## 8. Firestore indexes
+## 9. Firestore indexes
 
 The companion `firestore.indexes.json` defines composite indexes for active catalog ordering and common admin order/payment/event queues. Single-field indexes are handled by Firestore defaults.
 
-## 9. Security invariants
+## 10. Security invariants
 
 - Default deny. Only active public catalog records and `settings/public` are anonymously readable.
 - Admin catalog access requires trusted Firebase Auth custom claim `admin:true`.
@@ -236,6 +246,6 @@ The companion `firestore.indexes.json` defines composite indexes for active cata
 - No Storage, Cloud Functions, Cloud Run, Blaze billing, or paid service is enabled by this schema.
 - No real orders/payments until a trusted backend validates the entire order and pricing lifecycle.
 
-## 10. Implementation status
+## 11. Implementation status
 
 This schema and index file are versioned in GitHub. They are not yet deployed to Firebase. Firestore collections are document-driven and appear when the first authorized document is written; do not create empty placeholder collections. The only approved initial seed action is the ten category records from the admin panel. Prices in `settings/public` should be seeded from the locked values above. Shipping fee rows must wait for verified carrier rates.
