@@ -138,3 +138,48 @@ describe('Firestore security rules — private operations and default deny', () 
     await assertFails(updateDoc(doc(db, 'adminUsers', 'customer-1'), { admin: true }));
   });
 });
+
+
+describe('Firestore security rules — partner application ownership', () => {
+  it('allows an applicant to create/read only their own pending application', async () => {
+    const applicant = testEnv.authenticatedContext('partner-uid-1').firestore();
+    const application = {
+      uid: 'partner-uid-1',
+      name: 'Partner One',
+      whatsapp: '201012345678',
+      social: 'https://instagram.com/example',
+      status: 'pending',
+      createdAt: new Date(),
+      updatedAt: new Date(),
+    };
+    await assertSucceeds(setDoc(doc(applicant, 'partnerApplications', 'partner-uid-1'), application));
+    await assertSucceeds(getDoc(doc(applicant, 'partnerApplications', 'partner-uid-1')));
+    await assertFails(getDoc(doc(applicant, 'partnerApplications', 'partner-uid-2')));
+  });
+
+  it('rejects another UID, invalid phone, non-pending status and applicant edits', async () => {
+    const applicant = testEnv.authenticatedContext('partner-uid-1').firestore();
+    const base = {
+      uid: 'partner-uid-1',
+      name: 'Partner One',
+      whatsapp: '201012345678',
+      social: 'Instagram',
+      status: 'pending',
+      createdAt: new Date(),
+      updatedAt: new Date(),
+    };
+    await assertFails(setDoc(doc(applicant, 'partnerApplications', 'partner-uid-2'), { ...base, uid: 'partner-uid-2' }));
+    await assertFails(setDoc(doc(applicant, 'partnerApplications', 'partner-uid-1'), { ...base, whatsapp: 'bad-phone' }));
+    await assertFails(setDoc(doc(applicant, 'partnerApplications', 'partner-uid-1'), { ...base, status: 'approved' }));
+    await assertFails(updateDoc(doc(applicant, 'partnerApplications', 'partner-uid-1'), { status: 'approved' }));
+  });
+
+  it('allows only admin to read all applications and approve partner profile', async () => {
+    const admin = testEnv.authenticatedContext('admin-1', { admin: true }).firestore();
+    await assertSucceeds(getDoc(doc(admin, 'partnerApplications', 'partner-uid-1')));
+    await assertSucceeds(setDoc(doc(admin, 'partners', 'partner-uid-1'), { status: 'approved' }));
+    const other = testEnv.authenticatedContext('customer-1').firestore();
+    await assertFails(getDoc(doc(other, 'partners', 'partner-uid-1')));
+    await assertFails(setDoc(doc(other, 'partners', 'partner-uid-1'), { status: 'approved' }));
+  });
+});
