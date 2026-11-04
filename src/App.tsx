@@ -53,7 +53,7 @@ const trackingSteps = [
   ['ready_for_printing', 'جاهز للطباعة'], ['printing', 'قيد الطباعة'], ['quality_check', 'مراجعة الجودة'],
   ['ready_for_shipping', 'جاهز للشحن'], ['shipped', 'خرج للشحن'], ['delivered', 'تم التسليم'],
 ];
-const trackingLabels: Record<string,string> = { ...Object.fromEntries(trackingSteps), cancelled: 'تم إلغاء الطلب' };
+const trackingLabels: Record<string,string> = trackingSteps.reduce((labels, [key, label]) => ({ ...labels, [key]: label }), { cancelled: 'تم إلغاء الطلب' });
 
 function OrderTracking({ token }: { token: string }) {
   const [record, setRecord] = useState<{ publicReference?: string; fulfillmentStatus?: string; updatedAt?: { toDate?: () => Date } } | null>(null);
