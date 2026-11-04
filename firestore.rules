@@ -152,6 +152,63 @@ service cloud.firestore {
       allow update, delete: if isAdmin();
     }
 
+
+    // Public bearer-token projection: contains status/reference only, never customer PII.
+    match /orderTracking/{token} {
+      allow get: if token.matches('^[a-f0-9]{64}
+      allow read: if isAdmin();
+      allow write: if false;
+    }
+
+    match /orderEvents/{eventId} {
+      allow read: if isAdmin();
+      allow write: if false;
+    }
+
+    match /adminUsers/{uid} {
+      allow read: if isAdmin() && request.auth.uid == uid;
+      allow write: if false;
+    }
+
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}
+) && resource != null;
+      allow list: if false;
+      allow create: if token.matches('^[a-f0-9]{64}
+      allow read: if isAdmin();
+      allow write: if false;
+    }
+
+    match /orderEvents/{eventId} {
+      allow read: if isAdmin();
+      allow write: if false;
+    }
+
+    match /adminUsers/{uid} {
+      allow read: if isAdmin() && request.auth.uid == uid;
+      allow write: if false;
+    }
+
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}
+)
+        && request.resource.data.keys().hasOnly(['publicReference', 'fulfillmentStatus', 'createdAt', 'updatedAt'])
+        && request.resource.data.keys().hasAll(['publicReference', 'fulfillmentStatus', 'createdAt', 'updatedAt'])
+        && request.resource.data.publicReference is string
+        && request.resource.data.publicReference.size() >= 6
+        && request.resource.data.publicReference.size() <= 40
+        && request.resource.data.fulfillmentStatus == 'new'
+        && request.resource.data.createdAt == request.time
+        && request.resource.data.updatedAt == request.time;
+      allow update, delete: if isAdmin();
+    }
+
     match /payments/{paymentId} {
       allow read: if isAdmin();
       allow write: if false;
