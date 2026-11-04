@@ -7,7 +7,7 @@ import {
   assertFails,
   assertSucceeds,
 } from '@firebase/rules-unit-testing';
-import { collection, doc, getDoc, getDocs, query, where, setDoc, updateDoc, deleteDoc } from 'firebase/firestore';
+import { collection, doc, getDoc, getDocs, query, where, setDoc, updateDoc, deleteDoc, serverTimestamp } from 'firebase/firestore';
 
 const projectId = 'demo-anti-pressure';
 let testEnv: RulesTestEnvironment;
@@ -181,5 +181,57 @@ describe('Firestore security rules — partner application ownership', () => {
     const other = testEnv.authenticatedContext('customer-1').firestore();
     await assertFails(getDoc(doc(other, 'partners', 'partner-uid-1')));
     await assertFails(setDoc(doc(other, 'partners', 'partner-uid-1'), { status: 'approved' }));
+  });
+});
+
+
+describe('Firestore security rules — guest checkout orders', () => {
+  function validGuestOrder() {
+    return {
+      publicReference: 'AP-TEST-0001',
+      customer: { name: 'Test Customer', phone: '01012345678' },
+      shipping: { governorateName: 'Cairo', areaName: 'Nasr City', address: 'Test street 123', deliveryNotes: '', fee: null },
+      book: {
+        artworks: Array.from({ length: 30 }, (_, index) => ({
+          artworkId: 'AP-' + String(index + 1).padStart(3, '0'),
+          titleSnapshot: 'Artwork ' + (index + 1),
+          printOrder: index + 1,
+        })),
+        cover: { coverId: 'AP-COVER-01', titleSnapshot: 'Calm cover' },
+        personalizedName: 'Test Name',
+      },
+      pricing: { currency: 'EGP', standardBookPrice: 240, bookPrice: 240, shippingFee: null, totalAmount: null, offerApplied: false },
+      paymentMethod: 'cod',
+      paymentStatus: 'unpaid',
+      fulfillmentStatus: 'new',
+      partnerCode: null,
+      createdAt: serverTimestamp(),
+      updatedAt: serverTimestamp(),
+    };
+  }
+
+  it('allows anonymous customers to create a constrained new order, but not read or edit it', async () => {
+    const customerDb = testEnv.unauthenticatedContext().firestore();
+    const orderRef = doc(customerDb, 'orders', 'guest-order');
+    await assertSucceeds(setDoc(orderRef, validGuestOrder()));
+    await assertFails(getDoc(orderRef));
+    await assertFails(updateDoc(orderRef, { fulfillmentStatus: 'delivered' }));
+  });
+
+  it('rejects guest orders with privileged fields or a non-new status', async () => {
+    const db = testEnv.unauthenticatedContext().firestore();
+    const invalidStatus = validGuestOrder();
+    invalidStatus.fulfillmentStatus = 'delivered';
+    await assertFails(setDoc(doc(db, 'orders', 'invalid-status'), invalidStatus));
+    const extraField = { ...validGuestOrder(), adminApproved: true };
+    await assertFails(setDoc(doc(db, 'orders', 'extra-field'), extraField));
+  });
+
+  it('allows admin to read and update a valid guest order', async () => {
+    const guestDb = testEnv.unauthenticatedContext().firestore();
+    await assertSucceeds(setDoc(doc(guestDb, 'orders', 'admin-review-order'), validGuestOrder()));
+    const adminDb = testEnv.authenticatedContext('admin-1', { admin: true }).firestore();
+    await assertSucceeds(getDoc(doc(adminDb, 'orders', 'admin-review-order')));
+    await assertSucceeds(updateDoc(doc(adminDb, 'orders', 'admin-review-order'), { fulfillmentStatus: 'confirmed' }));
   });
 });
