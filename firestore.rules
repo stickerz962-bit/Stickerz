@@ -83,7 +83,7 @@ service cloud.firestore {
       allow create: if
         request.resource.data.keys().hasOnly([
           'publicReference', 'customer', 'shipping', 'book', 'pricing',
-          'paymentMethod', 'paymentStatus', 'fulfillmentStatus', 'partnerCode',
+          'paymentMethod', 'paymentStatus', 'fulfillmentStatus', 'partnerCode', 'trackingToken',
           'createdAt', 'updatedAt'
         ])
         && request.resource.data.keys().hasAll([
@@ -94,6 +94,143 @@ service cloud.firestore {
         && request.resource.data.publicReference is string
         && request.resource.data.publicReference.size() >= 6
         && request.resource.data.publicReference.size() <= 40
+        && request.resource.data.trackingToken is string
+        && request.resource.data.trackingToken.matches('^[a-f0-9]{64}
+        && request.resource.data.customer.keys().hasOnly(['name', 'phone'])
+        && request.resource.data.customer.name is string
+        && request.resource.data.customer.name.size() >= 2
+        && request.resource.data.customer.name.size() <= 80
+        && request.resource.data.customer.phone is string
+        && request.resource.data.customer.phone.size() >= 10
+        && request.resource.data.customer.phone.size() <= 16
+        && request.resource.data.shipping is map
+        && request.resource.data.shipping.keys().hasOnly([
+          'governorateName', 'areaName', 'address', 'deliveryNotes', 'fee'
+        ])
+        && request.resource.data.shipping.governorateName is string
+        && request.resource.data.shipping.governorateName.size() >= 2
+        && request.resource.data.shipping.governorateName.size() <= 60
+        && request.resource.data.shipping.areaName is string
+        && request.resource.data.shipping.areaName.size() >= 2
+        && request.resource.data.shipping.areaName.size() <= 80
+        && request.resource.data.shipping.address is string
+        && request.resource.data.shipping.address.size() >= 5
+        && request.resource.data.shipping.address.size() <= 300
+        && request.resource.data.shipping.deliveryNotes is string
+        && request.resource.data.shipping.deliveryNotes.size() <= 300
+        && request.resource.data.shipping.fee == null
+        && request.resource.data.book is map
+        && request.resource.data.book.keys().hasOnly(['artworks', 'cover', 'personalizedName'])
+        && request.resource.data.book.artworks is list
+        && request.resource.data.book.artworks.size() == 30
+        && request.resource.data.book.cover is map
+        && request.resource.data.book.cover.keys().hasOnly(['coverId', 'titleSnapshot'])
+        && request.resource.data.book.cover.coverId is string
+        && request.resource.data.book.cover.titleSnapshot is string
+        && request.resource.data.book.personalizedName is string
+        && request.resource.data.book.personalizedName.size() >= 1
+        && request.resource.data.book.personalizedName.size() <= 40
+        && request.resource.data.pricing is map
+        && request.resource.data.pricing.keys().hasOnly([
+          'currency', 'standardBookPrice', 'bookPrice', 'shippingFee',
+          'totalAmount', 'offerApplied'
+        ])
+        && request.resource.data.pricing.currency == 'EGP'
+        && request.resource.data.pricing.standardBookPrice == 240
+        && request.resource.data.pricing.bookPrice in [190, 240]
+        && request.resource.data.pricing.shippingFee == null
+        && request.resource.data.pricing.totalAmount == null
+        && request.resource.data.pricing.offerApplied is bool
+        && request.resource.data.pricing.offerApplied == (request.resource.data.pricing.bookPrice == 190)
+        && request.resource.data.paymentMethod in ['cod', 'instapay']
+        && request.resource.data.paymentStatus in ['unpaid', 'pending_review']
+        && request.resource.data.fulfillmentStatus == 'new'
+        && (request.resource.data.partnerCode == null
+          || (request.resource.data.partnerCode is string
+            && request.resource.data.partnerCode.size() <= 40))
+        && request.resource.data.createdAt == request.time
+        && request.resource.data.updatedAt == request.time;
+      allow update, delete: if isAdmin();
+    }
+
+
+    // Public bearer-token projection: contains status/reference only, never customer PII.
+    match /orderTracking/{token} {
+      allow get: if token.matches('^[a-f0-9]{64}
+      allow read: if isAdmin();
+      allow write: if false;
+    }
+
+    match /orderEvents/{eventId} {
+      allow read: if isAdmin();
+      allow write: if false;
+    }
+
+    match /adminUsers/{uid} {
+      allow read: if isAdmin() && request.auth.uid == uid;
+      allow write: if false;
+    }
+
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}
+) && resource != null;
+      allow list: if false;
+      allow create: if token.matches('^[a-f0-9]{64}
+      allow read: if isAdmin();
+      allow write: if false;
+    }
+
+    match /orderEvents/{eventId} {
+      allow read: if isAdmin();
+      allow write: if false;
+    }
+
+    match /adminUsers/{uid} {
+      allow read: if isAdmin() && request.auth.uid == uid;
+      allow write: if false;
+    }
+
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}
+)
+        && request.resource.data.keys().hasOnly(['publicReference', 'fulfillmentStatus', 'createdAt', 'updatedAt'])
+        && request.resource.data.keys().hasAll(['publicReference', 'fulfillmentStatus', 'createdAt', 'updatedAt'])
+        && request.resource.data.publicReference is string
+        && request.resource.data.publicReference.size() >= 6
+        && request.resource.data.publicReference.size() <= 40
+        && request.resource.data.fulfillmentStatus == 'new'
+        && request.resource.data.createdAt == request.time
+        && request.resource.data.updatedAt == request.time;
+      allow update, delete: if isAdmin();
+    }
+
+    match /payments/{paymentId} {
+      allow read: if isAdmin();
+      allow write: if false;
+    }
+
+    match /orderEvents/{eventId} {
+      allow read: if isAdmin();
+      allow write: if false;
+    }
+
+    match /adminUsers/{uid} {
+      allow read: if isAdmin() && request.auth.uid == uid;
+      allow write: if false;
+    }
+
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}
+)
         && request.resource.data.customer is map
         && request.resource.data.customer.keys().hasOnly(['name', 'phone'])
         && request.resource.data.customer.name is string
