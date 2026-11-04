@@ -1,4 +1,6 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useState, type FormEvent } from 'react';
+import { addDoc, collection, serverTimestamp } from 'firebase/firestore';
+import { firestore } from './firebase/client';
 import { loadCatalog } from './catalog/repository';
 import type { CatalogData } from './catalog/types';
 import { getOfferEndAt, getOfferRemainingMs, formatOfferCountdown } from './lib/offer';
@@ -55,7 +57,11 @@ export default function Builder() {
   const [preview, setPreview] = useState<(typeof catalog)[number] | null>(null);
   const [loaded, setLoaded] = useState(false);
   const [notice, setNotice] = useState('');
-  const [step, setStep] = useState<'artworks' | 'cover' | 'book'>('artworks');
+  const [step, setStep] = useState<'artworks' | 'cover' | 'book' | 'checkout'>('artworks');
+  const [checkout, setCheckout] = useState({ name: '', phone: '', governorate: '', area: '', address: '', notes: '', paymentMethod: 'cod' as 'cod' | 'instapay' });
+  const [orderBusy, setOrderBusy] = useState(false);
+  const [orderError, setOrderError] = useState('');
+  const [orderSuccess, setOrderSuccess] = useState('');
   const [draft, setDraft] = useState<Draft>({ coverId: 'calm', name: '' });
   const [offerRemainingMs, setOfferRemainingMs] = useState<number | null>(null);
 
@@ -145,6 +151,52 @@ export default function Builder() {
     setNotice('');
   }
 
+  async function submitOrder(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    setOrderError(''); setOrderSuccess('');
+    if (!firestore) { setOrderError('خدمة الطلبات غير متاحة حاليًا. جرّبي مرة أخرى لاحقًا.'); return; }
+    if (selected.length !== 30 || new Set(selected).size !== 30 || !draft.name.trim() || !activeCover) {
+      setOrderError('راجعي اختيارات الكتاب: لازم 30 رسمة مختلفة وغلاف واسم.'); return;
+    }
+    const phone = checkout.phone.replace(/[\\s()-]/g, '');
+    if (!/^(01[0125][0-9]{8}|\\+?20?1[0125][0-9]{8})$/.test(phone)) {
+      setOrderError('اكتبي رقم موبايل مصري صحيح.'); return;
+    }
+    if (!checkout.name.trim() || !checkout.governorate.trim() || !checkout.area.trim() || !checkout.address.trim()) {
+      setOrderError('كمّلي الاسم والمحافظة والمنطقة والعنوان.'); return;
+    }
+    setOrderBusy(true);
+    try {
+      const price = offerRemainingMs !== null && offerRemainingMs > 0 ? 190 : 240;
+      const artworkSnapshot = selected.map((artworkId, index) => {
+        const item = catalogItems.find(entry => entry.id === artworkId);
+        return { artworkId, titleSnapshot: item?.title || artworkId, printOrder: index + 1 };
+      });
+      const referralCode = new URLSearchParams(window.location.search).get('ref') || null;
+      const created = await addDoc(collection(firestore, 'orders'), {
+        publicReference: 'AP-' + Date.now().toString(36).toUpperCase(),
+        customer: { name: checkout.name.trim(), phone },
+        shipping: { governorateName: checkout.governorate.trim(), areaName: checkout.area.trim(), address: checkout.address.trim(), deliveryNotes: checkout.notes.trim(), fee: null },
+        book: { artworks: artworkSnapshot, cover: { coverId: activeCover.id, titleSnapshot: activeCover.title }, personalizedName: draft.name.trim() },
+        pricing: { currency: 'EGP', standardBookPrice: 240, bookPrice: price, shippingFee: null, totalAmount: null, offerApplied: price === 190 },
+        paymentMethod: checkout.paymentMethod,
+        paymentStatus: checkout.paymentMethod === 'instapay' ? 'pending_review' : 'unpaid',
+        fulfillmentStatus: 'new',
+        partnerCode: referralCode,
+        createdAt: serverTimestamp(), updatedAt: serverTimestamp(),
+      });
+      setOrderSuccess('تم استلام طلبك بنجاح! رقم الطلب: ' + created.id + ' — فريق فُكّي الضغط هيراجع بياناتك ويتواصل معك لتأكيد الشحن والسعر النهائي.');
+      setNotice('');
+      setSelected([]);
+      setDraft({coverId:'calm',name:''});
+      setCheckout({name:'',phone:'',governorate:'',area:'',address:'',notes:'',paymentMethod:'cod'});
+      setStep('checkout');
+      try { localStorage.removeItem(STORAGE_KEY); localStorage.removeItem(DRAFT_KEY); } catch {}
+    } catch {
+      setOrderError('مقدرناش نسجل الطلب. تأكدي من اتصال الإنترنت وإعدادات الطلبات ثم حاولي مرة أخرى.');
+    } finally { setOrderBusy(false); }
+  }
+
   function clearAll() {
     if (selected.length && window.confirm('متأكدة إنك عايزة تمسحي كل الرسومات المختارة؟')) setSelected([]);
   }
@@ -224,7 +276,7 @@ export default function Builder() {
           </div>
         </section>
       </main>
-    </> : <>
+    </> : step === 'book' ? <>
       <main className="builder-main book-preview-main">
         <div className="builder-intro">
           <span className="eyebrow">الخطوة الثالثة · كتابك بقى جاهز للمعاينة</span>
@@ -247,9 +299,42 @@ export default function Builder() {
             <div className="book-review-heading"><div><b>رسومات كتابك</b><small>رتّبي الصفحات زي ما تحبي · 30 رسمة</small></div><button type="button" className="clear-selection" onClick={() => setStep('artworks')}>تعديل الرسومات</button></div>
             <div className="book-review-grid">{selected.map((id, index) => { const item = catalogItems.find(entry => entry.id === id); if (!item) return null; return <div className="book-review-item" key={id}><span className={'book-review-art ' + item.tone}>{item.mark}</span><span><b>{item.title}</b><small>صفحة {index + 1}</small></span><span className="book-review-order"><button type="button" aria-label={'نقل ' + item.title + ' لأعلى'} disabled={index === 0} onClick={() => moveArtwork(id, -1)}>↑</button><button type="button" aria-label={'نقل ' + item.title + ' لأسفل'} disabled={index === selected.length - 1} onClick={() => moveArtwork(id, 1)}>↓</button></span></div>; })}</div>
             <div className="book-preview-note">دي مراجعة لاختياراتك وشكل الغلاف فقط. ملفات الطباعة النهائية، بيانات الشحن، وحساب تكلفة التوصيل لسه مش مفعّلين.</div>
-            <div className="book-preview-actions"><button type="button" className="clear-selection" onClick={() => setStep('cover')}>رجوع</button><button type="button" className="continue-selection" onClick={() => setNotice('معاينة كتابك محفوظة على هذا الجهاز. مرحلة بيانات الشحن والطلب لم تُفعّل بعد.')}>اعتماد المعاينة مبدئيًا <span>✓</span></button></div>
+            <div className="book-preview-actions"><button type="button" className="clear-selection" onClick={() => setStep('cover')}>رجوع</button><button type="button" className="continue-selection" disabled={selected.length !== 30 || !draft.name.trim()} onClick={() => { setOrderError(''); setOrderSuccess(''); setStep('checkout'); window.scrollTo({top:0,behavior:'smooth'}); }}>إدخال بيانات الطلب ←</button></div>
             {notice && step === 'book' && <div className="cover-save-note" role="status">{notice}</div>}
           </div>
+        </section>
+      </main>
+    </> : <>
+      <main className="builder-main checkout-main">
+        <div className="builder-intro">
+          <span className="eyebrow">الخطوة الرابعة · بيانات الطلب</span>
+          <h1>هنوصّل كتابك لحد عندك</h1>
+          <p>اكتبي بيانات التواصل والعنوان بدقة. الطلب هيوصل مباشرة للوحة الإدارة لمراجعته وتأكيده.</p>
+        </div>
+        <section className="checkout-layout">
+          <form className="product-form checkout-form" onSubmit={submitOrder}>
+            <h2>بيانات العميل والتوصيل</h2>
+            <label>اسم العميل<input value={checkout.name} onChange={e => setCheckout(v => ({...v,name:e.target.value}))} maxLength={80} required /></label>
+            <label>رقم الموبايل<input value={checkout.phone} onChange={e => setCheckout(v => ({...v,phone:e.target.value}))} inputMode="tel" placeholder="01xxxxxxxxx" maxLength={20} required /></label>
+            <label>المحافظة<input value={checkout.governorate} onChange={e => setCheckout(v => ({...v,governorate:e.target.value}))} maxLength={60} required /></label>
+            <label>المنطقة / المدينة<input value={checkout.area} onChange={e => setCheckout(v => ({...v,area:e.target.value}))} maxLength={80} required /></label>
+            <label>العنوان بالتفصيل<textarea value={checkout.address} onChange={e => setCheckout(v => ({...v,address:e.target.value}))} maxLength={300} rows={3} required /></label>
+            <label>ملاحظات للتوصيل (اختياري)<textarea value={checkout.notes} onChange={e => setCheckout(v => ({...v,notes:e.target.value}))} maxLength={300} rows={2} /></label>
+            <fieldset className="checkout-payment"><legend>طريقة الدفع</legend><label><input type="radio" name="paymentMethod" value="cod" checked={checkout.paymentMethod==='cod'} onChange={() => setCheckout(v=>({...v,paymentMethod:'cod'}))}/> الدفع عند الاستلام</label><label><input type="radio" name="paymentMethod" value="instapay" checked={checkout.paymentMethod==='instapay'} onChange={() => setCheckout(v=>({...v,paymentMethod:'instapay'}))}/> InstaPay (تأكيد يدوي من الإدارة)</label></fieldset>
+            <p className="backup-help">الشحن منفصل وسيتم تأكيد تكلفته معك قبل اعتماد الطلب. اختيار InstaPay لا يعني أن الدفع تم.</p>
+            {orderError && <p className="form-error" role="alert">{orderError}</p>}
+            {orderSuccess && <p className="form-success" role="status">{orderSuccess}</p>}
+            <div className="form-actions"><button type="button" className="secondary-button" onClick={() => setStep('book')} disabled={orderBusy}>رجوع للمعاينة</button><button type="submit" className="primary-button" disabled={orderBusy}>{orderBusy ? 'جارٍ إرسال الطلب...' : 'تأكيد الطلب'}</button></div>
+          </form>
+          <aside className="checkout-summary">
+            <h2>ملخص كتابك</h2>
+            <div className={'cover-live-art ' + activeCover.tone}><span className="cover-live-decoration">{activeCover.mark}</span><span className="cover-live-brand">ANTI PRESSURE · فُكّي الضغط</span><strong>كتابك... على مزاجك!</strong><span className="cover-live-name">{draft.name.trim()}</span><span className="cover-live-bottom">{activeCover.subtitle}</span></div>
+            <p>30 رسمة مختارة · غلاف {activeCover.title}</p>
+            <div className="checkout-price"><span>سعر الكتاب</span><strong>{offerRemainingMs !== null && offerRemainingMs > 0 ? '190' : '240'} جنيه</strong></div>
+            {offerRemainingMs !== null && offerRemainingMs > 0 && <small>عرض الساعة الأولى · ينتهي خلال {formatOfferCountdown(offerRemainingMs)}</small>}
+            <div className="checkout-price"><span>الشحن</span><strong>يُحدد حسب العنوان</strong></div>
+            <div className="checkout-price"><span>الإجمالي</span><strong>سعر الكتاب + الشحن</strong></div>
+          </aside>
         </section>
       </main>
     </>}
@@ -258,14 +343,14 @@ export default function Builder() {
       <div className="journey-progress-area">
         <div className="journey-progress-copy"><b>{remaining === 0 ? 'يا سلام! خلصتي اختيار الرسومات' : 'كتابك بيتكوّن واحدة واحدة'}</b><span>{remaining === 0 ? '30 من 30 رسمة' : 'فاضلك ' + remaining + ' رسمة'}</span></div>
         <div className="selection-progress" role="progressbar" aria-label="عدد الرسومات المختارة" aria-valuemin={0} aria-valuemax={30} aria-valuenow={selected.length}><span style={{width: (selected.length / 30 * 100) + '%'}} /></div>
-        <div className="journey-steps"><span className={step === 'artworks' ? 'current' : 'done'}>١ · الرسومات</span><span className={step === 'cover' ? 'current' : step === 'book' ? 'done' : ''}>٢ · الغلاف والاسم</span><span className={step === 'book' ? 'current' : ''}>٣ · المعاينة</span></div>
+        <div className="journey-steps"><span className={step === 'artworks' ? 'current' : 'done'}>١ · الرسومات</span><span className={step === 'cover' ? 'current' : ['book','checkout'].includes(step) ? 'done' : ''}>٢ · الغلاف والاسم</span><span className={step === 'book' ? 'current' : step === 'checkout' ? 'done' : ''}>٣ · المعاينة</span><span className={step === 'checkout' ? 'current' : ''}>٤ · الطلب</span></div>
         <div className={'journey-offer ' + (offerRemainingMs !== null && offerRemainingMs > 0 ? 'is-active' : 'is-ended')} role="timer" aria-live="off">
           <span>{offerRemainingMs !== null && offerRemainingMs > 0 ? 'عرضك مستمر طوال رحلتك' : 'انتهى العرض الترحيبي'}</span>
           <strong>{offerRemainingMs !== null && offerRemainingMs > 0 ? '190 جنيه' : '240 جنيه'}</strong>
           {offerRemainingMs !== null && offerRemainingMs > 0 && <small>ينتهي خلال {formatOfferCountdown(offerRemainingMs)}</small>}
         </div>
       </div>
-      <div className="journey-actions">{step === 'artworks' ? <><button type="button" className="clear-selection" onClick={clearAll} disabled={!selected.length}>مسح</button><button type="button" className="continue-selection" disabled={selected.length !== 30} onClick={() => {setStep('cover');setNotice('');window.scrollTo({top:0,behavior:'smooth'});}}>اختاري الغلاف ←</button></> : step === 'cover' ? <><button type="button" className="clear-selection" onClick={() => {setStep('artworks');window.scrollTo({top:0,behavior:'smooth'});}}>الرسومات</button><button type="button" className="continue-selection" disabled={!draft.name.trim()} onClick={() => {setNotice('');setStep('book');window.scrollTo({top:0,behavior:'smooth'});}}>معاينة كتابي ←</button></> : <><button type="button" className="clear-selection" onClick={() => {setStep('cover');window.scrollTo({top:0,behavior:'smooth'});}}>تعديل الغلاف</button><button type="button" className="continue-selection" onClick={() => {setStep('artworks');window.scrollTo({top:0,behavior:'smooth'});}}>تعديل الرسومات</button></>}</div>
+      <div className="journey-actions">{step === 'artworks' ? <><button type="button" className="clear-selection" onClick={clearAll} disabled={!selected.length}>مسح</button><button type="button" className="continue-selection" disabled={selected.length !== 30} onClick={() => {setStep('cover');setNotice('');window.scrollTo({top:0,behavior:'smooth'});}}>اختاري الغلاف ←</button></> : step === 'cover' ? <><button type="button" className="clear-selection" onClick={() => {setStep('artworks');window.scrollTo({top:0,behavior:'smooth'});}}>الرسومات</button><button type="button" className="continue-selection" disabled={!draft.name.trim()} onClick={() => {setNotice('');setStep('book');window.scrollTo({top:0,behavior:'smooth'});}}>معاينة كتابي ←</button></> : step === 'book' ? <><button type="button" className="clear-selection" onClick={() => {setStep('cover');window.scrollTo({top:0,behavior:'smooth'});}}>تعديل الغلاف</button><button type="button" className="continue-selection" onClick={() => {setStep('checkout');window.scrollTo({top:0,behavior:'smooth'});}}>إتمام الطلب ←</button></> : <><button type="button" className="clear-selection" onClick={() => {setStep('book');window.scrollTo({top:0,behavior:'smooth'});}}>المعاينة</button><button type="button" className="continue-selection" onClick={() => {setStep('artworks');window.scrollTo({top:0,behavior:'smooth'});}}>تعديل الرسومات</button></>}</div>
     </aside>
     {preview && step === 'artworks' && <div className="preview-backdrop" role="presentation" onMouseDown={e => { if (e.target === e.currentTarget) setPreview(null); }}>
       <section className="art-preview-modal" role="dialog" aria-modal="true" aria-label="معاينة الرسمة">
