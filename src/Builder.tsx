@@ -159,7 +159,7 @@ export default function Builder() {
       setOrderError('راجعي اختيارات الكتاب: لازم 30 رسمة مختلفة وغلاف واسم.'); return;
     }
     const phone = checkout.phone.replace(/[\\s()-]/g, '');
-    if (!/^(01[0125][0-9]{8}|\\+?20?1[0125][0-9]{8})$/.test(phone)) {
+    if (!/^(01[0125][0-9]{8}|\\+201[0125][0-9]{8}|201[0125][0-9]{8})$/.test(phone)) {
       setOrderError('اكتبي رقم موبايل مصري صحيح.'); return;
     }
     if (!checkout.name.trim() || !checkout.governorate.trim() || !checkout.area.trim() || !checkout.address.trim()) {
