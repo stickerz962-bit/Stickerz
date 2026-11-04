@@ -256,3 +256,35 @@ body{background:#fff9f2;color:#302b48}.anti-shell{background:linear-gradient(180
   .ap-order-status { width:100%; }
   .ap-order-status select { width:100%; max-width:none; }
 }
+
+
+/* Customer order tracking and a more legible order-management workspace */
+.ap-tracking-success{display:grid;gap:10px;padding:16px;border-radius:16px}
+.ap-tracking-success a{font-weight:900;color:#a65376;text-decoration:underline}
+.ap-tracking-success small{display:block;color:#786f7d}
+.ap-tracking-page{min-height:100vh;background:#fbf5f1}
+.ap-tracking-card{width:min(720px,calc(100% - 28px));margin:55px auto;padding:clamp(22px,5vw,42px);background:#fffefa;border:1px solid #efe1df;border-radius:26px;box-shadow:0 18px 50px #5b43520d}
+.ap-tracking-card h1{font-size:clamp(28px,5vw,40px);margin:12px 0}
+.ap-tracking-reference{display:inline-block;color:#a65376;background:#fff0f4;border-radius:10px;padding:9px 14px;direction:ltr}
+.ap-tracking-current{font-size:20px;font-weight:900;color:#a65376;margin:22px 0}
+.ap-tracking-timeline{display:grid;gap:0;margin:25px 0}
+.ap-tracking-step{display:flex;align-items:center;gap:13px;min-height:48px;color:#aaa1aa}
+.ap-tracking-step i{width:27px;height:27px;display:grid;place-items:center;border:1px solid #e4dce2;border-radius:50%;font-style:normal;font-size:12px;background:white}
+.ap-tracking-step.done{color:#4d705f;font-weight:800}
+.ap-tracking-step.done i{background:#e7f3ec;border-color:#b6d6c3;color:#397453}
+.ap-tracking-privacy{padding:12px;background:#f8f2f2;border-radius:12px;color:#756b78;font-size:12px}
+.ap-tracking-card button{display:block;margin-top:16px}
+.ap-order-stats{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:12px;margin:22px 0}
+.ap-order-stats button{display:flex;flex-direction:column;gap:6px;text-align:right;padding:17px;border:1px solid #eee1e3;border-radius:17px;background:#fffefa;color:#625568;cursor:pointer;transition:.2s}
+.ap-order-stats button.selected{border-color:#d8799b;background:#fff2f6;box-shadow:0 7px 20px #d8799b18}
+.ap-order-stats button b{font-size:27px;color:#a65376;line-height:1}
+.ap-order-stats button span{font-size:12px;font-weight:800}
+.ap-orders-list{padding:22px;border-radius:22px;background:#fffefa;border:1px solid #f0e4e5}
+.ap-order-row{padding:20px!important;margin:12px 0;border:1px solid #eee5e5!important;border-radius:17px!important;background:#fff!important;box-shadow:0 7px 20px #5b435208;transition:box-shadow .2s,border-color .2s}
+.ap-order-row:hover{border-color:#e4bdcb!important;box-shadow:0 12px 26px #5b435210}
+.ap-order-info strong{font-size:16px;color:#a65376}
+.ap-order-info span{font-weight:900;color:#403650}
+.ap-order-info small{line-height:1.7;color:#746b79}
+.ap-order-status select{border:1px solid #e8d9df;border-radius:12px;padding:11px;background:#fff9fa;font-weight:800;color:#5a4c60}
+@media(max-width:900px){.ap-order-stats{grid-template-columns:repeat(3,minmax(0,1fr))}}
+@media(max-width:620px){.ap-order-stats{grid-template-columns:repeat(2,minmax(0,1fr));gap:8px}.ap-order-stats button{padding:13px}.ap-orders-list{padding:13px}.ap-order-row{padding:15px!important}.ap-tracking-card{margin:22px auto}}
