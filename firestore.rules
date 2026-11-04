@@ -140,6 +140,7 @@ service cloud.firestore {
         && request.resource.data.pricing.shippingFee == null
         && request.resource.data.pricing.totalAmount == null
         && request.resource.data.pricing.offerApplied is bool
+        && request.resource.data.pricing.offerApplied == (request.resource.data.pricing.bookPrice == 190)
         && request.resource.data.paymentMethod in ['cod', 'instapay']
         && request.resource.data.paymentStatus in ['unpaid', 'pending_review']
         && request.resource.data.fulfillmentStatus == 'new'
