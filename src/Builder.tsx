@@ -174,6 +174,7 @@ export default function Builder() {
         return { artworkId, titleSnapshot: item?.title || artworkId, printOrder: index + 1 };
       });
       const referralCode = new URLSearchParams(window.location.search).get('ref') || null;
+      const publicReference = 'AP-' + Date.now().toString(36).toUpperCase();
       const orderRef = doc(collection(firestore, 'orders'));
       const randomBytes = new Uint8Array(32);
       window.crypto.getRandomValues(randomBytes);
@@ -181,7 +182,7 @@ export default function Builder() {
       const trackingRef = doc(firestore, 'orderTracking', trackingToken);
       const batch = writeBatch(firestore);
       batch.set(orderRef, {
-        publicReference: 'AP-' + Date.now().toString(36).toUpperCase(),
+        publicReference,
         customer: { name: checkout.name.trim(), phone },
         shipping: { governorateName: checkout.governorate.trim(), areaName: checkout.area.trim(), address: checkout.address.trim(), deliveryNotes: checkout.notes.trim(), fee: null },
         book: { artworks: artworkSnapshot, cover: { coverId: activeCover.id, titleSnapshot: activeCover.title }, personalizedName: draft.name.trim() },
@@ -194,7 +195,7 @@ export default function Builder() {
         createdAt: serverTimestamp(), updatedAt: serverTimestamp(),
       });
       batch.set(trackingRef, {
-        publicReference: 'AP-' + Date.now().toString(36).toUpperCase(),
+        publicReference,
         fulfillmentStatus: 'new',
         createdAt: serverTimestamp(), updatedAt: serverTimestamp(),
       });
