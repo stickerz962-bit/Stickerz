@@ -77,7 +77,7 @@ function OrderTracking({ token }: { token: string }) {
 
 export default function App() {
   const [openFaq, setOpenFaq] = useState<number | null>(0);
-  const [trackingToken, setTrackingToken] = useState(new URLSearchParams(window.location.search).get('track') || '');
+  const trackingToken = new URLSearchParams(window.location.search).get('track');
   if (trackingToken) return <OrderTracking token={trackingToken} />;
 
   const [offerRemainingMs, setOfferRemainingMs] = useState<number | null>(null);
