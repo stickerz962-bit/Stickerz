@@ -78,7 +78,6 @@ function OrderTracking({ token }: { token: string }) {
 export default function App() {
   const [openFaq, setOpenFaq] = useState<number | null>(0);
   const trackingToken = new URLSearchParams(window.location.search).get('track');
-  if (trackingToken) return <OrderTracking token={trackingToken} />;
 
   const [offerRemainingMs, setOfferRemainingMs] = useState<number | null>(null);
   useEffect(() => {
@@ -118,6 +117,7 @@ export default function App() {
     window.addEventListener('hashchange', syncRoute);
     return () => window.removeEventListener('hashchange', syncRoute);
   }, []);
+  if (trackingToken) return <OrderTracking token={trackingToken} />;
   if (builderOpen) return <Builder />;
   return <div className="anti-shell" dir="rtl">
     <div className="top-note">مساحتك الصغيرة للضحك والتلوين ♡</div>
