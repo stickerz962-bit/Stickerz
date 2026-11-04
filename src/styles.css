@@ -228,3 +228,31 @@ body{background:#fff9f2;color:#302b48}.anti-shell{background:linear-gradient(180
 @media(max-width:900px){.journey-dock{grid-template-columns:70px minmax(150px,1fr) auto}}
 @media(max-width:620px){.journey-dock{grid-template-columns:52px minmax(0,1fr) auto}.journey-offer{gap:6px;margin-top:6px;padding:6px 8px;font-size:8px}.journey-offer strong{font-size:10px}.journey-offer small{font-size:9px}}
 @media(max-width:390px){.journey-dock{grid-template-columns:45px minmax(0,1fr) 82px}.journey-offer{gap:4px;padding:5px 6px}.journey-offer span{font-size:7px}.journey-offer strong{font-size:9px}.journey-offer small{font-size:8px}}
+
+
+/* Guest checkout and admin order dashboard */
+.checkout-layout { display:grid; grid-template-columns:minmax(0,1.4fr) minmax(260px,.8fr); gap:24px; align-items:start; margin:24px 0 140px; }
+.checkout-form { width:100%; }
+.checkout-form textarea { width:100%; min-height:76px; resize:vertical; }
+.checkout-payment { display:flex; flex-wrap:wrap; gap:12px 20px; border:1px solid #e6dce8; border-radius:14px; padding:14px; margin:16px 0; }
+.checkout-payment legend { padding:0 8px; font-weight:700; }
+.checkout-payment label { display:flex; align-items:center; gap:8px; }
+.checkout-payment input { width:auto; }
+.checkout-summary { background:#fffaf6; border:1px solid #eadbd5; border-radius:20px; padding:20px; position:sticky; top:20px; }
+.checkout-summary .cover-live-art { max-width:250px; margin:14px auto; }
+.checkout-price { display:flex; justify-content:space-between; gap:12px; border-top:1px solid #e9ded8; padding:12px 0; }
+.checkout-price strong { text-align:left; }
+.ap-orders-list { width:100%; }
+.ap-order-row { align-items:flex-start; gap:18px; }
+.ap-order-info { min-width:0; flex:1; gap:8px; }
+.ap-order-info small { overflow-wrap:anywhere; }
+.ap-order-status { min-width:180px; }
+.ap-order-status label { display:flex; flex-direction:column; gap:8px; }
+.ap-order-status select { max-width:220px; }
+@media (max-width:760px) {
+  .checkout-layout { grid-template-columns:1fr; }
+  .checkout-summary { position:static; }
+  .ap-order-row { flex-direction:column; }
+  .ap-order-status { width:100%; }
+  .ap-order-status select { width:100%; max-width:none; }
+}
