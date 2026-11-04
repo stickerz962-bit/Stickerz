@@ -205,6 +205,7 @@ describe('Firestore security rules — guest checkout orders', () => {
       paymentStatus: 'unpaid',
       fulfillmentStatus: 'new',
       partnerCode: null,
+      trackingToken: 'b'.repeat(64),
       createdAt: serverTimestamp(),
       updatedAt: serverTimestamp(),
     };
