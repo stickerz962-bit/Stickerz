@@ -53,6 +53,7 @@ test("credits only a delivered, non-refunded, eligible, non-self referred order 
   assert.equal(shouldCreditAmbassadorCommission(eligible), true);
   assert.equal(shouldCreditAmbassadorCommission({ ...eligible, fulfillmentStatus: "shipped" }), false);
   assert.equal(shouldCreditAmbassadorCommission({ ...eligible, paymentStatus: "refunded" }), false);
+  assert.equal(shouldCreditAmbassadorCommission({ ...eligible, paymentStatus: "rejected" }), false);
   assert.equal(shouldCreditAmbassadorCommission({ ...eligible, referrerStatus: "paused" }), false);
   assert.equal(shouldCreditAmbassadorCommission({ ...eligible, selfReferral: true }), false);
   assert.equal(shouldCreditAmbassadorCommission({ ...eligible, commissionExists: true }), false);
