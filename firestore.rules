@@ -152,7 +152,16 @@ service cloud.firestore {
         && (!request.resource.data.keys().hasAny(['ambassadorReferralCode'])
           || request.resource.data.ambassadorReferralCode == null
           || (request.resource.data.ambassadorReferralCode is string
-            && request.resource.data.ambassadorReferralCode.matches('^AP[A-F0-9]{20}
+            && request.resource.data.ambassadorReferralCode.matches('^AP[A-F0-9]{20}$')))
+        && (!request.resource.data.keys().hasAny(['ambassadorSetup'])
+          || (request.resource.data.ambassadorSetup is map
+            && request.resource.data.ambassadorSetup.keys().hasOnly(['code', 'accessTokenHash'])
+            && request.resource.data.ambassadorSetup.keys().hasAll(['code', 'accessTokenHash'])
+            && request.resource.data.ambassadorSetup.code is string
+            && request.resource.data.ambassadorSetup.code.matches('^AP[A-F0-9]{20}$')
+            && request.resource.data.ambassadorSetup.accessTokenHash is string
+            && request.resource.data.ambassadorSetup.accessTokenHash.matches('^[a-f0-9]{64}$')))
+        && request.resource.data.createdAt == request.time
         && request.resource.data.updatedAt == request.time;
       allow update, delete: if isAdmin();
     }
