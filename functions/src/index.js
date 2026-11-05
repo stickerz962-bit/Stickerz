@@ -234,6 +234,9 @@ export const reviewAmbassadorPayout = onCall(async (request) => {
   if (typeof payoutId !== "string" || !/^[A-Za-z0-9-]{10,80}$/.test(payoutId) || !["paid", "rejected"].includes(decision)) {
     fail("invalid-argument", "بيانات مراجعة طلب الصرف غير صحيحة.");
   }
+  if (transferReference.length < 3) {
+    fail("invalid-argument", decision === "paid" ? "أدخلي مرجع التحويل قبل تأكيد الصرف." : "اكتبي سبب رفض طلب الصرف.");
+  }
   const payoutRef = db.collection("ambassadorPayouts").doc(payoutId);
   await db.runTransaction(async (tx) => {
     const payoutSnap = await tx.get(payoutRef);
