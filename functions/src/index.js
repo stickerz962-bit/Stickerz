@@ -42,23 +42,32 @@ async function getAuthorizedAmbassador(transaction, code, tokenHash) {
 
 export const processAmbassadorOrder = onDocumentWritten({ document: "orders/{orderId}", retry: true }, async (event) => {
   const before = event.data?.before?.exists ? event.data.before.data() : null;
-  const after = event.data?.after?.exists ? event.data.after.data() : null;
-  if (!after) return;
+  const eventAfter = event.data?.after?.exists ? event.data.after.data() : null;
+  if (!eventAfter) return;
 
   const orderId = event.params.orderId;
-  const isDelivered = after.fulfillmentStatus === "delivered";
-  const isRefunded = after.paymentStatus === "refunded";
-  const setup = after.ambassadorSetup;
-
-  if (!isDelivered && !isRefunded) return;
-
-  const ownCode = isValidAmbassadorCode(setup?.code) ? setup.code : null;
-  const referralCode = isValidAmbassadorCode(after.ambassadorReferralCode) ? after.ambassadorReferralCode : null;
-  const ownRef = ownCode ? db.collection("ambassadors").doc(ownCode) : null;
-  const referralRef = referralCode ? db.collection("ambassadors").doc(referralCode) : null;
+  const orderRef = db.collection("orders").doc(orderId);
   const commissionRef = db.collection("ambassadorCommissions").doc(orderId);
+  const outcome = { fulfillmentStatus: null, paymentStatus: null };
 
   await db.runTransaction(async (tx) => {
+    // Read the current order inside the transaction. Firestore events can be
+    // delivered out of order; never award against a stale event snapshot.
+    const orderSnap = await tx.get(orderRef);
+    if (!orderSnap.exists) return;
+    const order = orderSnap.data();
+    const isDelivered = order.fulfillmentStatus === "delivered";
+    const isRefunded = order.paymentStatus === "refunded";
+    outcome.fulfillmentStatus = order.fulfillmentStatus ?? null;
+    outcome.paymentStatus = order.paymentStatus ?? null;
+    if (!isDelivered && !isRefunded) return;
+
+    const setup = order.ambassadorSetup;
+    const ownCode = isValidAmbassadorCode(setup?.code) ? setup.code : null;
+    const referralCode = isValidAmbassadorCode(order.ambassadorReferralCode) ? order.ambassadorReferralCode : null;
+    const ownRef = ownCode ? db.collection("ambassadors").doc(ownCode) : null;
+    const referralRef = referralCode ? db.collection("ambassadors").doc(referralCode) : null;
+
     // Complete every transaction read before issuing any writes.
     const commissionSnap = await tx.get(commissionRef);
     const ownSnap = ownRef ? await tx.get(ownRef) : null;
@@ -78,10 +87,10 @@ export const processAmbassadorOrder = onDocumentWritten({ document: "orders/{ord
     // A delivered customer becomes an ambassador automatically. The browser stores
     // the raw access token; only its SHA-256 hash is present in the order/profile.
     if (isDelivered && !isRefunded && ownRef && !ownSnap?.exists && typeof setup.accessTokenHash === "string" && /^[a-f0-9]{64}$/.test(setup.accessTokenHash)) {
-      const phone = normalizeEgyptianPhone(after.customer?.phone);
+      const phone = normalizeEgyptianPhone(order.customer?.phone);
       tx.create(ownRef, {
         code: ownCode,
-        name: String(after.customer?.name ?? "").slice(0, 80),
+        name: String(order.customer?.name ?? "").slice(0, 80),
         phoneNormalized: phone,
         phoneNumbers: phone ? [phone] : [],
         accessTokenHash: setup.accessTokenHash,
@@ -99,7 +108,7 @@ export const processAmbassadorOrder = onDocumentWritten({ document: "orders/{ord
     }
 
     if (isDelivered && !isRefunded && ownRef && ownSnap?.exists) {
-      const phone = normalizeEgyptianPhone(after.customer?.phone);
+      const phone = normalizeEgyptianPhone(order.customer?.phone);
       if (phone) tx.update(ownRef, { phoneNumbers: FieldValue.arrayUnion(phone), updatedAt: FieldValue.serverTimestamp() });
     }
 
@@ -107,11 +116,11 @@ export const processAmbassadorOrder = onDocumentWritten({ document: "orders/{ord
     // professional partnerCode is preserved and is not read or modified here.
     if (referralRef) {
       const referrer = referrerSnap?.exists ? referrerSnap.data() : null;
-      const customerPhone = normalizeEgyptianPhone(after.customer?.phone);
+      const customerPhone = normalizeEgyptianPhone(order.customer?.phone);
       const isSelfReferral = (ownRef && referralRef && ownRef.path === referralRef.path) || (!!customerPhone && (customerPhone === referrer?.phoneNormalized || (Array.isArray(referrer?.phoneNumbers) && referrer.phoneNumbers.includes(customerPhone))));
       const shouldCredit = shouldCreditAmbassadorCommission({
-        fulfillmentStatus: after.fulfillmentStatus,
-        paymentStatus: after.paymentStatus,
+        fulfillmentStatus: order.fulfillmentStatus,
+        paymentStatus: order.paymentStatus,
         referrerStatus: referrer?.status,
         selfReferral: isSelfReferral,
         commissionExists: commissionSnap.exists,
@@ -150,7 +159,12 @@ export const processAmbassadorOrder = onDocumentWritten({ document: "orders/{ord
     }
   });
 
-  logger.info("Ambassador order event processed", { orderId, delivered: isDelivered, refunded: isRefunded, previousStatus: before?.fulfillmentStatus ?? null });
+  logger.info("Ambassador order event processed", {
+    orderId,
+    fulfillmentStatus: outcome.fulfillmentStatus,
+    paymentStatus: outcome.paymentStatus,
+    previousFulfillmentStatus: before?.fulfillmentStatus ?? null,
+  });
 });
 
 export const getAmbassadorDashboard = onCall(async (request) => {
