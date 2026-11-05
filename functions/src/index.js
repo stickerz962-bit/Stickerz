@@ -10,6 +10,8 @@ import {
   normalizeEgyptianPhone,
   safeHashEqual,
   sha256,
+  shouldCreditAmbassadorCommission,
+  balanceAfterCommissionReversal,
   validatePayoutRequest,
 } from "./domain.js";
 
@@ -103,11 +105,18 @@ export const processAmbassadorOrder = onDocumentWritten("orders/{orderId}", asyn
 
     // Customer ambassador attribution uses its own field and ledger. The existing
     // professional partnerCode is preserved and is not read or modified here.
-    if (isDelivered && !isRefunded && referralRef && !commissionSnap.exists) {
+    if (referralRef) {
       const referrer = referrerSnap?.exists ? referrerSnap.data() : null;
       const customerPhone = normalizeEgyptianPhone(after.customer?.phone);
       const isSelfReferral = (ownRef && referralRef && ownRef.path === referralRef.path) || (!!customerPhone && (customerPhone === referrer?.phoneNormalized || (Array.isArray(referrer?.phoneNumbers) && referrer.phoneNumbers.includes(customerPhone))));
-      if (referrer?.status === "active" && !isSelfReferral) {
+      const shouldCredit = shouldCreditAmbassadorCommission({
+        fulfillmentStatus: after.fulfillmentStatus,
+        paymentStatus: after.paymentStatus,
+        referrerStatus: referrer?.status,
+        selfReferral: isSelfReferral,
+        commissionExists: commissionSnap.exists,
+      });
+      if (shouldCredit) {
         tx.create(commissionRef, {
           orderId,
           ambassadorCode: referralCode,
@@ -133,7 +142,7 @@ export const processAmbassadorOrder = onDocumentWritten("orders/{orderId}", asyn
       const owner = reversalProfileSnap.data();
       const amount = Number(commission.amount) || AMBASSADOR_COMMISSION_EGP;
       tx.update(reversalProfileRef, {
-        availableBalance: (Number(owner.availableBalance) || 0) - amount,
+        availableBalance: balanceAfterCommissionReversal(Number(owner.availableBalance) || 0, amount),
         lifetimeReversed: (Number(owner.lifetimeReversed) || 0) + amount,
         updatedAt: FieldValue.serverTimestamp(),
       });
