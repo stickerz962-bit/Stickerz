@@ -37,12 +37,14 @@ export async function hashAmbassadorToken(accessToken: string): Promise<string> 
 }
 
 export function saveAmbassadorContext(context: AmbassadorContext) {
-  localStorage.setItem(AMBASSADOR_CREDENTIALS_KEY, JSON.stringify({
-    code: context.code,
-    accessToken: context.accessToken,
-    sourceOrderId: context.sourceOrderId,
-    trackingToken: context.trackingToken,
-  }));
+  try {
+    localStorage.setItem(AMBASSADOR_CREDENTIALS_KEY, JSON.stringify({
+      code: context.code,
+      accessToken: context.accessToken,
+      sourceOrderId: context.sourceOrderId,
+      trackingToken: context.trackingToken,
+    }));
+  } catch { /* The order remains valid even if private dashboard storage is unavailable. */ }
 }
 
 export function readAmbassadorContext(): AmbassadorContext | null {
