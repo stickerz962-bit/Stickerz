@@ -76,10 +76,8 @@ function OrderTracking({ token }: { token: string }) {
   useEffect(() => {
     if (record?.fulfillmentStatus !== 'delivered') return;
     const context = readAmbassadorContext();
-    if (context) {
-      setAmbassadorDashboardUrl(buildAmbassadorDashboardUrl(context.code, context.accessToken));
-      clearAmbassadorReferral();
-    }
+    if (context) setAmbassadorDashboardUrl(buildAmbassadorDashboardUrl(context.code, context.accessToken));
+    if (readAmbassadorReferralTrackingToken() === token) clearAmbassadorReferral();
   }, [record, token]);
   const status = record?.fulfillmentStatus || 'new';
   const currentIndex = trackingSteps.findIndex(item => item[0] === status);
