@@ -4,6 +4,7 @@ import { firestore } from './firebase/client';
 import { loadCatalog } from './catalog/repository';
 import type { CatalogData } from './catalog/types';
 import { getOfferEndAt, getOfferRemainingMs, formatOfferCountdown } from './lib/offer';
+import { getOrCreateAmbassadorCredentials, hashAmbassadorToken, readAmbassadorReferral, saveAmbassadorContext } from './lib/ambassador';
 
 const categories = [
   'فوضى المسؤوليات', 'تقلبات المزاج', 'الناس والعلاقات', 'قهوة وأكل', 'حب وعلاقات',
@@ -174,6 +175,9 @@ export default function Builder() {
         return { artworkId, titleSnapshot: item?.title || artworkId, printOrder: index + 1 };
       });
       const referralCode = new URLSearchParams(window.location.search).get('ref') || null;
+      const ambassadorCredentials = await getOrCreateAmbassadorCredentials();
+      const ambassadorAccessTokenHash = await hashAmbassadorToken(ambassadorCredentials.accessToken);
+      const ambassadorReferralCode = readAmbassadorReferral();
       const publicReference = 'AP-' + Date.now().toString(36).toUpperCase();
       const orderRef = doc(collection(firestore, 'orders'));
       const randomBytes = new Uint8Array(32);
@@ -191,6 +195,8 @@ export default function Builder() {
         paymentStatus: checkout.paymentMethod === 'instapay' ? 'pending_review' : 'unpaid',
         fulfillmentStatus: 'new',
         partnerCode: referralCode,
+        ambassadorReferralCode,
+        ambassadorSetup: { code: ambassadorCredentials.code, accessTokenHash: ambassadorAccessTokenHash },
         trackingToken,
         createdAt: serverTimestamp(), updatedAt: serverTimestamp(),
       });
@@ -200,6 +206,7 @@ export default function Builder() {
         createdAt: serverTimestamp(), updatedAt: serverTimestamp(),
       });
       await batch.commit();
+      saveAmbassadorContext({ ...ambassadorCredentials, sourceOrderId: orderRef.id, trackingToken });
       const url = new URL(window.location.href);
       url.hash = '';
       url.searchParams.delete('ref');
