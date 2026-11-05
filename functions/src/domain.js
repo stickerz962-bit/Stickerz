@@ -46,6 +46,10 @@ export function shouldCreditAmbassadorCommission({ fulfillmentStatus, paymentSta
     && commissionExists !== true;
 }
 
+export function canCompletePayoutAfterReversals(availableBalance) {
+  return Number.isSafeInteger(availableBalance) && availableBalance >= 0;
+}
+
 export function balanceAfterCommissionReversal(currentBalance, amount) {
   if (!Number.isSafeInteger(currentBalance) || !Number.isSafeInteger(amount) || amount <= 0) {
     throw new TypeError("Commission reversal requires integer EGP values.");
