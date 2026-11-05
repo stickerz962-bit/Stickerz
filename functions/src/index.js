@@ -1,0 +1,250 @@
+import { randomUUID } from "node:crypto";
+import { initializeApp } from "firebase-admin/app";
+import { getFirestore, FieldValue } from "firebase-admin/firestore";
+import { onDocumentWritten } from "firebase-functions/v2/firestore";
+import { onCall, HttpsError } from "firebase-functions/v2/https";
+import { logger } from "firebase-functions";
+import {
+  AMBASSADOR_COMMISSION_EGP,
+  AMBASSADOR_MIN_PAYOUT_EGP,
+  isValidAmbassadorCode,
+  normalizeEgyptianPhone,
+  safeHashEqual,
+  sha256,
+  validatePayoutRequest,
+} from "./domain.js";
+
+initializeApp();
+const db = getFirestore();
+
+function fail(code, message) {
+  throw new HttpsError(code, message);
+}
+
+function requireAccessPayload(data) {
+  const code = data?.code;
+  const accessToken = data?.accessToken;
+  if (!isValidAmbassadorCode(code) || typeof accessToken !== "string" || !/^[a-f0-9]{64}$/.test(accessToken)) {
+    fail("invalid-argument", "رابط المساحة الشخصية غير صالح.");
+  }
+  return { code, tokenHash: sha256(accessToken) };
+}
+
+async function getAuthorizedAmbassador(transaction, code, tokenHash) {
+  const ref = db.collection("ambassadors").doc(code);
+  const snap = await transaction.get(ref);
+  if (!snap.exists || snap.data()?.status !== "active" || !safeHashEqual(snap.data()?.accessTokenHash, tokenHash)) {
+    fail("permission-denied", "تعذر التحقق من رابط مساحتك الشخصية.");
+  }
+  return { ref, data: snap.data() };
+}
+
+export const processAmbassadorOrder = onDocumentWritten("orders/{orderId}", async (event) => {
+  const before = event.data?.before?.exists ? event.data.before.data() : null;
+  const after = event.data?.after?.exists ? event.data.after.data() : null;
+  if (!after) return;
+
+  const orderId = event.params.orderId;
+  const isDelivered = after.fulfillmentStatus === "delivered";
+  const isRefunded = after.paymentStatus === "refunded";
+  const setup = after.ambassadorSetup;
+
+  if (!isDelivered && !isRefunded) return;
+
+  const ownCode = isValidAmbassadorCode(setup?.code) ? setup.code : null;
+  const referralCode = isValidAmbassadorCode(after.ambassadorReferralCode) ? after.ambassadorReferralCode : null;
+  const ownRef = ownCode ? db.collection("ambassadors").doc(ownCode) : null;
+  const referralRef = referralCode ? db.collection("ambassadors").doc(referralCode) : null;
+  const commissionRef = db.collection("ambassadorCommissions").doc(orderId);
+
+  await db.runTransaction(async (tx) => {
+    const reads = [tx.get(commissionRef)];
+    if (ownRef) reads.push(tx.get(ownRef));
+    if (referralRef && referralRef.path !== ownRef?.path) reads.push(tx.get(referralRef));
+    const snapshots = await Promise.all(reads);
+    const commissionSnap = snapshots[0];
+    let cursor = 1;
+    const ownSnap = ownRef ? snapshots[cursor++] : null;
+    const referrerSnap = referralRef && referralRef.path !== ownRef?.path ? snapshots[cursor++] : (referralRef ? ownSnap : null);
+
+    // A delivered customer becomes an ambassador automatically. The browser stores
+    // the raw access token; only its SHA-256 hash is present in the order/profile.
+    if (isDelivered && ownRef && !ownSnap.exists && typeof setup.accessTokenHash === "string" && /^[a-f0-9]{64}$/.test(setup.accessTokenHash)) {
+      const phone = normalizeEgyptianPhone(after.customer?.phone);
+      tx.create(ownRef, {
+        code: ownCode,
+        name: String(after.customer?.name ?? "").slice(0, 80),
+        phoneHash: phone ? sha256(phone) : null,
+        accessTokenHash: setup.accessTokenHash,
+        sourceOrderId: orderId,
+        status: "active",
+        availableBalance: 0,
+        reservedBalance: 0,
+        lifetimeEarned: 0,
+        lifetimeReversed: 0,
+        lifetimePaidOut: 0,
+        deliveredReferralOrders: 0,
+        createdAt: FieldValue.serverTimestamp(),
+        updatedAt: FieldValue.serverTimestamp(),
+      });
+    }
+
+    // Professional partner attribution takes precedence. The two programs never
+    // pay a double reward for the same order.
+    if (isDelivered && !isRefunded && !after.partnerCode && referralRef && !commissionSnap.exists) {
+      const referrer = referrerSnap?.exists ? referrerSnap.data() : null;
+      const customerPhone = normalizeEgyptianPhone(after.customer?.phone);
+      const customerPhoneHash = customerPhone ? sha256(customerPhone) : null;
+      const isSelfReferral = !!customerPhoneHash && customerPhoneHash === referrer?.phoneHash;
+      if (referrer?.status === "active" && !isSelfReferral) {
+        tx.create(commissionRef, {
+          orderId,
+          ambassadorCode: referralCode,
+          amount: AMBASSADOR_COMMISSION_EGP,
+          currency: "EGP",
+          status: "credited",
+          createdAt: FieldValue.serverTimestamp(),
+        });
+        tx.update(referralRef, {
+          availableBalance: (Number(referrer.availableBalance) || 0) + AMBASSADOR_COMMISSION_EGP,
+          lifetimeEarned: (Number(referrer.lifetimeEarned) || 0) + AMBASSADOR_COMMISSION_EGP,
+          deliveredReferralOrders: (Number(referrer.deliveredReferralOrders) || 0) + 1,
+          updatedAt: FieldValue.serverTimestamp(),
+        });
+      }
+    }
+
+    // A full refund reverses an already credited reward exactly once. If the
+    // ambassador has already withdrawn the money, the balance may become negative
+    // and future rewards first offset that amount.
+    if (isRefunded && commissionSnap.exists && commissionSnap.data()?.status === "credited") {
+      const commission = commissionSnap.data();
+      const ownerRef = db.collection("ambassadors").doc(commission.ambassadorCode);
+      const ownerSnap = await tx.get(ownerRef);
+      if (ownerSnap.exists) {
+        const owner = ownerSnap.data();
+        tx.update(ownerRef, {
+          availableBalance: (Number(owner.availableBalance) || 0) - Number(commission.amount || AMBASSADOR_COMMISSION_EGP),
+          lifetimeReversed: (Number(owner.lifetimeReversed) || 0) + Number(commission.amount || AMBASSADOR_COMMISSION_EGP),
+          updatedAt: FieldValue.serverTimestamp(),
+        });
+      }
+      tx.update(commissionRef, { status: "reversed", reversedAt: FieldValue.serverTimestamp(), reversalReason: "order_refunded" });
+    }
+  });
+
+  logger.info("Ambassador order event processed", { orderId, delivered: isDelivered, refunded: isRefunded, previousStatus: before?.fulfillmentStatus ?? null });
+});
+
+export const getAmbassadorDashboard = onCall(async (request) => {
+  const { code, tokenHash } = requireAccessPayload(request.data);
+  const profileRef = db.collection("ambassadors").doc(code);
+  const profileSnap = await profileRef.get();
+  if (!profileSnap.exists || profileSnap.data()?.status !== "active" || !safeHashEqual(profileSnap.data()?.accessTokenHash, tokenHash)) {
+    fail("permission-denied", "تعذر التحقق من رابط مساحتك الشخصية.");
+  }
+  const [commissionsSnap, payoutsSnap] = await Promise.all([
+    db.collection("ambassadorCommissions").where("ambassadorCode", "==", code).orderBy("createdAt", "desc").limit(50).get(),
+    db.collection("ambassadorPayouts").where("ambassadorCode", "==", code).orderBy("requestedAt", "desc").limit(30).get(),
+  ]);
+  const profile = profileSnap.data();
+  return {
+    profile: {
+      name: profile.name ?? "",
+      code,
+      status: profile.status,
+      availableBalance: Number(profile.availableBalance) || 0,
+      reservedBalance: Number(profile.reservedBalance) || 0,
+      lifetimeEarned: Number(profile.lifetimeEarned) || 0,
+      lifetimeReversed: Number(profile.lifetimeReversed) || 0,
+      lifetimePaidOut: Number(profile.lifetimePaidOut) || 0,
+      deliveredReferralOrders: Number(profile.deliveredReferralOrders) || 0,
+    },
+    commissions: commissionsSnap.docs.map((item) => {
+      const row = item.data();
+      return { orderId: row.orderId, amount: row.amount, status: row.status, createdAt: row.createdAt?.toDate?.().toISOString?.() ?? null, reversedAt: row.reversedAt?.toDate?.().toISOString?.() ?? null };
+    }),
+    payouts: payoutsSnap.docs.map((item) => {
+      const row = item.data();
+      return { id: item.id, amount: row.amount, method: row.method, status: row.status, requestedAt: row.requestedAt?.toDate?.().toISOString?.() ?? null, paidAt: row.paidAt?.toDate?.().toISOString?.() ?? null, rejectionReason: row.rejectionReason ?? null };
+    }),
+    minimumPayout: AMBASSADOR_MIN_PAYOUT_EGP,
+    commissionPerDeliveredOrder: AMBASSADOR_COMMISSION_EGP,
+  };
+});
+
+export const requestAmbassadorPayout = onCall(async (request) => {
+  const { code, tokenHash } = requireAccessPayload(request.data);
+  const amount = request.data?.amount;
+  const method = request.data?.method;
+  const details = request.data?.details;
+  const profileRef = db.collection("ambassadors").doc(code);
+  const payoutRef = db.collection("ambassadorPayouts").doc(randomUUID());
+
+  await db.runTransaction(async (tx) => {
+    const { data: profile } = await getAuthorizedAmbassador(tx, code, tokenHash);
+    const validation = validatePayoutRequest({ amount, availableBalance: Number(profile.availableBalance) || 0, method, details });
+    if (!validation.ok) {
+      if (validation.reason === "MINIMUM_PAYOUT") fail("failed-precondition", "الحد الأدنى لطلب الصرف 50 جنيهًا.");
+      if (validation.reason === "INSUFFICIENT_BALANCE") fail("failed-precondition", "المبلغ المطلوب أكبر من رصيدك المتاح.");
+      fail("invalid-argument", "راجعي وسيلة الصرف والبيانات المدخلة.");
+    }
+    tx.update(profileRef, {
+      availableBalance: (Number(profile.availableBalance) || 0) - amount,
+      reservedBalance: (Number(profile.reservedBalance) || 0) + amount,
+      updatedAt: FieldValue.serverTimestamp(),
+    });
+    tx.create(payoutRef, {
+      ambassadorCode: code,
+      amount,
+      method,
+      payoutDetails: details.trim(),
+      status: "pending",
+      requestedAt: FieldValue.serverTimestamp(),
+      reviewedAt: null,
+      paidAt: null,
+    });
+  });
+  return { payoutId: payoutRef.id, status: "pending", amount };
+});
+
+export const reviewAmbassadorPayout = onCall(async (request) => {
+  if (request.auth?.token?.admin !== true) fail("permission-denied", "هذه العملية متاحة للإدارة فقط.");
+  const payoutId = request.data?.payoutId;
+  const decision = request.data?.decision;
+  const transferReference = typeof request.data?.transferReference === "string" ? request.data.transferReference.trim().slice(0, 100) : "";
+  if (typeof payoutId !== "string" || !/^[A-Za-z0-9-]{10,80}$/.test(payoutId) || !["paid", "rejected"].includes(decision)) {
+    fail("invalid-argument", "بيانات مراجعة طلب الصرف غير صحيحة.");
+  }
+  const payoutRef = db.collection("ambassadorPayouts").doc(payoutId);
+  await db.runTransaction(async (tx) => {
+    const payoutSnap = await tx.get(payoutRef);
+    if (!payoutSnap.exists) fail("not-found", "طلب الصرف غير موجود.");
+    const payout = payoutSnap.data();
+    if (payout.status !== "pending") fail("failed-precondition", "تمت مراجعة طلب الصرف بالفعل.");
+    const profileRef = db.collection("ambassadors").doc(payout.ambassadorCode);
+    const profileSnap = await tx.get(profileRef);
+    if (!profileSnap.exists) fail("not-found", "ملف السفيرة غير موجود.");
+    const profile = profileSnap.data();
+    const amount = Number(payout.amount) || 0;
+    const reserved = Number(profile.reservedBalance) || 0;
+    if (reserved < amount) fail("failed-precondition", "الرصيد المحجوز لا يطابق طلب الصرف.");
+    if (decision === "paid") {
+      if (!transferReference) fail("invalid-argument", "أدخلي مرجع التحويل قبل تأكيد الصرف.");
+      tx.update(profileRef, {
+        reservedBalance: reserved - amount,
+        lifetimePaidOut: (Number(profile.lifetimePaidOut) || 0) + amount,
+        updatedAt: FieldValue.serverTimestamp(),
+      });
+      tx.update(payoutRef, { status: "paid", transferReference, reviewedAt: FieldValue.serverTimestamp(), paidAt: FieldValue.serverTimestamp() });
+    } else {
+      tx.update(profileRef, {
+        reservedBalance: reserved - amount,
+        availableBalance: (Number(profile.availableBalance) || 0) + amount,
+        updatedAt: FieldValue.serverTimestamp(),
+      });
+      tx.update(payoutRef, { status: "rejected", rejectionReason: transferReference || "لم يتم توضيح السبب", reviewedAt: FieldValue.serverTimestamp() });
+    }
+  });
+  return { payoutId, status: decision };
+});
