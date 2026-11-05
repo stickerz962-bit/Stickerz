@@ -98,6 +98,9 @@ export default function AdminAmbassadorsApp() {
           <div className="ap-amb-payout-actions"><input value={references[item.id] || ""} onChange={e=>setReferences(current=>({...current,[item.id]:e.target.value}))} placeholder="مرجع التحويل أو سبب الرفض" maxLength={100}/><div><button className="primary-button" disabled={busy} onClick={()=>void review(item,"paid")}>تم الصرف</button><button className="secondary-button" disabled={busy} onClick={()=>void review(item,"rejected")}>رفض الطلب</button></div></div>
         </article>)}
       </section>
+      <section className="ap-amb-admin-panel"><h2>سجل عمليات الصرف</h2>
+        {payouts.length ? <div className="ap-ambassador-history">{payouts.map(item=><article key={item.id}><div><b>{item.amount} جنيه · {item.ambassadorCode}</b><small>{item.requestedAt?.toDate ? item.requestedAt.toDate().toLocaleString("ar-EG") : "—"} · {item.method === "instapay" ? "InstaPay" : "محفظة إلكترونية"}</small><small>{item.transferReference || (item as Payout & { rejectionReason?: string }).rejectionReason || "—"}</small></div><strong>{item.status === "paid" ? "تم الصرف" : item.status === "rejected" ? "مرفوض" : "قيد المراجعة"}</strong></article>)}</div> : <p>لا توجد عمليات صرف مسجلة.</p>}
+      </section>
       <section className="ap-amb-admin-panel"><h2>السفيرات المسجلات</h2><div className="ap-amb-admin-table-wrap"><table><thead><tr><th>السفيرة</th><th>كود الإحالة</th><th>الطلبات المسلّمة</th><th>الرصيد المتاح</th><th>قيد الصرف</th><th>إجمالي المكتسب</th><th>الحالة</th></tr></thead><tbody>{ambassadors.map(item=><tr key={item.code}><td>{item.name || "—"}</td><td dir="ltr">{item.code}</td><td>{item.deliveredReferralOrders || 0}</td><td>{item.availableBalance || 0} ج</td><td>{item.reservedBalance || 0} ج</td><td>{item.lifetimeEarned || 0} ج</td><td>{item.status === "active" ? "نشطة" : item.status}</td></tr>)}</tbody></table></div></section>
     </main>
   </div>;
