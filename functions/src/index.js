@@ -58,18 +58,25 @@ export const processAmbassadorOrder = onDocumentWritten("orders/{orderId}", asyn
   const commissionRef = db.collection("ambassadorCommissions").doc(orderId);
 
   await db.runTransaction(async (tx) => {
-    const reads = [tx.get(commissionRef)];
-    if (ownRef) reads.push(tx.get(ownRef));
-    if (referralRef && referralRef.path !== ownRef?.path) reads.push(tx.get(referralRef));
-    const snapshots = await Promise.all(reads);
-    const commissionSnap = snapshots[0];
-    let cursor = 1;
-    const ownSnap = ownRef ? snapshots[cursor++] : null;
-    const referrerSnap = referralRef && referralRef.path !== ownRef?.path ? snapshots[cursor++] : (referralRef ? ownSnap : null);
+    // Complete every transaction read before issuing any writes.
+    const commissionSnap = await tx.get(commissionRef);
+    const ownSnap = ownRef ? await tx.get(ownRef) : null;
+    const referrerSnap = referralRef
+      ? (ownRef && referralRef.path === ownRef.path ? ownSnap : await tx.get(referralRef))
+      : null;
+
+    let reversalProfileRef = null;
+    let reversalProfileSnap = null;
+    if (isRefunded && commissionSnap.exists && commissionSnap.data()?.status === "credited") {
+      reversalProfileRef = db.collection("ambassadors").doc(commissionSnap.data().ambassadorCode);
+      if (ownRef && reversalProfileRef.path === ownRef.path) reversalProfileSnap = ownSnap;
+      else if (referralRef && reversalProfileRef.path === referralRef.path) reversalProfileSnap = referrerSnap;
+      else reversalProfileSnap = await tx.get(reversalProfileRef);
+    }
 
     // A delivered customer becomes an ambassador automatically. The browser stores
     // the raw access token; only its SHA-256 hash is present in the order/profile.
-    if (isDelivered && ownRef && !ownSnap.exists && typeof setup.accessTokenHash === "string" && /^[a-f0-9]{64}$/.test(setup.accessTokenHash)) {
+    if (isDelivered && ownRef && !ownSnap?.exists && typeof setup.accessTokenHash === "string" && /^[a-f0-9]{64}$/.test(setup.accessTokenHash)) {
       const phone = normalizeEgyptianPhone(after.customer?.phone);
       tx.create(ownRef, {
         code: ownCode,
@@ -117,21 +124,18 @@ export const processAmbassadorOrder = onDocumentWritten("orders/{orderId}", asyn
     // A full refund reverses an already credited reward exactly once. If the
     // ambassador has already withdrawn the money, the balance may become negative
     // and future rewards first offset that amount.
-    if (isRefunded && commissionSnap.exists && commissionSnap.data()?.status === "credited") {
+    if (reversalProfileRef && reversalProfileSnap?.exists) {
       const commission = commissionSnap.data();
-      const ownerRef = db.collection("ambassadors").doc(commission.ambassadorCode);
-      const ownerSnap = await tx.get(ownerRef);
-      if (ownerSnap.exists) {
-        const owner = ownerSnap.data();
-        tx.update(ownerRef, {
-          availableBalance: (Number(owner.availableBalance) || 0) - Number(commission.amount || AMBASSADOR_COMMISSION_EGP),
-          lifetimeReversed: (Number(owner.lifetimeReversed) || 0) + Number(commission.amount || AMBASSADOR_COMMISSION_EGP),
-          updatedAt: FieldValue.serverTimestamp(),
-        });
-      }
+      const owner = reversalProfileSnap.data();
+      const amount = Number(commission.amount) || AMBASSADOR_COMMISSION_EGP;
+      tx.update(reversalProfileRef, {
+        availableBalance: (Number(owner.availableBalance) || 0) - amount,
+        lifetimeReversed: (Number(owner.lifetimeReversed) || 0) + amount,
+        updatedAt: FieldValue.serverTimestamp(),
+      });
       tx.update(commissionRef, { status: "reversed", reversedAt: FieldValue.serverTimestamp(), reversalReason: "order_refunded" });
     }
-  });
+  });;
 
   logger.info("Ambassador order event processed", { orderId, delivered: isDelivered, refunded: isRefunded, previousStatus: before?.fulfillmentStatus ?? null });
 });
