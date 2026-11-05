@@ -86,6 +86,7 @@ export const processAmbassadorOrder = onDocumentWritten("orders/{orderId}", asyn
         code: ownCode,
         name: String(after.customer?.name ?? "").slice(0, 80),
         phoneNormalized: phone,
+        phoneNumbers: phone ? [phone] : [],
         accessTokenHash: setup.accessTokenHash,
         sourceOrderId: orderId,
         status: "active",
@@ -105,7 +106,7 @@ export const processAmbassadorOrder = onDocumentWritten("orders/{orderId}", asyn
     if (isDelivered && !isRefunded && !hasApprovedPartner && referralRef && !commissionSnap.exists) {
       const referrer = referrerSnap?.exists ? referrerSnap.data() : null;
       const customerPhone = normalizeEgyptianPhone(after.customer?.phone);
-      const isSelfReferral = !!customerPhone && customerPhone === referrer?.phoneNormalized;
+      const isSelfReferral = (ownRef && referralRef && ownRef.path === referralRef.path) || (!!customerPhone && (customerPhone === referrer?.phoneNormalized || (Array.isArray(referrer?.phoneNumbers) && referrer.phoneNumbers.includes(customerPhone))));
       if (referrer?.status === "active" && !isSelfReferral) {
         tx.create(commissionRef, {
           orderId,
@@ -242,6 +243,7 @@ export const reviewAmbassadorPayout = onCall(async (request) => {
     const payoutSnap = await tx.get(payoutRef);
     if (!payoutSnap.exists) fail("not-found", "طلب الصرف غير موجود.");
     const payout = payoutSnap.data();
+    if (payout.status === decision) return;
     if (payout.status !== "pending") fail("failed-precondition", "تمت مراجعة طلب الصرف بالفعل.");
     const profileRef = db.collection("ambassadors").doc(payout.ambassadorCode);
     const profileSnap = await tx.get(profileRef);
@@ -257,14 +259,14 @@ export const reviewAmbassadorPayout = onCall(async (request) => {
         lifetimePaidOut: (Number(profile.lifetimePaidOut) || 0) + amount,
         updatedAt: FieldValue.serverTimestamp(),
       });
-      tx.update(payoutRef, { status: "paid", transferReference, reviewedAt: FieldValue.serverTimestamp(), paidAt: FieldValue.serverTimestamp() });
+      tx.update(payoutRef, { status: "paid", transferReference, reviewedBy: request.auth.uid, reviewedAt: FieldValue.serverTimestamp(), paidAt: FieldValue.serverTimestamp() });
     } else {
       tx.update(profileRef, {
         reservedBalance: reserved - amount,
         availableBalance: (Number(profile.availableBalance) || 0) + amount,
         updatedAt: FieldValue.serverTimestamp(),
       });
-      tx.update(payoutRef, { status: "rejected", rejectionReason: transferReference || "لم يتم توضيح السبب", reviewedAt: FieldValue.serverTimestamp() });
+      tx.update(payoutRef, { status: "rejected", rejectionReason: transferReference, reviewedBy: request.auth.uid, reviewedAt: FieldValue.serverTimestamp() });
     }
   });
   return { payoutId, status: decision };
