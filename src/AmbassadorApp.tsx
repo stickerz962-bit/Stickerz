@@ -19,6 +19,7 @@ export default function AmbassadorApp({ code, accessToken }: { code: string; acc
   const [amount, setAmount] = useState("50");
   const [method, setMethod] = useState<"instapay" | "wallet">("instapay");
   const [details, setDetails] = useState("");
+  const [requestId, setRequestId] = useState(() => window.crypto.randomUUID());
   const [busy, setBusy] = useState(true);
   const [sending, setSending] = useState(false);
   const [error, setError] = useState("");
@@ -49,9 +50,10 @@ export default function AmbassadorApp({ code, accessToken }: { code: string; acc
     setSending(true);
     try {
       const call = httpsCallable(functions, "requestAmbassadorPayout");
-      await call({ code, accessToken, requestId: window.crypto.randomUUID(), amount: requestedAmount, method, details: details.trim() });
+      await call({ code, accessToken, requestId, amount: requestedAmount, method, details: details.trim() });
       setNotice("تم استلام طلب صرف مكافآتك، وهنراجع بيانات التحويل.");
       setDetails("");
+      setRequestId(window.crypto.randomUUID());
       await load();
     } catch (reason) {
       const message = reason instanceof Error ? reason.message : "";
