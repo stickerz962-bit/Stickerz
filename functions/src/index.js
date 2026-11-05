@@ -193,13 +193,13 @@ export const requestAmbassadorPayout = onCall(async (request) => {
   const payoutRef = db.collection("ambassadorPayouts").doc(requestId);
 
   const result = await db.runTransaction(async (tx) => {
+    const { data: profile } = await getAuthorizedAmbassador(tx, code, tokenHash);
     const existingPayout = await tx.get(payoutRef);
     if (existingPayout.exists) {
       const existing = existingPayout.data();
       if (existing.ambassadorCode !== code) fail("already-exists", "معرّف طلب الصرف مستخدم.");
       return { payoutId: payoutRef.id, status: existing.status, amount: existing.amount, duplicate: true };
     }
-    const { data: profile } = await getAuthorizedAmbassador(tx, code, tokenHash);
     const validation = validatePayoutRequest({ amount, availableBalance: Number(profile.availableBalance) || 0, method, details });
     if (!validation.ok) {
       if (validation.reason === "MINIMUM_PAYOUT") fail("failed-precondition", "الحد الأدنى لطلب الصرف 50 جنيهًا.");
