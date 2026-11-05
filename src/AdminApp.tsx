@@ -7,7 +7,7 @@ import './styles.css';
 type Category = { id: string; title: string; slug: string; sortOrder: number; active: boolean };
 type Artwork = { id: string; title: string; categoryId: string; phrase: string; previewAssetRef: string; sortOrder: number; version: number; active: boolean };
 type Cover = { id: string; title: string; subtitle: string; previewAssetRef: string; sortOrder: number; version: number; active: boolean };
-type Order = { id: string; trackingToken?: string; publicReference?: string; customer?: { name?: string; phone?: string }; shipping?: { governorateName?: string; areaName?: string; address?: string; deliveryNotes?: string }; book?: { artworks?: Array<{ artworkId?: string; titleSnapshot?: string; printOrder?: number }>; cover?: { titleSnapshot?: string }; personalizedName?: string }; pricing?: { bookPrice?: number; standardBookPrice?: number; shippingFee?: number | null; totalAmount?: number | null; offerApplied?: boolean }; paymentMethod?: string; paymentStatus?: string; fulfillmentStatus?: string; partnerCode?: string | null; ambassadorReferralCode?: string | null; createdAt?: { toDate?: () => Date } };
+type Order = { id: string; trackingToken?: string; publicReference?: string; customer?: { name?: string; phone?: string }; shipping?: { governorateName?: string; areaName?: string; address?: string; deliveryNotes?: string }; book?: { artworks?: Array<{ artworkId?: string; titleSnapshot?: string; printOrder?: number }>; cover?: { titleSnapshot?: string }; personalizedName?: string }; pricing?: { bookPrice?: number; standardBookPrice?: number; shippingFee?: number | null; totalAmount?: number | null; offerApplied?: boolean }; paymentMethod?: string; paymentStatus?: string; fulfillmentStatus?: string; partnerCode?: string | null; ambassadorReferralCode?: string | null; deliveredAt?: { toDate?: () => Date }; createdAt?: { toDate?: () => Date } };
 type Tab = 'orders' | 'categories' | 'artworks' | 'covers';
 const orderStatuses = ['new','confirmed','pdf_generating','ready_for_printing','printing','quality_check','ready_for_shipping','shipped','delivered','cancelled'] as const;
 const orderStatusLabels: Record<string,string> = { new:'طلب جديد', confirmed:'تم التأكيد', pdf_generating:'تجهيز PDF', ready_for_printing:'جاهز للطباعة', printing:'قيد الطباعة', quality_check:'مراجعة الجودة', ready_for_shipping:'جاهز للشحن', shipped:'تم الشحن', delivered:'تم التسليم', cancelled:'ملغي' };
@@ -115,7 +115,7 @@ export default function AdminApp() {
     setBusy(true); setError(''); setNotice('');
     try {
       const batch = writeBatch(firestore);
-      batch.update(doc(firestore, 'orders', order.id), { fulfillmentStatus: status, updatedAt: serverTimestamp() });
+      batch.update(doc(firestore, 'orders', order.id), { fulfillmentStatus: status, ...(status === 'delivered' ? { deliveredAt: serverTimestamp() } : {}), updatedAt: serverTimestamp() });
       if (order.trackingToken) batch.update(doc(firestore, 'orderTracking', order.trackingToken), { fulfillmentStatus: status, updatedAt: serverTimestamp() });
       await batch.commit();
       await loadOrders();
@@ -298,7 +298,7 @@ export default function AdminApp() {
           </div>
           <div className="admin-product-actions ap-order-status">
             {order.paymentStatus !== 'paid' && order.paymentStatus !== 'refunded' && <button className="secondary-button" disabled={busy} onClick={() => void updateOrderPaymentStatus(order,'paid')}>تأكيد استلام المبلغ</button>}
-            {order.paymentStatus === 'paid' && order.fulfillmentStatus === 'delivered' && <button className="secondary-button" disabled={busy} onClick={() => void updateOrderPaymentStatus(order,'refunded')}>تسجيل رد قيمة الطلب</button>}
+            {order.paymentStatus === 'paid' && (order.fulfillmentStatus === 'delivered' || !!order.deliveredAt) && <button className="secondary-button" disabled={busy} onClick={() => void updateOrderPaymentStatus(order,'refunded')}>تسجيل رد قيمة الطلب</button>}
             <label>حالة الطلب<select value={order.fulfillmentStatus || 'new'} disabled={busy} onChange={e => void updateOrderStatus(order,e.target.value)}>{orderStatuses.map(status => <option key={status} value={status}>{orderStatusLabels[status]}</option>)}</select></label>
           </div>
         </article>)}
