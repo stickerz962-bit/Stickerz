@@ -13,6 +13,7 @@ import {
   shouldCreditAmbassadorCommission,
   balanceAfterCommissionReversal,
   validatePayoutRequest,
+  canCompletePayoutAfterReversals,
 } from "./domain.js";
 
 initializeApp();
@@ -297,6 +298,11 @@ export const reviewAmbassadorPayout = onCall(async (request) => {
     const reserved = Number(profile.reservedBalance) || 0;
     if (reserved < amount) fail("failed-precondition", "الرصيد المحجوز لا يطابق طلب الصرف.");
     if (decision === "paid") {
+      // A refund can reverse earnings while a payout is pending. Do not release
+      // reserved funds if doing so would leave the ambassador with a negative balance.
+      if (!canCompletePayoutAfterReversals(Number(profile.availableBalance) || 0)) {
+        fail("failed-precondition", "تعذر تأكيد الصرف حاليًا بسبب تسوية مكافأة مرتجعة. انتظري تعويض الرصيد أو ارفضي الطلب وأعيدي تقديمه لاحقًا.");
+      }
       if (!transferReference) fail("invalid-argument", "أدخلي مرجع التحويل قبل تأكيد الصرف.");
       tx.update(profileRef, {
         reservedBalance: reserved - amount,
