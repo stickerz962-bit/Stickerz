@@ -92,12 +92,16 @@ export default function App() {
   const [routeHash, setRouteHash] = useState(window.location.hash);
   const ambassadorMatch = /^#ambassador\/(AP[A-F0-9]{20})\/([a-f0-9]{64})$/.exec(routeHash);
   useEffect(() => {
-    captureAmbassadorReferral(window.location.search);
     const pendingTrackingToken = readAmbassadorReferralTrackingToken();
     if (pendingTrackingToken && firestore) {
       getDoc(doc(firestore, 'orderTracking', pendingTrackingToken)).then(snapshot => {
-        if (snapshot.exists() && snapshot.data().fulfillmentStatus === 'delivered') clearAmbassadorReferral();
+        if (snapshot.exists() && snapshot.data().fulfillmentStatus === 'delivered') {
+          clearAmbassadorReferral();
+          captureAmbassadorReferral(window.location.search);
+        }
       }).catch(() => {});
+    } else {
+      captureAmbassadorReferral(window.location.search);
     }
   }, []);
 
