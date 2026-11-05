@@ -30,6 +30,14 @@ Arabic-first, RTL storefront prototype for a personalized women's coloring book.
 - The offer end timestamp is persisted in localStorage so refreshes do not restart the hour. Clearing browser storage or using another browser/device can start a new client-side timer.
 - This is a storefront display timer only. Before real checkout, a trusted server must enforce offer eligibility and calculate shipping and the final order amount; client-side storage is not authoritative.
 
+## Customer ambassador rewards (prepared, not live)
+
+- The customer ambassador backend, dashboard routes, payout administration page, Firestore rules, and indexes are prepared in the ambassador feature branch.
+- Reward rules: 15 EGP per distinct referred order delivered successfully; minimum payout 50 EGP; partial payout allowed; a full refund reverses the commission once.
+- Customer ambassador rewards use a separate `ambassadorReferralCode`; the existing professional partner `partnerCode` remains untouched by this feature. No partner wallet or partner commission is changed here.
+- The Functions source is not deployed. The program is not live until Cloud Functions, rules, and indexes are deployed and end-to-end verified. See [the ambassador rewards architecture](docs/architecture/ambassador-rewards.md).
+- Private dashboard access currently relies on a bearer link stored in the same browser; cross-device phone verification is not implemented.
+
 ## Hosting and billing guardrails
 
 - Firebase Storage is not enabled. Do not activate it or upgrade the Firebase billing plan.

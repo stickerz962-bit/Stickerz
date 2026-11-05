@@ -1,0 +1,103 @@
+name: Firebase Functions Production Deploy
+
+on:
+  workflow_dispatch:
+    inputs:
+      project_id:
+        description: "Firebase project ID (must be stickerz-922b9)"
+        required: true
+        default: "stickerz-922b9"
+        type: string
+      confirm_live_deploy:
+        description: "I approve deploying Cloud Functions to production after billing and IAM review"
+        required: true
+        default: false
+        type: boolean
+
+permissions:
+  contents: read
+  id-token: write
+
+concurrency:
+  group: firebase-functions-production
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    if: ${{ inputs.confirm_live_deploy == true && vars.FIREBASE_FUNCTIONS_DEPLOY_APPROVED == 'true' }}
+    runs-on: ubuntu-latest
+    environment: firebase-production
+    timeout-minutes: 30
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Validate explicit approval and target
+        env:
+          PROJECT_ID: ${{ inputs.project_id }}
+          APPROVED: ${{ vars.FIREBASE_FUNCTIONS_DEPLOY_APPROVED }}
+          WIF_PROVIDER: ${{ vars.GCP_WORKLOAD_IDENTITY_PROVIDER }}
+          SERVICE_ACCOUNT: ${{ vars.GCP_SERVICE_ACCOUNT }}
+        run: |
+          set -euo pipefail
+          if [ "$PROJECT_ID" != "stickerz-922b9" ]; then
+            echo "::error::Refusing to deploy to an unexpected Firebase project."
+            exit 1
+          fi
+          if [ "$APPROVED" != "true" ]; then
+            echo "::error::A repository administrator must set FIREBASE_FUNCTIONS_DEPLOY_APPROVED=true only after billing/IAM approval."
+            exit 1
+          fi
+          if [ -z "$WIF_PROVIDER" ] || [ -z "$SERVICE_ACCOUNT" ]; then
+            echo "::error::Configure GCP_WORKLOAD_IDENTITY_PROVIDER and GCP_SERVICE_ACCOUNT first."
+            exit 1
+          fi
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - name: Install application dependencies
+        run: npm install --no-audit --no-fund
+
+      - name: Run application and security tests
+        run: |
+          npm test
+          npm run test:emulator
+
+      - name: Install and validate Cloud Functions
+        run: |
+          npm install --prefix functions --no-audit --no-fund
+          npm --prefix functions test
+          npm --prefix functions run lint
+
+      - name: Authenticate with short-lived GitHub OIDC credentials
+        uses: google-github-actions/auth@v2
+        with:
+          workload_identity_provider: ${{ vars.GCP_WORKLOAD_IDENTITY_PROVIDER }}
+          service_account: ${{ vars.GCP_SERVICE_ACCOUNT }}
+          create_credentials_file: true
+
+      - name: Verify Firebase project access
+        env:
+          PROJECT_ID: ${{ inputs.project_id }}
+        run: |
+          node --input-type=module <<'NODE'
+          import { applicationDefault, initializeApp } from 'firebase-admin/app';
+          import { getFirestore } from 'firebase-admin/firestore';
+          const app = initializeApp({ credential: applicationDefault(), projectId: process.env.PROJECT_ID });
+          await getFirestore(app).listCollections();
+          console.log('Authenticated against the intended Firebase project.');
+          NODE
+
+      - name: Deploy Cloud Functions only
+        env:
+          PROJECT_ID: ${{ inputs.project_id }}
+        run: npx --yes firebase-tools@13.29.2 deploy --only functions --project "$PROJECT_ID" --non-interactive
+
+      - name: Report deployment scope
+        run: |
+          echo "Cloud Functions deployment completed for stickerz-922b9."
+          echo "Firestore rules/indexes, Hosting, Storage, and billing settings were not changed."
