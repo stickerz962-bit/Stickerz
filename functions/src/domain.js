@@ -40,6 +40,7 @@ export function isValidAmbassadorCode(code) {
 export function shouldCreditAmbassadorCommission({ fulfillmentStatus, paymentStatus, referrerStatus, selfReferral, commissionExists }) {
   return fulfillmentStatus === "delivered"
     && paymentStatus !== "refunded"
+    && paymentStatus !== "rejected"
     && referrerStatus === "active"
     && selfReferral !== true
     && commissionExists !== true;
