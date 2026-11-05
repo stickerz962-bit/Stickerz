@@ -56,10 +56,15 @@ export const processAmbassadorOrder = onDocumentWritten("orders/{orderId}", asyn
   const ownRef = ownCode ? db.collection("ambassadors").doc(ownCode) : null;
   const referralRef = referralCode ? db.collection("ambassadors").doc(referralCode) : null;
   const commissionRef = db.collection("ambassadorCommissions").doc(orderId);
+  const partnerQuery = typeof after.partnerCode === "string" && after.partnerCode
+    ? db.collection("partners").where("code", "==", after.partnerCode).where("status", "==", "approved").limit(1)
+    : null;
 
   await db.runTransaction(async (tx) => {
     // Complete every transaction read before issuing any writes.
     const commissionSnap = await tx.get(commissionRef);
+    const partnerSnap = partnerQuery ? await tx.get(partnerQuery) : null;
+    const hasApprovedPartner = !!partnerSnap?.docs?.length;
     const ownSnap = ownRef ? await tx.get(ownRef) : null;
     const referrerSnap = referralRef
       ? (ownRef && referralRef.path === ownRef.path ? ownSnap : await tx.get(referralRef))
@@ -81,7 +86,7 @@ export const processAmbassadorOrder = onDocumentWritten("orders/{orderId}", asyn
       tx.create(ownRef, {
         code: ownCode,
         name: String(after.customer?.name ?? "").slice(0, 80),
-        phoneHash: phone ? sha256(phone) : null,
+        phoneNormalized: phone,
         accessTokenHash: setup.accessTokenHash,
         sourceOrderId: orderId,
         status: "active",
@@ -98,11 +103,10 @@ export const processAmbassadorOrder = onDocumentWritten("orders/{orderId}", asyn
 
     // Professional partner attribution takes precedence. The two programs never
     // pay a double reward for the same order.
-    if (isDelivered && !isRefunded && !after.partnerCode && referralRef && !commissionSnap.exists) {
+    if (isDelivered && !isRefunded && !hasApprovedPartner && referralRef && !commissionSnap.exists) {
       const referrer = referrerSnap?.exists ? referrerSnap.data() : null;
       const customerPhone = normalizeEgyptianPhone(after.customer?.phone);
-      const customerPhoneHash = customerPhone ? sha256(customerPhone) : null;
-      const isSelfReferral = !!customerPhoneHash && customerPhoneHash === referrer?.phoneHash;
+      const isSelfReferral = !!customerPhone && customerPhone === referrer?.phoneNormalized;
       if (referrer?.status === "active" && !isSelfReferral) {
         tx.create(commissionRef, {
           orderId,
@@ -135,7 +139,7 @@ export const processAmbassadorOrder = onDocumentWritten("orders/{orderId}", asyn
       });
       tx.update(commissionRef, { status: "reversed", reversedAt: FieldValue.serverTimestamp(), reversalReason: "order_refunded" });
     }
-  });;
+  });
 
   logger.info("Ambassador order event processed", { orderId, delivered: isDelivered, refunded: isRefunded, previousStatus: before?.fulfillmentStatus ?? null });
 });
