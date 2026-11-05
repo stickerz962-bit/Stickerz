@@ -76,7 +76,7 @@ function OrderTracking({ token }: { token: string }) {
   useEffect(() => {
     if (record?.fulfillmentStatus !== 'delivered') return;
     const context = readAmbassadorContext();
-    if (context && context.trackingToken === token) {
+    if (context) {
       setAmbassadorDashboardUrl(buildAmbassadorDashboardUrl(context.code, context.accessToken));
       clearAmbassadorReferral();
     }
@@ -126,7 +126,7 @@ export default function App() {
   }, []);
   const [builderOpen, setBuilderOpen] = useState(window.location.hash === '#design');
   useEffect(() => {
-    const syncRoute = () => setBuilderOpen(window.location.hash === '#design');
+    const syncRoute = () => { setRouteHash(window.location.hash); setBuilderOpen(window.location.hash === '#design'); };
     window.addEventListener('hashchange', syncRoute);
     return () => window.removeEventListener('hashchange', syncRoute);
   }, []);
