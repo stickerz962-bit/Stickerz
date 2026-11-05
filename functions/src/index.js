@@ -80,7 +80,7 @@ export const processAmbassadorOrder = onDocumentWritten("orders/{orderId}", asyn
 
     // A delivered customer becomes an ambassador automatically. The browser stores
     // the raw access token; only its SHA-256 hash is present in the order/profile.
-    if (isDelivered && ownRef && !ownSnap?.exists && typeof setup.accessTokenHash === "string" && /^[a-f0-9]{64}$/.test(setup.accessTokenHash)) {
+    if (isDelivered && !isRefunded && ownRef && !ownSnap?.exists && typeof setup.accessTokenHash === "string" && /^[a-f0-9]{64}$/.test(setup.accessTokenHash)) {
       const phone = normalizeEgyptianPhone(after.customer?.phone);
       tx.create(ownRef, {
         code: ownCode,
