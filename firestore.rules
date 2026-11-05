@@ -182,7 +182,7 @@ service cloud.firestore {
       allow update, delete: if isAdmin();
     }
     // Ambassador balances, commissions and payout requests are server-owned.
-    // Customers access their own dashboard only through callable functions.
+    // Customers access their own dashboard only through token-verified callable functions.
     match /ambassadors/{ambassadorCode} {
       allow read: if isAdmin();
       allow write: if false;
