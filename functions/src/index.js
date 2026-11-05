@@ -1,4 +1,3 @@
-import { randomUUID } from "node:crypto";
 import { initializeApp } from "firebase-admin/app";
 import { getFirestore, FieldValue } from "firebase-admin/firestore";
 import { onDocumentWritten } from "firebase-functions/v2/firestore";
@@ -186,10 +185,20 @@ export const requestAmbassadorPayout = onCall(async (request) => {
   const amount = request.data?.amount;
   const method = request.data?.method;
   const details = request.data?.details;
+  const requestId = request.data?.requestId;
+  if (typeof requestId !== "string" || !/^[a-f0-9-]{36}$/.test(requestId)) {
+    fail("invalid-argument", "معرّف طلب الصرف غير صالح.");
+  }
   const profileRef = db.collection("ambassadors").doc(code);
-  const payoutRef = db.collection("ambassadorPayouts").doc(randomUUID());
+  const payoutRef = db.collection("ambassadorPayouts").doc(requestId);
 
-  await db.runTransaction(async (tx) => {
+  const result = await db.runTransaction(async (tx) => {
+    const existingPayout = await tx.get(payoutRef);
+    if (existingPayout.exists) {
+      const existing = existingPayout.data();
+      if (existing.ambassadorCode !== code) fail("already-exists", "معرّف طلب الصرف مستخدم.");
+      return { payoutId: payoutRef.id, status: existing.status, amount: existing.amount, duplicate: true };
+    }
     const { data: profile } = await getAuthorizedAmbassador(tx, code, tokenHash);
     const validation = validatePayoutRequest({ amount, availableBalance: Number(profile.availableBalance) || 0, method, details });
     if (!validation.ok) {
@@ -212,8 +221,9 @@ export const requestAmbassadorPayout = onCall(async (request) => {
       reviewedAt: null,
       paidAt: null,
     });
+    return { payoutId: payoutRef.id, status: "pending", amount, duplicate: false };
   });
-  return { payoutId: payoutRef.id, status: "pending", amount };
+  return result;
 });
 
 export const reviewAmbassadorPayout = onCall(async (request) => {
