@@ -4,9 +4,9 @@ export const AMBASSADOR_COMMISSION_EGP = 15;
 export const AMBASSADOR_MIN_PAYOUT_EGP = 50;
 
 export function normalizeEgyptianPhone(value) {
-  const digits = String(value ?? "").replace(/[\\s()+-]/g, "");
-  if (/^01[0125]\\d{8}$/.test(digits)) return "20" + digits.slice(1);
-  if (/^201[0125]\\d{8}$/.test(digits)) return digits;
+  const digits = String(value ?? "").replace(/[\s()+-]/g, "");
+  if (/^01[0125]\d{8}$/.test(digits)) return "20" + digits.slice(1);
+  if (/^201[0125]\d{8}$/.test(digits)) return digits;
   return null;
 }
 
