@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useState, type FormEvent } from "react";
 import { httpsCallable } from "firebase/functions";
 import { functions } from "./firebase/client";
 import { buildAmbassadorReferralUrl } from "./lib/ambassador";
@@ -38,7 +38,7 @@ export default function AmbassadorApp({ code, accessToken }: { code: string; acc
 
   useEffect(() => { void load(); }, [load]);
 
-  async function submitPayout(event: React.FormEvent<HTMLFormElement>) {
+  async function submitPayout(event: FormEvent<HTMLFormElement>) {
     event.preventDefault(); setError(""); setNotice("");
     if (!functions || !data) return;
     const requestedAmount = Number(amount);
