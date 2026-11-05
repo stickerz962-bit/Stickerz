@@ -97,6 +97,15 @@ export default function AmbassadorApp({ code, accessToken }: { code: string; acc
             <a className="secondary-button" href={"https://wa.me/?text=" + encodeURIComponent("لقيت كتاب تلوين لطيف أوي اسمه فُكّي الضغط، شوفيه واعملي كتابك على مزاجك ♡ " + shareUrl)} target="_blank" rel="noreferrer">مشاركة واتساب</a>
           </div>
         </section>
+        <section className="ap-ambassador-panel">
+          <h2>أفكار لطيفة للمشاركة</h2>
+          <p>مش محتاجة تعملي إعلان.. صورة حقيقية من كتابك وكلمتين من تجربتك كفاية ♡</p>
+          <div className="ap-ambassador-history">
+            <article><div><b>حكاية كتابي</b><small>صوري الغلاف أو صفحة بتحبيها واكتبي:</small><p>أخيرًا بقي عندي كتاب تلوين معمول على مزاجي.. اخترت رسومات شبه يومي ووقتي اللطيف ♡</p></div><button className="secondary-button" onClick={() => void copy("أخيرًا بقي عندي كتاب تلوين معمول على مزاجي.. اخترت رسومات شبه يومي ووقتي اللطيف ♡", "تم نسخ حكاية كتابك.")}>نسخ النص</button></article>
+            <article><div><b>ابعتي لصاحبتك</b><small>رسالة بسيطة من غير تكلف:</small><p>لو بتحبي التلوين والحاجات اللي على مزاجك، شوفي فُكّي الضغط واعملي كتابك بنفسك ♡</p></div><button className="secondary-button" onClick={() => void copy("لو بتحبي التلوين والحاجات اللي على مزاجك، شوفي فُكّي الضغط واعملي كتابك بنفسك ♡", "تم نسخ الرسالة.")}>نسخ النص</button></article>
+          </div>
+          <small className="ap-ambassador-footnote">فكرة تصوير: ضوء طبيعي، الكتاب مفتوح على صفحة ملونة، وكوباية قهوة أو تفصيلة بتحبيها. مشاركة الصور اختيارية تمامًا.</small>
+        </section>
         <section className="ap-ambassador-grid">
           <div className="ap-ambassador-panel">
             <h2>اطلبي صرف مكافآتك</h2>
