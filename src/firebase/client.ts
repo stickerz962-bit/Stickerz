@@ -1,6 +1,7 @@
 import { getApp, getApps, initializeApp } from 'firebase/app';
 import { getAuth } from 'firebase/auth';
 import { getFirestore } from 'firebase/firestore';
+import { getFunctions } from 'firebase/functions';
 
 type FirebaseWebConfig = {
   apiKey: string;
@@ -30,3 +31,4 @@ const app = config ? (getApps().length ? getApp() : initializeApp(config)) : nul
 export const firebaseConfigured = config !== null;
 export const auth = app ? getAuth(app) : null;
 export const firestore = app ? getFirestore(app) : null;
+export const functions = app ? getFunctions(app, 'us-central1') : null;
