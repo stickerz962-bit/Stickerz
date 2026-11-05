@@ -64,6 +64,17 @@ export default function AdminAmbassadorsApp() {
     finally { setBusy(false); }
   }
 
+  async function setAmbassadorStatus(item: Ambassador, status: "active" | "paused") {
+    if (!functions) { setError("خدمة المكافآت الخلفية غير مفعّلة."); return; }
+    setBusy(true); setError(""); setNotice("");
+    try {
+      const call = httpsCallable(functions, "updateAmbassadorStatus");
+      await call({ code: item.code, status });
+      setNotice(status === "paused" ? "تم إيقاف السفيرة مؤقتًا." : "تم إعادة تفعيل السفيرة.");
+      await load();
+    } catch { setError("تعذر تحديث حالة السفيرة."); }
+    finally { setBusy(false); }
+  }
   async function review(payout: Payout, decision: "paid" | "rejected") {
     if (!functions) { setError("خدمة المكافآت الخلفية غير مفعّلة."); return; }
     const reference = (references[payout.id] || "").trim();
@@ -101,7 +112,7 @@ export default function AdminAmbassadorsApp() {
       <section className="ap-amb-admin-panel"><h2>سجل عمليات الصرف</h2>
         {payouts.length ? <div className="ap-ambassador-history">{payouts.map(item=><article key={item.id}><div><b>{item.amount} جنيه · {item.ambassadorCode}</b><small>{item.requestedAt?.toDate ? item.requestedAt.toDate().toLocaleString("ar-EG") : "—"} · {item.method === "instapay" ? "InstaPay" : "محفظة إلكترونية"}</small><small>{item.transferReference || (item as Payout & { rejectionReason?: string }).rejectionReason || "—"}</small></div><strong>{item.status === "paid" ? "تم الصرف" : item.status === "rejected" ? "مرفوض" : "قيد المراجعة"}</strong></article>)}</div> : <p>لا توجد عمليات صرف مسجلة.</p>}
       </section>
-      <section className="ap-amb-admin-panel"><h2>السفيرات المسجلات</h2><div className="ap-amb-admin-table-wrap"><table><thead><tr><th>السفيرة</th><th>كود الإحالة</th><th>الطلبات المسلّمة</th><th>الرصيد المتاح</th><th>قيد الصرف</th><th>إجمالي المكتسب</th><th>الحالة</th></tr></thead><tbody>{ambassadors.map(item=><tr key={item.code}><td>{item.name || "—"}</td><td dir="ltr">{item.code}</td><td>{item.deliveredReferralOrders || 0}</td><td>{item.availableBalance || 0} ج</td><td>{item.reservedBalance || 0} ج</td><td>{item.lifetimeEarned || 0} ج</td><td>{item.status === "active" ? "نشطة" : item.status}</td></tr>)}</tbody></table></div></section>
+      <section className="ap-amb-admin-panel"><h2>السفيرات المسجلات</h2><div className="ap-amb-admin-table-wrap"><table><thead><tr><th>السفيرة</th><th>كود الإحالة</th><th>الطلبات المسلّمة</th><th>الرصيد المتاح</th><th>قيد الصرف</th><th>إجمالي المكتسب</th><th>الحالة</th><th>الإجراء</th></tr></thead><tbody>{ambassadors.map(item=><tr key={item.code}><td>{item.name || "—"}</td><td dir="ltr">{item.code}</td><td>{item.deliveredReferralOrders || 0}</td><td>{item.availableBalance || 0} ج</td><td>{item.reservedBalance || 0} ج</td><td>{item.lifetimeEarned || 0} ج</td><td>{item.status === "active" ? "نشطة" : "موقوفة"}</td><td><button className="secondary-button" disabled={busy} onClick={()=>void setAmbassadorStatus(item,item.status === "active" ? "paused" : "active")}>{item.status === "active" ? "إيقاف" : "إعادة تفعيل"}</button></td></tr>)}</tbody></table></div></section>
     </main>
   </div>;
 }
