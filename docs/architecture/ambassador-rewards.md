@@ -27,7 +27,7 @@ The customer dashboard never reads these collections directly. It calls authenti
 
 1. Guest checkout creates a random ambassador code and access token. The order stores the code plus the token hash in `ambassadorSetup`; the raw token remains in browser storage.
 2. The order document trigger creates the ambassador profile when the order becomes delivered.
-3. For a delivered referred order, the same trigger checks the referrer, rejects self-referral, checks approved partner attribution, and creates `ambassadorCommissions/{orderId}` in a Firestore transaction.
+3. For a delivered referred order, the same trigger checks that the referrer is active, rejects self-referral, and creates `ambassadorCommissions/{orderId}` in a Firestore transaction.
 4. The deterministic commission document ID makes crediting idempotent. The trigger also reverses an existing credit when payment status becomes `refunded`.
 5. The customer dashboard calls `getAmbassadorDashboard`; payout submission calls `requestAmbassadorPayout`.
 6. Admin payout decisions call `reviewAmbassadorPayout`. Direct browser writes to balances, commissions, and payout documents are denied by Firestore rules.
@@ -44,5 +44,5 @@ Before live deployment:
 - Confirm the Firebase billing plan and estimated Functions / Firestore costs.
 - Confirm the GitHub OIDC service account has only the required deploy permissions.
 - Deploy Firestore rules and indexes, then Functions to project `stickerz-922b9`.
-- Run end-to-end tests for delivery, duplicate delivery events, partner precedence, self-referral, refund reversal, negative balances, concurrent payout requests, payout rejection, and payout completion.
+- Run end-to-end tests for delivery, duplicate delivery events, partner-code isolation, self-referral, refund reversal, negative balances, concurrent payout requests, payout rejection, and payout completion.
 - Verify the public order tracking projection still contains no PII.
