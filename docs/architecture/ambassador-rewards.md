@@ -7,7 +7,7 @@
 - Minimum payout request: **50 EGP**.
 - Partial payout is allowed; requested amount must be an integer, at least 50 EGP, and no greater than the available balance.
 - Referral attribution has no time-based expiry. The first valid `?amb=CODE` referral captured in the browser remains attached until its associated order is delivered. The customer referral code is separate from the existing professional partner `?ref=CODE`.
-- If a referred order is assigned to an approved professional partner, the partner attribution takes precedence; the same order never earns both rewards.
+- Customer ambassador rewards use only `ambassadorReferralCode`. The existing professional partner `partnerCode` remains unchanged and is not read or written by this system; no partner wallet or partner commission is modified by this feature. If both codes are present, only the customer ambassador ledger is credited in this release.
 - Self-referrals are rejected by comparing normalized customer phone numbers.
 - A full order refund reverses a previously credited 15 EGP commission exactly once. If the reward has already been paid out, the ambassador balance may become negative; later rewards offset that balance before new money becomes withdrawable.
 - Payout review is manual by an admin. Rejection releases the reserved amount back to the available balance.
