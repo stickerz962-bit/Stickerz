@@ -30,7 +30,7 @@ The customer dashboard never reads these collections directly. It calls authenti
 3. For a delivered referred order, the same trigger checks that the referrer is active, rejects self-referral, and creates `ambassadorCommissions/{orderId}` in a Firestore transaction.
 4. The deterministic commission document ID makes crediting idempotent. The trigger also reverses an existing credit when payment status becomes `refunded`.
 5. The customer dashboard calls `getAmbassadorDashboard`; payout submission calls `requestAmbassadorPayout`.
-6. Admin payout decisions call `reviewAmbassadorPayout`. Direct browser writes to balances, commissions, and payout documents are denied by Firestore rules.
+6. Admin payout decisions call `reviewAmbassadorPayout`; administrators can also pause or reactivate a profile through `updateAmbassadorStatus`. Direct browser writes to balances, commissions, and payout documents are denied by Firestore rules.
 
 ## Important access limitation
 
