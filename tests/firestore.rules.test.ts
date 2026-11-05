@@ -274,3 +274,45 @@ describe('Firestore security rules — public order tracking projection', () => 
   });
 });
 
+
+
+describe('Firestore security rules — ambassador financial data', () => {
+  it('keeps ambassador profiles, commissions and payout details private from customers', async () => {
+    for (const context of [testEnv.unauthenticatedContext(), testEnv.authenticatedContext('customer-1')]) {
+      const db = context.firestore();
+      await assertFails(getDoc(doc(db, 'ambassadors', 'AP' + 'A'.repeat(20))));
+      await assertFails(getDoc(doc(db, 'ambassadorCommissions', 'order-1')));
+      await assertFails(getDoc(doc(db, 'ambassadorPayouts', 'payout-1')));
+      await assertFails(setDoc(doc(db, 'ambassadors', 'AP' + 'A'.repeat(20)), { availableBalance: 9999 }));
+      await assertFails(setDoc(doc(db, 'ambassadorCommissions', 'order-1'), { amount: 9999 }));
+      await assertFails(setDoc(doc(db, 'ambassadorPayouts', 'payout-1'), { amount: 50 }));
+    }
+  });
+
+  it('allows admins to read financial records but never write them directly', async () => {
+    const db = testEnv.authenticatedContext('admin-1', { admin: true }).firestore();
+    await assertSucceeds(getDoc(doc(db, 'ambassadors', 'AP' + 'A'.repeat(20))));
+    await assertSucceeds(getDoc(doc(db, 'ambassadorCommissions', 'order-1')));
+    await assertSucceeds(getDoc(doc(db, 'ambassadorPayouts', 'payout-1')));
+    await assertFails(setDoc(doc(db, 'ambassadors', 'AP' + 'A'.repeat(20)), { availableBalance: 9999 }));
+    await assertFails(updateDoc(doc(db, 'ambassadorPayouts', 'payout-1'), { status: 'paid' }));
+  });
+});
+
+describe('Firestore security rules — ambassador checkout attribution', () => {
+  it('accepts only a well-formed ambassador code and hashed private access key', async () => {
+    const db = testEnv.unauthenticatedContext().firestore();
+    const valid = validGuestOrder();
+    valid.ambassadorReferralCode = 'AP' + 'A'.repeat(20);
+    valid.ambassadorSetup = { code: 'AP' + 'B'.repeat(20), accessTokenHash: 'c'.repeat(64) };
+    await assertSucceeds(setDoc(doc(db, 'orders', 'ambassador-order'), valid));
+
+    const invalidCode = validGuestOrder();
+    invalidCode.ambassadorReferralCode = 'AP-not-a-code';
+    await assertFails(setDoc(doc(db, 'orders', 'invalid-ambassador-code'), invalidCode));
+
+    const invalidSetup = validGuestOrder();
+    invalidSetup.ambassadorSetup = { code: 'AP' + 'B'.repeat(20), accessTokenHash: 'not-a-hash' };
+    await assertFails(setDoc(doc(db, 'orders', 'invalid-ambassador-key'), invalidSetup));
+  });
+});
