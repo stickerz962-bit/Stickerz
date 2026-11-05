@@ -1,10 +1,10 @@
 import { useEffect, useMemo, useState, type FormEvent } from 'react';
-import { collection, doc, serverTimestamp, writeBatch } from 'firebase/firestore';
+import { collection, doc, getDoc, serverTimestamp, writeBatch } from 'firebase/firestore';
 import { firestore } from './firebase/client';
 import { loadCatalog } from './catalog/repository';
 import type { CatalogData } from './catalog/types';
 import { getOfferEndAt, getOfferRemainingMs, formatOfferCountdown } from './lib/offer';
-import { attachAmbassadorReferralToOrder, getOrCreateAmbassadorCredentials, hashAmbassadorToken, readAmbassadorReferral, saveAmbassadorContext } from './lib/ambassador';
+import { attachAmbassadorReferralToOrder, clearAmbassadorReferral, getOrCreateAmbassadorCredentials, hashAmbassadorToken, readAmbassadorReferral, readAmbassadorReferralTrackingToken, saveAmbassadorContext } from './lib/ambassador';
 
 const categories = [
   'فوضى المسؤوليات', 'تقلبات المزاج', 'الناس والعلاقات', 'قهوة وأكل', 'حب وعلاقات',
@@ -177,7 +177,17 @@ export default function Builder() {
       const referralCode = new URLSearchParams(window.location.search).get('ref') || null;
       const ambassadorCredentials = await getOrCreateAmbassadorCredentials();
       const ambassadorAccessTokenHash = await hashAmbassadorToken(ambassadorCredentials.accessToken);
-      const ambassadorReferralCode = readAmbassadorReferral();
+      let ambassadorReferralCode = readAmbassadorReferral();
+      const pendingReferralTrackingToken = readAmbassadorReferralTrackingToken();
+      if (ambassadorReferralCode && pendingReferralTrackingToken) {
+        try {
+          const previousReferralOrder = await getDoc(doc(firestore, 'orderTracking', pendingReferralTrackingToken));
+          if (previousReferralOrder.exists() && previousReferralOrder.data().fulfillmentStatus === 'delivered') {
+            clearAmbassadorReferral(ambassadorReferralCode);
+            ambassadorReferralCode = null;
+          }
+        } catch { /* Keep attribution if status cannot be checked; the backend still validates delivery. */ }
+      }
       const publicReference = 'AP-' + Date.now().toString(36).toUpperCase();
       const orderRef = doc(collection(firestore, 'orders'));
       const randomBytes = new Uint8Array(32);
