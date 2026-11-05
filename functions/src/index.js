@@ -236,6 +236,27 @@ export const requestAmbassadorPayout = onCall(async (request) => {
   return result;
 });
 
+export const updateAmbassadorStatus = onCall(async (request) => {
+  if (request.auth?.token?.admin !== true) fail("permission-denied", "هذه العملية متاحة للإدارة فقط.");
+  const code = request.data?.code;
+  const status = request.data?.status;
+  if (!isValidAmbassadorCode(code) || !["active", "paused"].includes(status)) {
+    fail("invalid-argument", "بيانات حالة السفيرة غير صحيحة.");
+  }
+  const profileRef = db.collection("ambassadors").doc(code);
+  await db.runTransaction(async (tx) => {
+    const profileSnap = await tx.get(profileRef);
+    if (!profileSnap.exists) fail("not-found", "ملف السفيرة غير موجود.");
+    if (profileSnap.data().status === status) return;
+    tx.update(profileRef, {
+      status,
+      statusUpdatedBy: request.auth.uid,
+      updatedAt: FieldValue.serverTimestamp(),
+    });
+  });
+  return { code, status };
+});
+
 export const reviewAmbassadorPayout = onCall(async (request) => {
   if (request.auth?.token?.admin !== true) fail("permission-denied", "هذه العملية متاحة للإدارة فقط.");
   const payoutId = request.data?.payoutId;
