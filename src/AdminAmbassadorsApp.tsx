@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useState, type FormEvent } from "react";
 import { onAuthStateChanged, signInWithEmailAndPassword, signOut, type User } from "firebase/auth";
 import { collection, getDocs, orderBy, query } from "firebase/firestore";
 import { httpsCallable } from "firebase/functions";
@@ -54,7 +54,7 @@ export default function AdminAmbassadorsApp() {
   }, []);
   useEffect(() => { if (admin) void load(); }, [admin, load]);
 
-  async function login(event: React.FormEvent<HTMLFormElement>) {
+  async function login(event: FormEvent<HTMLFormElement>) {
     event.preventDefault(); setBusy(true); setError("");
     try {
       if (!auth) throw new Error("Firebase Auth غير مهيأ");
