@@ -300,18 +300,30 @@ describe('Firestore security rules — ambassador financial data', () => {
 });
 
 describe('Firestore security rules — ambassador checkout attribution', () => {
+  function ambassadorGuestOrder() {
+    return {
+      publicReference: 'AP-TEST-0001',
+      customer: { name: 'Test Customer', phone: '01012345678' },
+      shipping: { governorateName: 'Cairo', areaName: 'Nasr City', address: 'Test street 123', deliveryNotes: '', fee: null },
+      book: { artworks: Array.from({ length: 30 }, (_, index) => ({ artworkId: 'AP-' + String(index + 1).padStart(3, '0'), titleSnapshot: 'Artwork ' + (index + 1), printOrder: index + 1 })), cover: { coverId: 'AP-COVER-01', titleSnapshot: 'Calm cover' }, personalizedName: 'Test Name' },
+      pricing: { currency: 'EGP', standardBookPrice: 240, bookPrice: 240, shippingFee: null, totalAmount: null, offerApplied: false },
+      paymentMethod: 'cod', paymentStatus: 'unpaid', fulfillmentStatus: 'new', partnerCode: null,
+      trackingToken: 'd'.repeat(64), createdAt: serverTimestamp(), updatedAt: serverTimestamp(),
+    };
+  }
+
   it('accepts only a well-formed ambassador code and hashed private access key', async () => {
     const db = testEnv.unauthenticatedContext().firestore();
-    const valid = validGuestOrder();
+    const valid = ambassadorGuestOrder();
     valid.ambassadorReferralCode = 'AP' + 'A'.repeat(20);
     valid.ambassadorSetup = { code: 'AP' + 'B'.repeat(20), accessTokenHash: 'c'.repeat(64) };
     await assertSucceeds(setDoc(doc(db, 'orders', 'ambassador-order'), valid));
 
-    const invalidCode = validGuestOrder();
+    const invalidCode = ambassadorGuestOrder();
     invalidCode.ambassadorReferralCode = 'AP-not-a-code';
     await assertFails(setDoc(doc(db, 'orders', 'invalid-ambassador-code'), invalidCode));
 
-    const invalidSetup = validGuestOrder();
+    const invalidSetup = ambassadorGuestOrder();
     invalidSetup.ambassadorSetup = { code: 'AP' + 'B'.repeat(20), accessTokenHash: 'not-a-hash' };
     await assertFails(setDoc(doc(db, 'orders', 'invalid-ambassador-key'), invalidSetup));
   });
