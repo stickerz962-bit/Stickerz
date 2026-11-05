@@ -40,7 +40,7 @@ async function getAuthorizedAmbassador(transaction, code, tokenHash) {
   return { ref, data: snap.data() };
 }
 
-export const processAmbassadorOrder = onDocumentWritten("orders/{orderId}", async (event) => {
+export const processAmbassadorOrder = onDocumentWritten({ document: "orders/{orderId}", retry: true }, async (event) => {
   const before = event.data?.before?.exists ? event.data.before.data() : null;
   const after = event.data?.after?.exists ? event.data.after.data() : null;
   if (!after) return;
