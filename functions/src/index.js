@@ -101,8 +101,8 @@ export const processAmbassadorOrder = onDocumentWritten("orders/{orderId}", asyn
       if (phone) tx.update(ownRef, { phoneNumbers: FieldValue.arrayUnion(phone), updatedAt: FieldValue.serverTimestamp() });
     }
 
-    // Professional partner attribution takes precedence. The two programs never
-    // pay a double reward for the same order.
+    // Customer ambassador attribution uses its own field and ledger. The existing
+    // professional partnerCode is preserved and is not read or modified here.
     if (isDelivered && !isRefunded && referralRef && !commissionSnap.exists) {
       const referrer = referrerSnap?.exists ? referrerSnap.data() : null;
       const customerPhone = normalizeEgyptianPhone(after.customer?.phone);
