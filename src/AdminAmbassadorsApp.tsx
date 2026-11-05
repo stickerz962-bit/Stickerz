@@ -75,6 +75,24 @@ export default function AdminAmbassadorsApp() {
     } catch { setError("تعذر تحديث حالة السفيرة."); }
     finally { setBusy(false); }
   }
+  async function copyPayoutDetails(payout: Payout) {
+    try {
+      await navigator.clipboard.writeText(payout.payoutDetails);
+      setNotice("تم نسخ بيانات التحويل. افتحي InstaPay أو المحفظة وأكملي التحويل يدويًا.");
+      setError("");
+    } catch {
+      setError("تعذر نسخ بيانات التحويل تلقائيًا. انسخيها من تفاصيل الطلب.");
+    }
+  }
+  function openPayoutDestination(payout: Payout) {
+    const destination = payout.payoutDetails.trim();
+    if (/^https:\/\//i.test(destination)) {
+      window.open(destination, "_blank", "noopener,noreferrer");
+    } else {
+      void copyPayoutDetails(payout);
+    }
+  }
+
   async function review(payout: Payout, decision: "paid" | "rejected") {
     if (!functions) { setError("خدمة المكافآت الخلفية غير مفعّلة."); return; }
     const reference = (references[payout.id] || "").trim();
@@ -105,7 +123,7 @@ export default function AdminAmbassadorsApp() {
       <div className="ap-amb-admin-stats"><article><small>عدد السفيرات</small><strong>{ambassadors.length}</strong></article><article><small>طلبات الصرف المعلقة</small><strong>{pending.length}</strong></article><article><small>إجمالي الرصيد المتاح</small><strong>{available} جنيه</strong></article><article><small>طلبات الإحالة المسلّمة</small><strong>{ambassadors.reduce((sum,item)=>sum+(Number(item.deliveredReferralOrders)||0),0)}</strong></article></div>
       <section className="ap-amb-admin-panel"><div className="ap-amb-admin-heading"><h2>طلبات الصرف</h2><button className="secondary-button" disabled={busy} onClick={()=>void load()}>تحديث</button></div>
         {pending.length === 0 ? <p>لا توجد طلبات صرف معلقة حاليًا.</p> : pending.map(item=><article className="ap-amb-payout-row" key={item.id}>
-          <div><b>{item.amount} جنيه · {item.method === "instapay" ? "InstaPay" : "محفظة إلكترونية"}</b><small>السفيرة: {item.ambassadorCode} · {item.requestedAt?.toDate ? item.requestedAt.toDate().toLocaleString("ar-EG") : "—"}</small><strong>{item.payoutDetails}</strong></div>
+          <div><b>{item.amount} جنيه · {item.method === "instapay" ? "InstaPay" : "محفظة إلكترونية"}</b><small>السفيرة: {item.ambassadorCode} · {item.requestedAt?.toDate ? item.requestedAt.toDate().toLocaleString("ar-EG") : "—"}</small><strong>{item.payoutDetails}</strong><div className="ap-amb-payout-actions"><button type="button" className="secondary-button" onClick={()=>void copyPayoutDetails(item)}>نسخ بيانات التحويل</button><button type="button" className="secondary-button" onClick={()=>openPayoutDestination(item)}>{/^https:\/\//i.test(item.payoutDetails.trim()) ? "فتح رابط التحويل" : "فتح InstaPay / المحفظة"}</button></div></div>
           <div className="ap-amb-payout-actions"><input value={references[item.id] || ""} onChange={e=>setReferences(current=>({...current,[item.id]:e.target.value}))} placeholder="مرجع التحويل أو سبب الرفض" maxLength={100}/><div><button className="primary-button" disabled={busy} onClick={()=>void review(item,"paid")}>تم الصرف</button><button className="secondary-button" disabled={busy} onClick={()=>void review(item,"rejected")}>رفض الطلب</button></div></div>
         </article>)}
       </section>
