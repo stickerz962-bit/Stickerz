@@ -4,7 +4,7 @@ import { firestore } from './firebase/client';
 import { loadCatalog } from './catalog/repository';
 import type { CatalogData } from './catalog/types';
 import { getOfferEndAt, getOfferRemainingMs, formatOfferCountdown } from './lib/offer';
-import { getOrCreateAmbassadorCredentials, hashAmbassadorToken, readAmbassadorReferral, saveAmbassadorContext } from './lib/ambassador';
+import { attachAmbassadorReferralToOrder, getOrCreateAmbassadorCredentials, hashAmbassadorToken, readAmbassadorReferral, saveAmbassadorContext } from './lib/ambassador';
 
 const categories = [
   'فوضى المسؤوليات', 'تقلبات المزاج', 'الناس والعلاقات', 'قهوة وأكل', 'حب وعلاقات',
@@ -207,6 +207,7 @@ export default function Builder() {
       });
       await batch.commit();
       saveAmbassadorContext({ ...ambassadorCredentials, sourceOrderId: orderRef.id, trackingToken });
+      attachAmbassadorReferralToOrder(ambassadorReferralCode, trackingToken);
       const url = new URL(window.location.href);
       url.hash = '';
       url.searchParams.delete('ref');
