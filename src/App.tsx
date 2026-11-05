@@ -6,6 +6,8 @@ import { loadCatalog } from './catalog/repository';
 import { doc, getDoc } from 'firebase/firestore';
 import { firestore } from './firebase/client';
 import type { CatalogData } from './catalog/types';
+import AmbassadorApp from './AmbassadorApp';
+import { buildAmbassadorDashboardUrl, captureAmbassadorReferral, clearAmbassadorReferral, readAmbassadorContext } from './lib/ambassador';
 
 const steps = [
   { number: '01', icon: '✎', title: 'اختاري 30 رسمة', text: 'من مكتبتنا اختاري الرسومات اللي شبه يومك ومزاجك.' },
@@ -59,6 +61,7 @@ function OrderTracking({ token }: { token: string }) {
   const [record, setRecord] = useState<{ publicReference?: string; fulfillmentStatus?: string; updatedAt?: { toDate?: () => Date } } | null>(null);
   const [loading, setLoading] = useState(true);
   const [failed, setFailed] = useState(false);
+  const [ambassadorDashboardUrl, setAmbassadorDashboardUrl] = useState('');
   const refresh = async () => {
     if (!firestore || !/^[a-f0-9]{64}$/.test(token)) { setFailed(true); setLoading(false); return; }
     setLoading(true); setFailed(false);
@@ -70,14 +73,24 @@ function OrderTracking({ token }: { token: string }) {
     finally { setLoading(false); }
   };
   useEffect(() => { void refresh(); }, [token]);
+  useEffect(() => {
+    if (record?.fulfillmentStatus !== 'delivered') return;
+    const context = readAmbassadorContext();
+    if (context && context.trackingToken === token) {
+      setAmbassadorDashboardUrl(buildAmbassadorDashboardUrl(context.code, context.accessToken));
+      clearAmbassadorReferral();
+    }
+  }, [record, token]);
   const status = record?.fulfillmentStatus || 'new';
   const currentIndex = trackingSteps.findIndex(item => item[0] === status);
-  return <div className="anti-shell ap-tracking-page" dir="rtl"><header className="site-header"><a className="brand" href="./"><span className="brand-spark">✳</span><span className="brand-word">ANTI<br/>PRESSURE</span><span className="brand-arabic">فُكّي الضغط</span></a><a className="header-cta" href="./">الرئيسية</a></header><main className="ap-tracking-card"><span className="eyebrow">ANTI PRESSURE · متابعة الطلب</span><h1>طلبك فين دلوقتي؟</h1>{loading ? <p>جارٍ تحميل حالة الطلب...</p> : failed ? <><p>رابط المتابعة غير صحيح أو لم يعد متاحًا.</p><a className="primary-button" href="./">العودة للموقع</a></> : <><strong className="ap-tracking-reference">{record?.publicReference}</strong><p className="ap-tracking-current">{status === 'cancelled' ? 'تم إلغاء الطلب' : trackingLabels[status] || 'جارٍ تحديث الحالة'}</p><div className="ap-tracking-timeline">{trackingSteps.map(([key,label],index) => <div key={key} className={'ap-tracking-step ' + (status === 'cancelled' ? '' : index <= currentIndex ? 'done' : '')}><i>{index < currentIndex ? '✓' : index + 1}</i><span>{label}</span></div>)}</div>{status === 'cancelled' && <p className="ap-tracking-cancelled">تم إلغاء هذا الطلب.</p>}<small>آخر تحديث: {record?.updatedAt?.toDate ? record.updatedAt.toDate().toLocaleString('ar-EG') : 'قيد التحديث'}</small><button className="secondary-button" onClick={() => void refresh()}>تحديث الحالة</button><p className="ap-tracking-privacy">صفحة المتابعة تعرض حالة الطلب فقط، ولا تعرض بياناتك الشخصية أو عنوان الشحن.</p></>}</main></div>;
+  return <div className="anti-shell ap-tracking-page" dir="rtl"><header className="site-header"><a className="brand" href="./"><span className="brand-spark">✳</span><span className="brand-word">ANTI<br/>PRESSURE</span><span className="brand-arabic">فُكّي الضغط</span></a><a className="header-cta" href="./">الرئيسية</a></header><main className="ap-tracking-card"><span className="eyebrow">ANTI PRESSURE · متابعة الطلب</span><h1>طلبك فين دلوقتي؟</h1>{loading ? <p>جارٍ تحميل حالة الطلب...</p> : failed ? <><p>رابط المتابعة غير صحيح أو لم يعد متاحًا.</p><a className="primary-button" href="./">العودة للموقع</a></> : <><strong className="ap-tracking-reference">{record?.publicReference}</strong><p className="ap-tracking-current">{status === 'cancelled' ? 'تم إلغاء الطلب' : trackingLabels[status] || 'جارٍ تحديث الحالة'}</p><div className="ap-tracking-timeline">{trackingSteps.map(([key,label],index) => <div key={key} className={'ap-tracking-step ' + (status === 'cancelled' ? '' : index <= currentIndex ? 'done' : '')}><i>{index < currentIndex ? '✓' : index + 1}</i><span>{label}</span></div>)}</div>{status === 'cancelled' && <p className="ap-tracking-cancelled">تم إلغاء هذا الطلب.</p>}{status === 'delivered' && ambassadorDashboardUrl && <section className="ap-ambassador-unlock"><span>♡</span><h2>كتابك وصل.. وبقت ليكي مساحة حلوة!</h2><p>اتفعّلت مساحتك كسفيرة لفُكّي الضغط. شاركي رابطك واكسبي 15 جنيهًا عن كل طلب يتسلّم من خلالك.</p><a className="primary-button" href={ambassadorDashboardUrl}>افتحي مساحتي الحلوة</a><small>احتفظي برابط المساحة الخاصة، وشاركي رابط الدعوة من داخلها فقط.</small></section>}<small>آخر تحديث: {record?.updatedAt?.toDate ? record.updatedAt.toDate().toLocaleString('ar-EG') : 'قيد التحديث'}</small><button className="secondary-button" onClick={() => void refresh()}>تحديث الحالة</button><p className="ap-tracking-privacy">صفحة المتابعة تعرض حالة الطلب فقط، ولا تعرض بياناتك الشخصية أو عنوان الشحن.</p></>}</main></div>;
 }
 
 export default function App() {
   const [openFaq, setOpenFaq] = useState<number | null>(0);
   const trackingToken = new URLSearchParams(window.location.search).get('track');
+  const ambassadorMatch = /^#ambassador\/(AP[A-F0-9]{20})\/([a-f0-9]{64})$/.exec(window.location.hash);
+  useEffect(() => { captureAmbassadorReferral(window.location.search); }, []);
 
   const [offerRemainingMs, setOfferRemainingMs] = useState<number | null>(null);
   useEffect(() => {
@@ -118,6 +131,7 @@ export default function App() {
     return () => window.removeEventListener('hashchange', syncRoute);
   }, []);
   if (trackingToken) return <OrderTracking token={trackingToken} />;
+  if (ambassadorMatch) return <AmbassadorApp code={ambassadorMatch[1]} accessToken={ambassadorMatch[2]} />;
   if (builderOpen) return <Builder />;
   return <div className="anti-shell" dir="rtl">
     <div className="top-note">مساحتك الصغيرة للضحك والتلوين ♡</div>
