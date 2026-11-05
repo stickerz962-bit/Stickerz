@@ -1,13 +1,13 @@
 import { useEffect, useMemo, useState, type FormEvent } from 'react';
 import { onAuthStateChanged, signInWithEmailAndPassword, signOut, type User } from 'firebase/auth';
-import { collection, doc, getDocs, orderBy, query, serverTimestamp, setDoc, writeBatch } from 'firebase/firestore';
+import { collection, doc, getDocs, orderBy, query, serverTimestamp, setDoc, updateDoc, writeBatch } from 'firebase/firestore';
 import { auth, firebaseConfigured, firestore } from './firebase/client';
 import './styles.css';
 
 type Category = { id: string; title: string; slug: string; sortOrder: number; active: boolean };
 type Artwork = { id: string; title: string; categoryId: string; phrase: string; previewAssetRef: string; sortOrder: number; version: number; active: boolean };
 type Cover = { id: string; title: string; subtitle: string; previewAssetRef: string; sortOrder: number; version: number; active: boolean };
-type Order = { id: string; trackingToken?: string; publicReference?: string; customer?: { name?: string; phone?: string }; shipping?: { governorateName?: string; areaName?: string; address?: string; deliveryNotes?: string }; book?: { artworks?: Array<{ artworkId?: string; titleSnapshot?: string; printOrder?: number }>; cover?: { titleSnapshot?: string }; personalizedName?: string }; pricing?: { bookPrice?: number; standardBookPrice?: number; shippingFee?: number | null; totalAmount?: number | null; offerApplied?: boolean }; paymentMethod?: string; paymentStatus?: string; fulfillmentStatus?: string; partnerCode?: string | null; createdAt?: { toDate?: () => Date } };
+type Order = { id: string; trackingToken?: string; publicReference?: string; customer?: { name?: string; phone?: string }; shipping?: { governorateName?: string; areaName?: string; address?: string; deliveryNotes?: string }; book?: { artworks?: Array<{ artworkId?: string; titleSnapshot?: string; printOrder?: number }>; cover?: { titleSnapshot?: string }; personalizedName?: string }; pricing?: { bookPrice?: number; standardBookPrice?: number; shippingFee?: number | null; totalAmount?: number | null; offerApplied?: boolean }; paymentMethod?: string; paymentStatus?: string; fulfillmentStatus?: string; partnerCode?: string | null; ambassadorReferralCode?: string | null; createdAt?: { toDate?: () => Date } };
 type Tab = 'orders' | 'categories' | 'artworks' | 'covers';
 const orderStatuses = ['new','confirmed','pdf_generating','ready_for_printing','printing','quality_check','ready_for_shipping','shipped','delivered','cancelled'] as const;
 const orderStatusLabels: Record<string,string> = { new:'طلب جديد', confirmed:'تم التأكيد', pdf_generating:'تجهيز PDF', ready_for_printing:'جاهز للطباعة', printing:'قيد الطباعة', quality_check:'مراجعة الجودة', ready_for_shipping:'جاهز للشحن', shipped:'تم الشحن', delivered:'تم التسليم', cancelled:'ملغي' };
@@ -93,6 +93,21 @@ export default function AdminApp() {
     } catch {
       setError('تعذر تحميل الطلبات. تأكدي من صلاحية admin:true ومن قواعد Firestore المنشورة.');
     } finally { setBusy(false); }
+  };
+
+  const updateOrderPaymentStatus = async (order: Order, status: 'paid' | 'refunded') => {
+    if (!firestore) return;
+    const message = status === 'refunded'
+      ? 'تأكدي أن قيمة الطلب تم ردها بالفعل للعميلة قبل تسجيل الاسترداد. سيتم عكس مكافأة السفيرة إن وُجدت. متابعة؟'
+      : 'تأكيد استلام قيمة هذا الطلب؟';
+    if (!window.confirm(message)) return;
+    setBusy(true); setError(''); setNotice('');
+    try {
+      await updateDoc(doc(firestore, 'orders', order.id), { paymentStatus: status, updatedAt: serverTimestamp() });
+      await loadOrders();
+      setNotice(status === 'refunded' ? 'تم تسجيل رد قيمة الطلب، وسيتم عكس مكافأة الإحالة تلقائيًا.' : 'تم تسجيل استلام قيمة الطلب.');
+    } catch { setError('تعذر تحديث حالة الدفع.'); }
+    finally { setBusy(false); }
   };
 
   const updateOrderStatus = async (order: Order, status: string) => {
@@ -250,7 +265,7 @@ export default function AdminApp() {
 
   return <div className="app-shell ap-admin-shell" dir="rtl">
     <div className="announcement">ANTI PRESSURE · فُكّي الضغط — لوحة الإدارة الآمنة</div>
-    <header className="site-header"><a className="brand ap-admin-brand" href="./"><span className="brand-mark">✿</span><span><strong>ANTI PRESSURE</strong><small>فُكّي الضغط</small></span></a><div className="ap-admin-user"><span>{user.email}</span><button className="secondary-button" onClick={() => void logout()}>خروج</button></div></header>
+    <header className="site-header"><a className="brand ap-admin-brand" href="./"><span className="brand-mark">✿</span><span><strong>ANTI PRESSURE</strong><small>فُكّي الضغط</small></span></a><div className="ap-admin-user"><span>{user.email}</span><a className="secondary-button" href="./admin-ambassadors.html">إدارة السفيرات</a><button className="secondary-button" onClick={() => void logout()}>خروج</button></div></header>
     <main className="admin-page ap-admin-page">
       <div className="admin-title"><div><span className="eyebrow">إدارة المحتوى المنشور</span><h1>كتالوج فُكّي الضغط</h1><p>إدارة التصنيفات والرسومات والأغلفة. العناصر الجديدة تُحفظ مخفية حتى اعتمادها.</p></div></div>
       <div className="preview-warning"><strong>حدود آمنة:</strong> هذه اللوحة تدير بيانات الكتالوج فقط. لا يوجد رفع ملفات في هذه المرحلة؛ لا تضعي روابط الرسومات الأصلية أو ملفات الطباعة. استخدمي مرجع معاينة عامًّا معتمدًا فقط.</div>
@@ -279,9 +294,11 @@ export default function AdminApp() {
             <small>الرسومات ({order.book?.artworks?.length || 0}): {(order.book?.artworks || []).map(x => x.artworkId || x.titleSnapshot).join('، ')}</small>
             <small>سعر الكتاب: {order.pricing?.bookPrice ?? '—'} جنيه · الشحن: {order.pricing?.shippingFee ?? 'يُحدد'} · الإجمالي: {order.pricing?.totalAmount ?? 'يُحدد'} جنيه</small>
             <small>الدفع: {paymentStatusLabels[order.paymentStatus || ''] || order.paymentStatus || '—'} · {order.paymentMethod === 'cod' ? 'الدفع عند الاستلام' : 'InstaPay'}</small>
-            <small>كود الشريك: {order.partnerCode || 'بدون كود'} · {order.createdAt?.toDate ? order.createdAt.toDate().toLocaleString('ar-EG') : 'وقت التسجيل غير متاح'}</small>
+            <small>كود الشريك: {order.partnerCode || 'بدون كود'} · كود سفيرة العميلة: {order.ambassadorReferralCode || 'بدون إحالة'} · {order.createdAt?.toDate ? order.createdAt.toDate().toLocaleString('ar-EG') : 'وقت التسجيل غير متاح'}</small>
           </div>
           <div className="admin-product-actions ap-order-status">
+            {order.paymentStatus !== 'paid' && order.paymentStatus !== 'refunded' && <button className="secondary-button" disabled={busy} onClick={() => void updateOrderPaymentStatus(order,'paid')}>تأكيد استلام المبلغ</button>}
+            {order.paymentStatus === 'paid' && order.fulfillmentStatus === 'delivered' && <button className="secondary-button" disabled={busy} onClick={() => void updateOrderPaymentStatus(order,'refunded')}>تسجيل رد قيمة الطلب</button>}
             <label>حالة الطلب<select value={order.fulfillmentStatus || 'new'} disabled={busy} onChange={e => void updateOrderStatus(order,e.target.value)}>{orderStatuses.map(status => <option key={status} value={status}>{orderStatusLabels[status]}</option>)}</select></label>
           </div>
         </article>)}
