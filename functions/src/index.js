@@ -101,6 +101,11 @@ export const processAmbassadorOrder = onDocumentWritten("orders/{orderId}", asyn
       });
     }
 
+    if (isDelivered && !isRefunded && ownRef && ownSnap?.exists) {
+      const phone = normalizeEgyptianPhone(after.customer?.phone);
+      if (phone) tx.update(ownRef, { phoneNumbers: FieldValue.arrayUnion(phone), updatedAt: FieldValue.serverTimestamp() });
+    }
+
     // Professional partner attribution takes precedence. The two programs never
     // pay a double reward for the same order.
     if (isDelivered && !isRefunded && !hasApprovedPartner && referralRef && !commissionSnap.exists) {
