@@ -7,7 +7,7 @@ import { doc, getDoc } from 'firebase/firestore';
 import { firestore } from './firebase/client';
 import type { CatalogData } from './catalog/types';
 import AmbassadorApp from './AmbassadorApp';
-import { buildAmbassadorDashboardUrl, captureAmbassadorReferral, clearAmbassadorReferral, readAmbassadorContext } from './lib/ambassador';
+import { buildAmbassadorDashboardUrl, captureAmbassadorReferral, clearAmbassadorReferral, readAmbassadorContext, readAmbassadorReferralTrackingToken } from './lib/ambassador';
 
 const steps = [
   { number: '01', icon: '✎', title: 'اختاري 30 رسمة', text: 'من مكتبتنا اختاري الرسومات اللي شبه يومك ومزاجك.' },
@@ -92,7 +92,15 @@ export default function App() {
   const [routeHash, setRouteHash] = useState(window.location.hash);
   const [routeHash, setRouteHash] = useState(window.location.hash);
   const ambassadorMatch = /^#ambassador\/(AP[A-F0-9]{20})\/([a-f0-9]{64})$/.exec(routeHash);
-  useEffect(() => { captureAmbassadorReferral(window.location.search); }, []);
+  useEffect(() => {
+    captureAmbassadorReferral(window.location.search);
+    const pendingTrackingToken = readAmbassadorReferralTrackingToken();
+    if (pendingTrackingToken && firestore) {
+      getDoc(doc(firestore, 'orderTracking', pendingTrackingToken)).then(snapshot => {
+        if (snapshot.exists() && snapshot.data().fulfillmentStatus === 'delivered') clearAmbassadorReferral();
+      }).catch(() => {});
+    }
+  }, []);
 
   const [offerRemainingMs, setOfferRemainingMs] = useState<number | null>(null);
   useEffect(() => {
