@@ -55,15 +55,10 @@ export const processAmbassadorOrder = onDocumentWritten("orders/{orderId}", asyn
   const ownRef = ownCode ? db.collection("ambassadors").doc(ownCode) : null;
   const referralRef = referralCode ? db.collection("ambassadors").doc(referralCode) : null;
   const commissionRef = db.collection("ambassadorCommissions").doc(orderId);
-  const partnerQuery = typeof after.partnerCode === "string" && after.partnerCode
-    ? db.collection("partners").where("code", "==", after.partnerCode).where("status", "==", "approved").limit(1)
-    : null;
 
   await db.runTransaction(async (tx) => {
     // Complete every transaction read before issuing any writes.
     const commissionSnap = await tx.get(commissionRef);
-    const partnerSnap = partnerQuery ? await tx.get(partnerQuery) : null;
-    const hasApprovedPartner = !!partnerSnap?.docs?.length;
     const ownSnap = ownRef ? await tx.get(ownRef) : null;
     const referrerSnap = referralRef
       ? (ownRef && referralRef.path === ownRef.path ? ownSnap : await tx.get(referralRef))
@@ -108,7 +103,7 @@ export const processAmbassadorOrder = onDocumentWritten("orders/{orderId}", asyn
 
     // Professional partner attribution takes precedence. The two programs never
     // pay a double reward for the same order.
-    if (isDelivered && !isRefunded && !hasApprovedPartner && referralRef && !commissionSnap.exists) {
+    if (isDelivered && !isRefunded && referralRef && !commissionSnap.exists) {
       const referrer = referrerSnap?.exists ? referrerSnap.data() : null;
       const customerPhone = normalizeEgyptianPhone(after.customer?.phone);
       const isSelfReferral = (ownRef && referralRef && ownRef.path === referralRef.path) || (!!customerPhone && (customerPhone === referrer?.phoneNormalized || (Array.isArray(referrer?.phoneNumbers) && referrer.phoneNumbers.includes(customerPhone))));
