@@ -36,3 +36,18 @@ export function validatePayoutRequest({ amount, availableBalance, method, detail
 export function isValidAmbassadorCode(code) {
   return typeof code === "string" && /^AP[A-F0-9]{20}$/.test(code);
 }
+
+export function shouldCreditAmbassadorCommission({ fulfillmentStatus, paymentStatus, referrerStatus, selfReferral, commissionExists }) {
+  return fulfillmentStatus === "delivered"
+    && paymentStatus !== "refunded"
+    && referrerStatus === "active"
+    && selfReferral !== true
+    && commissionExists !== true;
+}
+
+export function balanceAfterCommissionReversal(currentBalance, amount) {
+  if (!Number.isSafeInteger(currentBalance) || !Number.isSafeInteger(amount) || amount <= 0) {
+    throw new TypeError("Commission reversal requires integer EGP values.");
+  }
+  return currentBalance - amount;
+}
