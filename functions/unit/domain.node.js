@@ -7,6 +7,8 @@ import {
   normalizeEgyptianPhone,
   safeHashEqual,
   sha256,
+  shouldCreditAmbassadorCommission,
+  balanceAfterCommissionReversal,
   validatePayoutRequest,
 } from "../src/domain.js";
 
@@ -38,4 +40,27 @@ test("payout request enforces minimum, balance, method and details", () => {
   assert.equal(validatePayoutRequest({ ...valid, amount: 81 }).reason, "INSUFFICIENT_BALANCE");
   assert.equal(validatePayoutRequest({ ...valid, method: "cash" }).reason, "INVALID_METHOD");
   assert.equal(validatePayoutRequest({ ...valid, details: "x" }).reason, "INVALID_PAYOUT_DETAILS");
+});
+
+test("credits only a delivered, non-refunded, eligible, non-self referred order once", () => {
+  const eligible = {
+    fulfillmentStatus: "delivered",
+    paymentStatus: "paid",
+    referrerStatus: "active",
+    selfReferral: false,
+    commissionExists: false,
+  };
+  assert.equal(shouldCreditAmbassadorCommission(eligible), true);
+  assert.equal(shouldCreditAmbassadorCommission({ ...eligible, fulfillmentStatus: "shipped" }), false);
+  assert.equal(shouldCreditAmbassadorCommission({ ...eligible, paymentStatus: "refunded" }), false);
+  assert.equal(shouldCreditAmbassadorCommission({ ...eligible, referrerStatus: "paused" }), false);
+  assert.equal(shouldCreditAmbassadorCommission({ ...eligible, selfReferral: true }), false);
+  assert.equal(shouldCreditAmbassadorCommission({ ...eligible, commissionExists: true }), false);
+});
+
+test("refund reversal can create a negative balance after prior payout", () => {
+  assert.equal(balanceAfterCommissionReversal(60, 15), 45);
+  assert.equal(balanceAfterCommissionReversal(0, 15), -15);
+  assert.throws(() => balanceAfterCommissionReversal(10.5, 15), TypeError);
+  assert.throws(() => balanceAfterCommissionReversal(10, 0), TypeError);
 });
