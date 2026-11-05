@@ -3,6 +3,8 @@ import { getOfferEndAt, getOfferRemainingMs, formatOfferCountdown } from './lib/
 import Builder from './Builder';
 import HeroBookAnimation from './HeroBookAnimation';
 import { loadCatalog } from './catalog/repository';
+import { doc, getDoc } from 'firebase/firestore';
+import { firestore } from './firebase/client';
 import type { CatalogData } from './catalog/types';
 
 const steps = [
@@ -45,8 +47,38 @@ function Brand({ footer = false }: { footer?: boolean }) {
   </a>;
 }
 
+
+const trackingSteps = [
+  ['new', 'تم استلام الطلب'], ['confirmed', 'تم تأكيد الطلب'], ['pdf_generating', 'تجهيز ملفات الكتاب'],
+  ['ready_for_printing', 'جاهز للطباعة'], ['printing', 'قيد الطباعة'], ['quality_check', 'مراجعة الجودة'],
+  ['ready_for_shipping', 'جاهز للشحن'], ['shipped', 'خرج للشحن'], ['delivered', 'تم التسليم'],
+];
+const trackingLabels: Record<string,string> = trackingSteps.reduce<Record<string,string>>((labels, [key, label]) => ({ ...labels, [key]: label }), { cancelled: 'تم إلغاء الطلب' });
+
+function OrderTracking({ token }: { token: string }) {
+  const [record, setRecord] = useState<{ publicReference?: string; fulfillmentStatus?: string; updatedAt?: { toDate?: () => Date } } | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [failed, setFailed] = useState(false);
+  const refresh = async () => {
+    if (!firestore || !/^[a-f0-9]{64}$/.test(token)) { setFailed(true); setLoading(false); return; }
+    setLoading(true); setFailed(false);
+    try {
+      const snap = await getDoc(doc(firestore, 'orderTracking', token));
+      if (!snap.exists()) setFailed(true);
+      else setRecord(snap.data() as typeof record);
+    } catch { setFailed(true); }
+    finally { setLoading(false); }
+  };
+  useEffect(() => { void refresh(); }, [token]);
+  const status = record?.fulfillmentStatus || 'new';
+  const currentIndex = trackingSteps.findIndex(item => item[0] === status);
+  return <div className="anti-shell ap-tracking-page" dir="rtl"><header className="site-header"><a className="brand" href="./"><span className="brand-spark">✳</span><span className="brand-word">ANTI<br/>PRESSURE</span><span className="brand-arabic">فُكّي الضغط</span></a><a className="header-cta" href="./">الرئيسية</a></header><main className="ap-tracking-card"><span className="eyebrow">ANTI PRESSURE · متابعة الطلب</span><h1>طلبك فين دلوقتي؟</h1>{loading ? <p>جارٍ تحميل حالة الطلب...</p> : failed ? <><p>رابط المتابعة غير صحيح أو لم يعد متاحًا.</p><a className="primary-button" href="./">العودة للموقع</a></> : <><strong className="ap-tracking-reference">{record?.publicReference}</strong><p className="ap-tracking-current">{status === 'cancelled' ? 'تم إلغاء الطلب' : trackingLabels[status] || 'جارٍ تحديث الحالة'}</p><div className="ap-tracking-timeline">{trackingSteps.map(([key,label],index) => <div key={key} className={'ap-tracking-step ' + (status === 'cancelled' ? '' : index <= currentIndex ? 'done' : '')}><i>{index < currentIndex ? '✓' : index + 1}</i><span>{label}</span></div>)}</div>{status === 'cancelled' && <p className="ap-tracking-cancelled">تم إلغاء هذا الطلب.</p>}<small>آخر تحديث: {record?.updatedAt?.toDate ? record.updatedAt.toDate().toLocaleString('ar-EG') : 'قيد التحديث'}</small><button className="secondary-button" onClick={() => void refresh()}>تحديث الحالة</button><p className="ap-tracking-privacy">صفحة المتابعة تعرض حالة الطلب فقط، ولا تعرض بياناتك الشخصية أو عنوان الشحن.</p></>}</main></div>;
+}
+
 export default function App() {
   const [openFaq, setOpenFaq] = useState<number | null>(0);
+  const trackingToken = new URLSearchParams(window.location.search).get('track');
+
   const [offerRemainingMs, setOfferRemainingMs] = useState<number | null>(null);
   useEffect(() => {
     const storageKey = 'anti-pressure-intro-offer-end-v1';
@@ -85,6 +117,7 @@ export default function App() {
     window.addEventListener('hashchange', syncRoute);
     return () => window.removeEventListener('hashchange', syncRoute);
   }, []);
+  if (trackingToken) return <OrderTracking token={trackingToken} />;
   if (builderOpen) return <Builder />;
   return <div className="anti-shell" dir="rtl">
     <div className="top-note">مساحتك الصغيرة للضحك والتلوين ♡</div>

@@ -83,17 +83,19 @@ service cloud.firestore {
       allow create: if
         request.resource.data.keys().hasOnly([
           'publicReference', 'customer', 'shipping', 'book', 'pricing',
-          'paymentMethod', 'paymentStatus', 'fulfillmentStatus', 'partnerCode',
+          'paymentMethod', 'paymentStatus', 'fulfillmentStatus', 'partnerCode', 'trackingToken',
           'createdAt', 'updatedAt'
         ])
         && request.resource.data.keys().hasAll([
           'publicReference', 'customer', 'shipping', 'book', 'pricing',
-          'paymentMethod', 'paymentStatus', 'fulfillmentStatus',
+          'paymentMethod', 'paymentStatus', 'fulfillmentStatus', 'trackingToken',
           'createdAt', 'updatedAt'
         ])
         && request.resource.data.publicReference is string
         && request.resource.data.publicReference.size() >= 6
         && request.resource.data.publicReference.size() <= 40
+        && request.resource.data.trackingToken is string
+        && request.resource.data.trackingToken.matches('^[a-f0-9]{64}$')
         && request.resource.data.customer is map
         && request.resource.data.customer.keys().hasOnly(['name', 'phone'])
         && request.resource.data.customer.name is string
@@ -152,6 +154,21 @@ service cloud.firestore {
       allow update, delete: if isAdmin();
     }
 
+    // Public bearer-token projection: contains status/reference only, never customer PII.
+    match /orderTracking/{token} {
+      allow get: if token.matches('^[a-f0-9]{64}$') && resource != null;
+      allow list: if false;
+      allow create: if token.matches('^[a-f0-9]{64}$')
+        && request.resource.data.keys().hasOnly(['publicReference', 'fulfillmentStatus', 'createdAt', 'updatedAt'])
+        && request.resource.data.keys().hasAll(['publicReference', 'fulfillmentStatus', 'createdAt', 'updatedAt'])
+        && request.resource.data.publicReference is string
+        && request.resource.data.publicReference.size() >= 6
+        && request.resource.data.publicReference.size() <= 40
+        && request.resource.data.fulfillmentStatus == 'new'
+        && request.resource.data.createdAt == request.time
+        && request.resource.data.updatedAt == request.time;
+      allow update, delete: if isAdmin();
+    }
     match /payments/{paymentId} {
       allow read: if isAdmin();
       allow write: if false;

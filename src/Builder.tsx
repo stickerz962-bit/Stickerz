@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState, type FormEvent } from 'react';
-import { addDoc, collection, serverTimestamp } from 'firebase/firestore';
+import { collection, doc, serverTimestamp, writeBatch } from 'firebase/firestore';
 import { firestore } from './firebase/client';
 import { loadCatalog } from './catalog/repository';
 import type { CatalogData } from './catalog/types';
@@ -62,6 +62,7 @@ export default function Builder() {
   const [orderBusy, setOrderBusy] = useState(false);
   const [orderError, setOrderError] = useState('');
   const [orderSuccess, setOrderSuccess] = useState('');
+  const [trackingUrl, setTrackingUrl] = useState('');
   const [draft, setDraft] = useState<Draft>({ coverId: 'calm', name: '' });
   const [offerRemainingMs, setOfferRemainingMs] = useState<number | null>(null);
 
@@ -173,8 +174,15 @@ export default function Builder() {
         return { artworkId, titleSnapshot: item?.title || artworkId, printOrder: index + 1 };
       });
       const referralCode = new URLSearchParams(window.location.search).get('ref') || null;
-      const created = await addDoc(collection(firestore, 'orders'), {
-        publicReference: 'AP-' + Date.now().toString(36).toUpperCase(),
+      const publicReference = 'AP-' + Date.now().toString(36).toUpperCase();
+      const orderRef = doc(collection(firestore, 'orders'));
+      const randomBytes = new Uint8Array(32);
+      window.crypto.getRandomValues(randomBytes);
+      const trackingToken = Array.from(randomBytes, byte => byte.toString(16).padStart(2, '0')).join('');
+      const trackingRef = doc(firestore, 'orderTracking', trackingToken);
+      const batch = writeBatch(firestore);
+      batch.set(orderRef, {
+        publicReference,
         customer: { name: checkout.name.trim(), phone },
         shipping: { governorateName: checkout.governorate.trim(), areaName: checkout.area.trim(), address: checkout.address.trim(), deliveryNotes: checkout.notes.trim(), fee: null },
         book: { artworks: artworkSnapshot, cover: { coverId: activeCover.id, titleSnapshot: activeCover.title }, personalizedName: draft.name.trim() },
@@ -183,9 +191,21 @@ export default function Builder() {
         paymentStatus: checkout.paymentMethod === 'instapay' ? 'pending_review' : 'unpaid',
         fulfillmentStatus: 'new',
         partnerCode: referralCode,
+        trackingToken,
         createdAt: serverTimestamp(), updatedAt: serverTimestamp(),
       });
-      setOrderSuccess('تم استلام طلبك بنجاح! رقم الطلب: ' + created.id + ' — فريق فُكّي الضغط هيراجع بياناتك ويتواصل معك لتأكيد الشحن والسعر النهائي.');
+      batch.set(trackingRef, {
+        publicReference,
+        fulfillmentStatus: 'new',
+        createdAt: serverTimestamp(), updatedAt: serverTimestamp(),
+      });
+      await batch.commit();
+      const url = new URL(window.location.href);
+      url.hash = '';
+      url.searchParams.delete('ref');
+      url.searchParams.set('track', trackingToken);
+      setTrackingUrl(url.toString());
+      setOrderSuccess('تم استلام طلبك بنجاح! رقم الطلب: ' + orderRef.id + ' — احتفظي برابط المتابعة الخاص بطلبك.');
       setNotice('');
       setSelected([]);
       setDraft({coverId:'calm',name:''});
@@ -323,7 +343,7 @@ export default function Builder() {
             <fieldset className="checkout-payment"><legend>طريقة الدفع</legend><label><input type="radio" name="paymentMethod" value="cod" checked={checkout.paymentMethod==='cod'} onChange={() => setCheckout(v=>({...v,paymentMethod:'cod'}))}/> الدفع عند الاستلام</label><label><input type="radio" name="paymentMethod" value="instapay" checked={checkout.paymentMethod==='instapay'} onChange={() => setCheckout(v=>({...v,paymentMethod:'instapay'}))}/> InstaPay (تأكيد يدوي من الإدارة)</label></fieldset>
             <p className="backup-help">الشحن منفصل وسيتم تأكيد تكلفته معك قبل اعتماد الطلب. اختيار InstaPay لا يعني أن الدفع تم.</p>
             {orderError && <p className="form-error" role="alert">{orderError}</p>}
-            {orderSuccess && <p className="form-success" role="status">{orderSuccess}</p>}
+            {orderSuccess && <div className="form-success ap-tracking-success" role="status"><p>{orderSuccess}</p>{trackingUrl && <><a href={trackingUrl}>افتحي صفحة متابعة الطلب</a><button type="button" className="secondary-button" onClick={() => void navigator.clipboard.writeText(trackingUrl)}>نسخ رابط المتابعة</button><small>الرابط خاص بطلبك؛ احتفظي به للرجوع إليه في أي وقت.</small></>}</div>}
             <div className="form-actions"><button type="button" className="secondary-button" onClick={() => setStep('book')} disabled={orderBusy}>رجوع للمعاينة</button><button type="submit" className="primary-button" disabled={orderBusy}>{orderBusy ? 'جارٍ إرسال الطلب...' : 'تأكيد الطلب'}</button></div>
           </form>
           <aside className="checkout-summary">

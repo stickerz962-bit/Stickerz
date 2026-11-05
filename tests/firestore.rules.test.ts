@@ -205,6 +205,7 @@ describe('Firestore security rules — guest checkout orders', () => {
       paymentStatus: 'unpaid',
       fulfillmentStatus: 'new',
       partnerCode: null,
+      trackingToken: 'b'.repeat(64),
       createdAt: serverTimestamp(),
       updatedAt: serverTimestamp(),
     };
@@ -235,3 +236,41 @@ describe('Firestore security rules — guest checkout orders', () => {
     await assertSucceeds(updateDoc(doc(adminDb, 'orders', 'admin-review-order'), { fulfillmentStatus: 'confirmed' }));
   });
 });
+
+describe('Firestore security rules — public order tracking projection', () => {
+  const token = 'a'.repeat(64);
+  it('allows anonymous get of a safe tracking record but not list or private order reads', async () => {
+    const db = testEnv.unauthenticatedContext().firestore();
+    await assertSucceeds(setDoc(doc(db, 'orderTracking', token), {
+      publicReference: 'AP-TRACK-01', fulfillmentStatus: 'new',
+      createdAt: serverTimestamp(), updatedAt: serverTimestamp(),
+    }));
+    await assertSucceeds(getDoc(doc(db, 'orderTracking', token)));
+    await assertFails(getDocs(collection(db, 'orderTracking')));
+    await assertFails(getDoc(doc(db, 'orders', 'order-1')));
+  });
+
+  it('rejects tracking records containing personal data or invalid token paths', async () => {
+    const db = testEnv.unauthenticatedContext().firestore();
+    await assertFails(setDoc(doc(db, 'orderTracking', 'short-token'), {
+      publicReference: 'AP-TRACK-02', fulfillmentStatus: 'new',
+      createdAt: serverTimestamp(), updatedAt: serverTimestamp(),
+    }));
+    await assertFails(setDoc(doc(db, 'orderTracking', token), {
+      publicReference: 'AP-TRACK-03', fulfillmentStatus: 'new', phone: '01012345678',
+      createdAt: serverTimestamp(), updatedAt: serverTimestamp(),
+    }));
+    await assertFails(updateDoc(doc(db, 'orderTracking', token), { fulfillmentStatus: 'delivered' }));
+  });
+
+  it('allows only admin to update the public tracking status', async () => {
+    const admin = testEnv.authenticatedContext('admin-1', { admin: true }).firestore();
+    const db = testEnv.unauthenticatedContext().firestore();
+    await assertSucceeds(setDoc(doc(db, 'orderTracking', token), {
+      publicReference: 'AP-TRACK-04', fulfillmentStatus: 'new',
+      createdAt: serverTimestamp(), updatedAt: serverTimestamp(),
+    }));
+    await assertSucceeds(updateDoc(doc(admin, 'orderTracking', token), { fulfillmentStatus: 'shipped' }));
+  });
+});
+
