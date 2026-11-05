@@ -32,6 +32,10 @@ The customer dashboard never reads these collections directly. It calls authenti
 5. The customer dashboard calls `getAmbassadorDashboard`; payout submission calls `requestAmbassadorPayout`.
 6. Admin payout decisions call `reviewAmbassadorPayout`; administrators can also pause or reactivate a profile through `updateAmbassadorStatus`. Direct browser writes to balances, commissions, and payout documents are denied by Firestore rules.
 
+## Existing customer orders
+
+Orders created before this feature is deployed do not contain the private ambassador setup credential. They will not be silently converted into ambassador profiles by this trigger. Existing customers need a new eligible order or a separately designed verified invitation/recovery flow; do not create profiles from unverified phone numbers alone.
+
 ## Important access limitation
 
 The MVP stores the private dashboard bearer link in the same browser's local storage. The customer should bookmark or save the private dashboard URL after opening it; only the public referral link should be shared. If browser storage is cleared or the customer changes devices, there is no phone-OTP recovery flow yet. Do not expose the private dashboard URL in public posts. A verified-phone recovery flow can be added later without requiring a permanent customer account.
