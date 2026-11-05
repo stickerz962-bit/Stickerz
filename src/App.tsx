@@ -90,7 +90,6 @@ export default function App() {
   const [openFaq, setOpenFaq] = useState<number | null>(0);
   const trackingToken = new URLSearchParams(window.location.search).get('track');
   const [routeHash, setRouteHash] = useState(window.location.hash);
-  const [routeHash, setRouteHash] = useState(window.location.hash);
   const ambassadorMatch = /^#ambassador\/(AP[A-F0-9]{20})\/([a-f0-9]{64})$/.exec(routeHash);
   useEffect(() => {
     captureAmbassadorReferral(window.location.search);
