@@ -49,7 +49,7 @@ export default function AmbassadorApp({ code, accessToken }: { code: string; acc
     setSending(true);
     try {
       const call = httpsCallable(functions, "requestAmbassadorPayout");
-      await call({ code, accessToken, amount: requestedAmount, method, details: details.trim() });
+      await call({ code, accessToken, requestId: window.crypto.randomUUID(), amount: requestedAmount, method, details: details.trim() });
       setNotice("تم استلام طلب صرف مكافآتك، وهنراجع بيانات التحويل.");
       setDetails("");
       await load();
