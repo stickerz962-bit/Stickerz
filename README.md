@@ -34,7 +34,7 @@ Arabic-first, RTL storefront prototype for a personalized women's coloring book.
 
 - The customer ambassador backend, dashboard routes, payout administration page, Firestore rules, and indexes are prepared in the ambassador feature branch.
 - Reward rules: 15 EGP per distinct referred order delivered successfully; minimum payout 50 EGP; partial payout allowed; a full refund reverses the commission once.
-- Customer ambassador referral codes are separate from professional partner codes. Approved partner attribution takes precedence so an order is never rewarded twice.
+- Customer ambassador rewards use a separate `ambassadorReferralCode`; the existing professional partner `partnerCode` remains untouched by this feature. No partner wallet or partner commission is changed here.
 - The Functions source is not deployed. The program is not live until Cloud Functions, rules, and indexes are deployed and end-to-end verified. See [the ambassador rewards architecture](docs/architecture/ambassador-rewards.md).
 - Private dashboard access currently relies on a bearer link stored in the same browser; cross-device phone verification is not implemented.
 
