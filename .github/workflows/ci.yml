@@ -26,5 +26,11 @@ jobs:
         run: npm test
       - name: Run Firestore Security Rules tests in emulator
         run: npm run test:emulator
+      - name: Test trusted Firebase Functions
+        run: |
+          npm install --prefix functions --no-audit --no-fund
+          npm --prefix functions test
+          npm --prefix functions run lint
+
       - name: Build production bundle
         run: npm run build
