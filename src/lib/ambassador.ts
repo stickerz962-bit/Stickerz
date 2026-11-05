@@ -56,26 +56,44 @@ export function readAmbassadorContext(): AmbassadorContext | null {
   } catch { return null; }
 }
 
+type ReferralAttribution = { code: string; trackingToken?: string };
+
+function readReferralAttribution(): ReferralAttribution | null {
+  try {
+    const raw = localStorage.getItem(AMBASSADOR_REFERRAL_KEY);
+    if (!raw) return null;
+    if (isValidCode(raw)) return { code: raw };
+    const value = JSON.parse(raw);
+    if (!isValidCode(value?.code)) return null;
+    return { code: value.code, trackingToken: typeof value.trackingToken === "string" ? value.trackingToken : undefined };
+  } catch { return null; }
+}
+
 export function captureAmbassadorReferral(search: string) {
   const incoming = new URLSearchParams(search).get("amb");
   if (!isValidCode(incoming)) return;
   try {
     // First valid referral stays attached until the referred order is delivered.
-    const current = localStorage.getItem(AMBASSADOR_REFERRAL_KEY);
-    if (!current) localStorage.setItem(AMBASSADOR_REFERRAL_KEY, incoming);
+    if (!readReferralAttribution()) localStorage.setItem(AMBASSADOR_REFERRAL_KEY, JSON.stringify({ code: incoming }));
   } catch { /* Referral capture is best-effort when browser storage is unavailable. */ }
 }
 
 export function readAmbassadorReferral(): string | null {
-  try {
-    const value = localStorage.getItem(AMBASSADOR_REFERRAL_KEY);
-    return isValidCode(value) ? value : null;
-  } catch { return null; }
+  return readReferralAttribution()?.code ?? null;
+}
+
+export function attachAmbassadorReferralToOrder(code: string | null, trackingToken: string) {
+  if (!code || !isValidCode(code) || !/^[a-f0-9]{64}$/.test(trackingToken)) return;
+  try { localStorage.setItem(AMBASSADOR_REFERRAL_KEY, JSON.stringify({ code, trackingToken })); } catch {}
+}
+
+export function readAmbassadorReferralTrackingToken(): string | null {
+  return readReferralAttribution()?.trackingToken ?? null;
 }
 
 export function clearAmbassadorReferral(code?: string | null) {
   try {
-    const current = localStorage.getItem(AMBASSADOR_REFERRAL_KEY);
+    const current = readReferralAttribution()?.code;
     if (!code || current === code) localStorage.removeItem(AMBASSADOR_REFERRAL_KEY);
   } catch { /* Ignore unavailable storage. */ }
 }
