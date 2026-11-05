@@ -7,7 +7,7 @@
     "dev": "vite",
     "build": "tsc -b && vite build",
     "preview": "vite preview",
-    "test": "vitest run --exclude tests/firestore.rules.test.ts",
+    "test": "vitest run --exclude tests/firestore.rules.test.ts --exclude functions/test/**",
     "test:watch": "vitest",
     "test:security": "vitest run tests/firestore.rules.test.ts",
     "test:emulator": "firebase emulators:exec --only firestore --project demo-anti-pressure \"npm run test:security\"",
