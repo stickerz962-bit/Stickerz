@@ -221,6 +221,7 @@ export default function Builder() {
       const url = new URL(window.location.href);
       url.hash = '';
       url.searchParams.delete('ref');
+      url.searchParams.delete('amb');
       url.searchParams.set('track', trackingToken);
       setTrackingUrl(url.toString());
       setOrderSuccess('تم استلام طلبك بنجاح! رقم الطلب: ' + orderRef.id + ' — احتفظي برابط المتابعة الخاص بطلبك.');
