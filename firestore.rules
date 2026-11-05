@@ -152,7 +152,16 @@ service cloud.firestore {
         && (!request.resource.data.keys().hasAny(['ambassadorReferralCode'])
           || request.resource.data.ambassadorReferralCode == null
           || (request.resource.data.ambassadorReferralCode is string
-            && request.resource.data.ambassadorReferralCode.matches('^AP[A-F0-9]{20}
+            && request.resource.data.ambassadorReferralCode.matches('^AP[A-F0-9]{20}$')))
+        && (!request.resource.data.keys().hasAny(['ambassadorSetup'])
+          || (request.resource.data.ambassadorSetup is map
+            && request.resource.data.ambassadorSetup.keys().hasOnly(['code', 'accessTokenHash'])
+            && request.resource.data.ambassadorSetup.keys().hasAll(['code', 'accessTokenHash'])
+            && request.resource.data.ambassadorSetup.code is string
+            && request.resource.data.ambassadorSetup.code.matches('^AP[A-F0-9]{20}$')
+            && request.resource.data.ambassadorSetup.accessTokenHash is string
+            && request.resource.data.ambassadorSetup.accessTokenHash.matches('^[a-f0-9]{64}$')))
+        && request.resource.data.createdAt == request.time
         && request.resource.data.updatedAt == request.time;
       allow update, delete: if isAdmin();
     }
@@ -187,135 +196,6 @@ service cloud.firestore {
     match /ambassadorPayouts/{payoutId} {
       allow read: if isAdmin();
       allow write: if false;
-    }
-    match /payments/{paymentId} {
-      allow read: if isAdmin();
-      allow write: if false;
-    }
-
-    match /orderEvents/{eventId} {
-      allow read: if isAdmin();
-      allow write: if false;
-    }
-
-    match /adminUsers/{uid} {
-      allow read: if isAdmin() && request.auth.uid == uid;
-      allow write: if false;
-    }
-
-    match /{document=**} {
-      allow read, write: if false;
-    }
-  }
-}
-)))
-        && (!request.resource.data.keys().hasAny(['ambassadorSetup'])
-          || (request.resource.data.ambassadorSetup is map
-            && request.resource.data.ambassadorSetup.keys().hasOnly(['code', 'accessTokenHash'])
-            && request.resource.data.ambassadorSetup.keys().hasAll(['code', 'accessTokenHash'])
-            && request.resource.data.ambassadorSetup.code is string
-            && request.resource.data.ambassadorSetup.code.matches('^AP[A-F0-9]{20}
-        && request.resource.data.updatedAt == request.time;
-      allow update, delete: if isAdmin();
-    }
-
-    // Public bearer-token projection: contains status/reference only, never customer PII.
-    match /orderTracking/{token} {
-      allow get: if token.matches('^[a-f0-9]{64}$') && resource != null;
-      allow list: if false;
-      allow create: if token.matches('^[a-f0-9]{64}$')
-        && request.resource.data.keys().hasOnly(['publicReference', 'fulfillmentStatus', 'createdAt', 'updatedAt'])
-        && request.resource.data.keys().hasAll(['publicReference', 'fulfillmentStatus', 'createdAt', 'updatedAt'])
-        && request.resource.data.publicReference is string
-        && request.resource.data.publicReference.size() >= 6
-        && request.resource.data.publicReference.size() <= 40
-        && request.resource.data.fulfillmentStatus == 'new'
-        && request.resource.data.createdAt == request.time
-        && request.resource.data.updatedAt == request.time;
-      allow update, delete: if isAdmin();
-    }
-    match /payments/{paymentId} {
-      allow read: if isAdmin();
-      allow write: if false;
-    }
-
-    match /orderEvents/{eventId} {
-      allow read: if isAdmin();
-      allow write: if false;
-    }
-
-    match /adminUsers/{uid} {
-      allow read: if isAdmin() && request.auth.uid == uid;
-      allow write: if false;
-    }
-
-    match /{document=**} {
-      allow read, write: if false;
-    }
-  }
-}
-)
-            && request.resource.data.ambassadorSetup.accessTokenHash is string
-            && request.resource.data.ambassadorSetup.accessTokenHash.matches('^[a-f0-9]{64}
-        && request.resource.data.updatedAt == request.time;
-      allow update, delete: if isAdmin();
-    }
-
-    // Public bearer-token projection: contains status/reference only, never customer PII.
-    match /orderTracking/{token} {
-      allow get: if token.matches('^[a-f0-9]{64}$') && resource != null;
-      allow list: if false;
-      allow create: if token.matches('^[a-f0-9]{64}$')
-        && request.resource.data.keys().hasOnly(['publicReference', 'fulfillmentStatus', 'createdAt', 'updatedAt'])
-        && request.resource.data.keys().hasAll(['publicReference', 'fulfillmentStatus', 'createdAt', 'updatedAt'])
-        && request.resource.data.publicReference is string
-        && request.resource.data.publicReference.size() >= 6
-        && request.resource.data.publicReference.size() <= 40
-        && request.resource.data.fulfillmentStatus == 'new'
-        && request.resource.data.createdAt == request.time
-        && request.resource.data.updatedAt == request.time;
-      allow update, delete: if isAdmin();
-    }
-    match /payments/{paymentId} {
-      allow read: if isAdmin();
-      allow write: if false;
-    }
-
-    match /orderEvents/{eventId} {
-      allow read: if isAdmin();
-      allow write: if false;
-    }
-
-    match /adminUsers/{uid} {
-      allow read: if isAdmin() && request.auth.uid == uid;
-      allow write: if false;
-    }
-
-    match /{document=**} {
-      allow read, write: if false;
-    }
-  }
-}
-)))
-        && request.resource.data.createdAt == request.time
-        && request.resource.data.updatedAt == request.time;
-      allow update, delete: if isAdmin();
-    }
-
-    // Public bearer-token projection: contains status/reference only, never customer PII.
-    match /orderTracking/{token} {
-      allow get: if token.matches('^[a-f0-9]{64}$') && resource != null;
-      allow list: if false;
-      allow create: if token.matches('^[a-f0-9]{64}$')
-        && request.resource.data.keys().hasOnly(['publicReference', 'fulfillmentStatus', 'createdAt', 'updatedAt'])
-        && request.resource.data.keys().hasAll(['publicReference', 'fulfillmentStatus', 'createdAt', 'updatedAt'])
-        && request.resource.data.publicReference is string
-        && request.resource.data.publicReference.size() >= 6
-        && request.resource.data.publicReference.size() <= 40
-        && request.resource.data.fulfillmentStatus == 'new'
-        && request.resource.data.createdAt == request.time
-        && request.resource.data.updatedAt == request.time;
-      allow update, delete: if isAdmin();
     }
     match /payments/{paymentId} {
       allow read: if isAdmin();
