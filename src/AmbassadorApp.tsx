@@ -79,7 +79,7 @@ export default function AmbassadorApp({ code, accessToken }: { code: string; acc
         <p>شاركي كتابك مع صاحباتك، وكل طلب يوصل من خلال رابطك ويُسلّم بنجاح يضيف 15 جنيهًا لرصيدك.</p>
       </section>
       {busy && <p className="ap-ambassador-message">جارٍ تحميل مساحتك...</p>}
-      {error && <p className="form-error" role="alert">{error}</p>}
+      {error && <div><p className="form-error" role="alert">{error}</p><button className="secondary-button" onClick={() => void load()}>إعادة المحاولة</button></div>}
       {notice && <p className="form-success" role="status">{notice}</p>}
       {data && <>
         <section className="ap-ambassador-stats">
