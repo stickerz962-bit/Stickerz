@@ -9,6 +9,7 @@ import {
   sha256,
   shouldCreditAmbassadorCommission,
   balanceAfterCommissionReversal,
+  canCompletePayoutAfterReversals,
   validatePayoutRequest,
 } from "../src/domain.js";
 
@@ -64,4 +65,11 @@ test("refund reversal can create a negative balance after prior payout", () => {
   assert.equal(balanceAfterCommissionReversal(0, 15), -15);
   assert.throws(() => balanceAfterCommissionReversal(10.5, 15), TypeError);
   assert.throws(() => balanceAfterCommissionReversal(10, 0), TypeError);
+});
+
+test("pending payouts cannot be paid while refunded commissions leave a negative available balance", () => {
+  assert.equal(canCompletePayoutAfterReversals(0), true);
+  assert.equal(canCompletePayoutAfterReversals(15), true);
+  assert.equal(canCompletePayoutAfterReversals(-15), false);
+  assert.equal(canCompletePayoutAfterReversals(1.5), false);
 });
