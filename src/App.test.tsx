@@ -114,7 +114,7 @@ describe('ANTI PRESSURE customer experience', () => {
   it('saves cover personalization and displays the complete 30-artwork review', async () => {
     window.location.hash = '#design';
     render(<App />);
-    screen.getAllByRole('button', { name: '+ اختاري' }).slice(0, 30).forEach(button => fireEvent.click(button));
+    (await screen.findAllByRole('button', { name: '+ اختاري' })).slice(0, 30).forEach(button => fireEvent.click(button));
     fireEvent.click(screen.getByRole('button', { name: /اختاري الغلاف/ }));
     fireEvent.change(screen.getByLabelText('الاسم اللي يظهر على الغلاف'), { target: { value: 'سارة' } });
     fireEvent.click(screen.getByRole('button', { name: /حفظ اختيارات الغلاف/ }));
