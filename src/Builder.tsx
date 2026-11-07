@@ -301,7 +301,7 @@ export default function Builder() {
           </div>
           <div className="cover-live-panel">
             <span className="cover-preview-caption">معاينة الغلاف المختار</span>
-            <div className={'cover-live-art ' + activeCover.tone}>
+            <div className={'cover-live-art ' + activeCover.tone}>{activeCover.imageSrc && <img src={activeCover.imageSrc} alt={activeCover.title} style={{position:'absolute',inset:0,width:'100%',height:'100%',objectFit:'cover',borderRadius:'inherit'}} />}
               {activeCover.imageSrc && <img src={activeCover.imageSrc} alt={activeCover.title} style={{position:'absolute',inset:0,width:'100%',height:'100%',objectFit:'cover',borderRadius:'inherit'}} />}
               {!activeCover.imageSrc && <><span className="cover-live-decoration">{activeCover.mark}</span><span className="cover-live-brand">ANTI PRESSURE · فُكّي الضغط</span><strong>كتابك... على مزاجك!</strong><span className="cover-live-bottom">{activeCover.subtitle}</span></>}
               <span className="cover-live-name" style={{ fontSize: fittedNameSize + 'px' }}>{draft.name.trim() || 'اسمك هنا'}</span>
