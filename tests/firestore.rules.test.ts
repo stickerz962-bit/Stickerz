@@ -304,9 +304,9 @@ describe('Firestore security rules — ambassador checkout attribution', () => {
     return {
       publicReference: 'AP-TEST-0001',
       customer: { name: 'Test Customer', phone: '01012345678' },
-      shipping: { governorateName: 'Cairo', areaName: 'Nasr City', address: 'Test street 123', deliveryNotes: '', fee: null },
+      shipping: { governorateName: 'Cairo', areaName: 'Nasr City', address: 'Test street 123', deliveryNotes: '', fee: 50 },
       book: { artworks: Array.from({ length: 30 }, (_, index) => ({ artworkId: 'AP-' + String(index + 1).padStart(3, '0'), titleSnapshot: 'Artwork ' + (index + 1), printOrder: index + 1 })), cover: { coverId: 'AP-COVER-01', titleSnapshot: 'Calm cover' }, personalizedName: 'Test Name' },
-      pricing: { currency: 'EGP', standardBookPrice: 240, bookPrice: 240, shippingFee: null, totalAmount: null, offerApplied: false },
+      pricing: { currency: 'EGP', standardBookPrice: 240, bookPrice: 240, shippingFee: 50, totalAmount: 290, offerApplied: false },
       paymentMethod: 'cod', paymentStatus: 'unpaid', fulfillmentStatus: 'new', partnerCode: null,
       trackingToken: 'd'.repeat(64), createdAt: serverTimestamp(), updatedAt: serverTimestamp(),
     };
