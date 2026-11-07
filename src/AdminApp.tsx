@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState, type FormEvent } from 'react';
+import { useEffect, useMemo, useRef, useState, type FormEvent } from 'react';
 import { onAuthStateChanged, signInWithEmailAndPassword, signOut, type User } from 'firebase/auth';
 import { collection, doc, getDoc, getDocs, limit, orderBy, query, serverTimestamp, setDoc, startAfter, updateDoc, writeBatch, type DocumentData, type QueryDocumentSnapshot } from 'firebase/firestore';
 import { auth, firebaseConfigured, firestore } from './firebase/client';
@@ -54,12 +54,14 @@ export default function AdminApp() {
   const [busy, setBusy] = useState(false);
   const [notice, setNotice] = useState('');
   const [error, setError] = useState('');
+  const migrationStarted = useRef(false);
 
   useEffect(() => {
     if (!auth) { setAuthReady(true); return; }
     return onAuthStateChanged(auth, async nextUser => {
       setUser(nextUser);
       setAdminVerified(false);
+      if (!nextUser) migrationStarted.current = false;
       setAuthReady(true);
       if (!nextUser) return;
       try {
@@ -248,32 +250,26 @@ export default function AdminApp() {
       setNotice('كل معاينات المكتبة تستخدم بالفعل التخزين المنفصل أو روابط خارجية؛ لا توجد صور قديمة للترحيل.');
       return;
     }
-    if (!window.confirm(`سيتم نقل ${tasks.length} معاينة إلى مستندات صور منفصلة. لن يتم حذف أي صورة قبل التحقق من حفظ النسخة الجديدة. نبدأ؟`)) return;
-
     setBusy(true); setError(''); setNotice('');
     let migrated = 0;
     let failed = 0;
     try {
-      for (const task of tasks) {
-        const assetId = `${task.type}_${task.item.id}_legacy_v1`;
-        const assetRef = doc(firestore, 'catalogAssets', assetId);
-        try {
-          await setDoc(assetRef, {
-            assetType: task.type,
-            itemId: task.item.id,
-            dataUrl: task.item.previewAssetRef,
-            updatedAt: serverTimestamp(),
-          });
-          const verified = await getDoc(assetRef);
-          if (!verified.exists() || verified.data().dataUrl !== task.item.previewAssetRef) throw new Error('Asset verification failed');
-          await updateDoc(doc(firestore, task.collectionName, task.item.id), {
-            previewAssetRef: `asset:${task.type}:${assetId}`,
-            updatedAt: serverTimestamp(),
-          });
-          migrated++;
-        } catch {
-          failed++;
-        }
+      // Process four independent previews at a time to avoid a large write burst.
+      for (let index = 0; index < tasks.length; index += 4) {
+        const group = tasks.slice(index, index + 4);
+        const results = await Promise.all(group.map(async task => {
+          const assetId = task.type + '_' + task.item.id + '_legacy_v1';
+          const assetRef = doc(firestore, 'catalogAssets', assetId);
+          try {
+            await setDoc(assetRef, { assetType: task.type, itemId: task.item.id, dataUrl: task.item.previewAssetRef, updatedAt: serverTimestamp() });
+            const verified = await getDoc(assetRef);
+            if (!verified.exists() || verified.data().dataUrl !== task.item.previewAssetRef) throw new Error('Asset verification failed');
+            await updateDoc(doc(firestore, task.collectionName, task.item.id), { previewAssetRef: 'asset:' + task.type + ':' + assetId, updatedAt: serverTimestamp() });
+            return true;
+          } catch { return false; }
+        }));
+        migrated += results.filter(Boolean).length;
+        failed += results.filter(result => !result).length;
       }
       await loadData();
       setNotice(`تم نقل ${migrated} معاينة بنجاح.${failed ? ` تعذر نقل ${failed} عناصر؛ بياناتها الأصلية ما زالت محفوظة ويمكن إعادة المحاولة.` : ''}`);
@@ -284,6 +280,16 @@ export default function AdminApp() {
     }
   };
 
+  // Automatically migrate old embedded previews after the admin catalog loads.
+  // The migration is resumable and switches a parent pointer only after verification.
+  useEffect(() => {
+    if (!user || !adminVerified || busy || migrationStarted.current) return;
+    const hasLegacy = artworks.some(item => item.previewAssetRef?.startsWith('data:image/'))
+      || covers.some(item => item.previewAssetRef?.startsWith('data:image/'));
+    if (!hasLegacy) { migrationStarted.current = true; return; }
+    migrationStarted.current = true;
+    void migrateLegacyCatalogAssets();
+  }, [user, adminVerified, busy, artworks, covers]);
   const saveArtwork = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     if (!firestore) return;
@@ -396,7 +402,7 @@ export default function AdminApp() {
       <div className="ap-admin-stats"><div><b>{categories.length}</b><span>تصنيف</span></div><div><b>{artworks.length}/100</b><span>رسمة مسجلة</span></div><div><b>{artworks.filter(x => x.active).length}</b><span>رسمة منشورة</span></div><div><b>{covers.filter(x => x.active).length}/5</b><span>غلاف منشور</span></div></div>
       <div className="ap-admin-tabs">{(['orders','categories','artworks','covers','shipping'] as Tab[]).map(item => <button key={item} className={tab === item ? 'active' : ''} onClick={() => setTab(item)}>{item === 'orders' ? 'الطلبات (' + orders.length + ')' : item === 'categories' ? 'التصنيفات' : item === 'artworks' ? 'الرسومات' : item === 'covers' ? 'الأغلفة' : 'الشحن'}</button>)}</div>
       {notice && <p className="form-success" role="status">{notice}</p>}{error && <p className="form-error" role="alert">{error}</p>}
-      <div className="ap-admin-toolbar"><button className="secondary-button" disabled={busy} onClick={() => tab === 'orders' ? void loadOrders() : void loadData()}>تحديث البيانات</button>{tab === 'categories' && <button className="secondary-button" disabled={busy} onClick={() => void seedCategories()}>إضافة التصنيفات العشرة الأساسية</button>}{(tab === 'artworks' || tab === 'covers') && (artworks.some(item => item.previewAssetRef?.startsWith('data:image/')) || covers.some(item => item.previewAssetRef?.startsWith('data:image/'))) && <button className="secondary-button" disabled={busy} onClick={() => void migrateLegacyCatalogAssets()}>ترحيل معاينات الصور القديمة بأمان</button>}</div>
+      <div className="ap-admin-toolbar"><button className="secondary-button" disabled={busy} onClick={() => tab === 'orders' ? void loadOrders() : void loadData()}>تحديث البيانات</button>{tab === 'categories' && <button className="secondary-button" disabled={busy} onClick={() => void seedCategories()}>إضافة التصنيفات العشرة الأساسية</button>}</div>
       {busy && <p className="backup-help">جارٍ تنفيذ العملية...</p>}
       {tab === 'shipping' && <section className="admin-layout ap-admin-layout"><form className="product-form" onSubmit={saveShippingFee}><h2>سعر الشحن الموحد</h2><p>اكتبي السعر بالجنيه المصري. سيتم تحديث صفحة الطلب تلقائيًا وحفظ السعر في الطلبات الجديدة.</p><label>سعر الشحن (جنيه)<input type="number" min="0" max="5000" step="1" inputMode="numeric" value={shippingFee} onChange={e => setShippingFee(e.target.value)} required /></label><button className="primary-button" disabled={busy}>{busy ? 'جارٍ الحفظ...' : 'حفظ سعر الشحن'}</button><p className="backup-help">السعر الحالي: {shippingFee !== '' ? shippingFee + ' جنيه' : 'لم يتم ضبطه بعد'}. الطلبات القديمة تحتفظ بسعر الشحن المسجل وقت الطلب.</p></form></section>}
       {tab === 'orders' && <>
