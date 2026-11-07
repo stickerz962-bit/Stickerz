@@ -1,7 +1,8 @@
 import { useEffect, useMemo, useState, type FormEvent } from 'react';
 import { onAuthStateChanged, signInWithEmailAndPassword, signOut, type User } from 'firebase/auth';
-import { collection, doc, getDocs, limit, orderBy, query, serverTimestamp, setDoc, startAfter, updateDoc, writeBatch, type DocumentData, type QueryDocumentSnapshot } from 'firebase/firestore';
+import { collection, doc, getDoc, getDocs, limit, orderBy, query, serverTimestamp, setDoc, startAfter, updateDoc, writeBatch, type DocumentData, type QueryDocumentSnapshot } from 'firebase/firestore';
 import { auth, firebaseConfigured, firestore } from './firebase/client';
+import CatalogImage from './catalog/CatalogImage';
 import './styles.css';
 
 type Category = { id: string; title: string; slug: string; sortOrder: number; active: boolean };
@@ -213,24 +214,74 @@ export default function AdminApp() {
     if (!file.type.startsWith('image/')) throw new Error('اختاري ملف صورة فقط.');
     if (file.size > 12 * 1024 * 1024) throw new Error('حجم الصورة قبل الضغط يجب ألا يتجاوز 12 ميجابايت.');
     const bitmap = await createImageBitmap(file);
-    const scale = Math.min(1, 1000 / Math.max(bitmap.width, bitmap.height));
-    const canvas = document.createElement('canvas');
-    canvas.width = Math.max(1, Math.round(bitmap.width * scale));
-    canvas.height = Math.max(1, Math.round(bitmap.height * scale));
-    const context = canvas.getContext('2d');
-    if (!context) throw new Error('تعذر تجهيز الصورة.');
-    context.fillStyle = '#fff';
-    context.fillRect(0, 0, canvas.width, canvas.height);
-    context.drawImage(bitmap, 0, 0, canvas.width, canvas.height);
-    bitmap.close();
-    let quality = 0.72;
-    let dataUrl = canvas.toDataURL('image/jpeg', quality);
-    while (dataUrl.length > 430_000 && quality > 0.35) {
-      quality -= 0.08;
-      dataUrl = canvas.toDataURL('image/jpeg', quality);
+    try {
+      let scale = Math.min(1, 900 / Math.max(bitmap.width, bitmap.height));
+      for (let resizeAttempt = 0; resizeAttempt < 4; resizeAttempt++) {
+        const canvas = document.createElement('canvas');
+        canvas.width = Math.max(1, Math.round(bitmap.width * scale));
+        canvas.height = Math.max(1, Math.round(bitmap.height * scale));
+        const context = canvas.getContext('2d');
+        if (!context) throw new Error('تعذر تجهيز الصورة.');
+        context.fillStyle = '#fff';
+        context.fillRect(0, 0, canvas.width, canvas.height);
+        context.drawImage(bitmap, 0, 0, canvas.width, canvas.height);
+        for (const quality of [0.82, 0.74, 0.66, 0.58]) {
+          let dataUrl = canvas.toDataURL('image/webp', quality);
+          if (!dataUrl.startsWith('data:image/webp;')) dataUrl = canvas.toDataURL('image/jpeg', quality);
+          if (dataUrl.length <= 250_000) return dataUrl;
+        }
+        scale *= 0.82;
+      }
+    } finally {
+      bitmap.close();
     }
-    if (dataUrl.length > 430_000) throw new Error('الصورة كبيرة جدًا حتى بعد الضغط. اختاري صورة أصغر.');
-    return dataUrl;
+    throw new Error('الصورة كبيرة جدًا حتى بعد الضغط. اختاري صورة أبسط أو أصغر.');
+  };
+
+  const migrateLegacyCatalogAssets = async () => {
+    if (!firestore) return;
+    const tasks = [
+      ...artworks.filter(item => item.previewAssetRef?.startsWith('data:image/')).map(item => ({ type: 'artwork' as const, collectionName: 'artworks', item })),
+      ...covers.filter(item => item.previewAssetRef?.startsWith('data:image/')).map(item => ({ type: 'cover' as const, collectionName: 'covers', item })),
+    ];
+    if (!tasks.length) {
+      setNotice('كل معاينات المكتبة تستخدم بالفعل التخزين المنفصل أو روابط خارجية؛ لا توجد صور قديمة للترحيل.');
+      return;
+    }
+    if (!window.confirm(`سيتم نقل ${tasks.length} معاينة إلى مستندات صور منفصلة. لن يتم حذف أي صورة قبل التحقق من حفظ النسخة الجديدة. نبدأ؟`)) return;
+
+    setBusy(true); setError(''); setNotice('');
+    let migrated = 0;
+    let failed = 0;
+    try {
+      for (const task of tasks) {
+        const assetId = `${task.type}_${task.item.id}_legacy_v1`;
+        const assetRef = doc(firestore, 'catalogAssets', assetId);
+        try {
+          await setDoc(assetRef, {
+            assetType: task.type,
+            itemId: task.item.id,
+            dataUrl: task.item.previewAssetRef,
+            updatedAt: serverTimestamp(),
+          });
+          const verified = await getDoc(assetRef);
+          if (!verified.exists() || verified.data().dataUrl !== task.item.previewAssetRef) throw new Error('Asset verification failed');
+          await updateDoc(doc(firestore, task.collectionName, task.item.id), {
+            previewAssetRef: `asset:${task.type}:${assetId}`,
+            updatedAt: serverTimestamp(),
+          });
+          migrated++;
+        } catch {
+          failed++;
+        }
+      }
+      await loadData();
+      setNotice(`تم نقل ${migrated} معاينة بنجاح.${failed ? ` تعذر نقل ${failed} عناصر؛ بياناتها الأصلية ما زالت محفوظة ويمكن إعادة المحاولة.` : ''}`);
+    } catch {
+      setError('توقفت عملية الترحيل أثناء تحديث القائمة. الصور التي تم التحقق منها تظل محفوظة، ويمكن إعادة تشغيل العملية بأمان.');
+    } finally {
+      setBusy(false);
+    }
   };
 
   const saveArtwork = async (event: FormEvent<HTMLFormElement>) => {
@@ -245,9 +296,18 @@ export default function AdminApp() {
     if (existing && !editingArtwork) { setError('هذا الكود موجود بالفعل. افتحيه من القائمة للتعديل.'); return; }
     setBusy(true); setError(''); setNotice('');
     try {
+      let previewAssetRef = artworkForm.previewAssetRef.trim();
+      if (previewAssetRef.startsWith('data:image/')) {
+        const assetId = `artwork_${id}_${Date.now().toString(36)}`;
+        const assetRef = doc(firestore, 'catalogAssets', assetId);
+        await setDoc(assetRef, { assetType: 'artwork', itemId: id, dataUrl: previewAssetRef, updatedAt: serverTimestamp() });
+        const verified = await getDoc(assetRef);
+        if (!verified.exists() || verified.data().dataUrl !== previewAssetRef) throw new Error('تعذر التحقق من حفظ معاينة الرسمة.');
+        previewAssetRef = `asset:artwork:${assetId}`;
+      }
       await setDoc(doc(firestore, 'artworks', id), {
         title: artworkForm.title.trim(), categoryId: artworkForm.categoryId,
-        phrase: artworkForm.phrase.trim(), previewAssetRef: artworkForm.previewAssetRef.trim(),
+        phrase: artworkForm.phrase.trim(), previewAssetRef,
         sortOrder: existing?.sortOrder ?? artworks.length + 1, version: (existing?.version ?? 0) + 1,
         active: existing?.active ?? false, updatedAt: serverTimestamp(),
         ...(existing ? {} : { createdAt: serverTimestamp() }),
@@ -285,9 +345,18 @@ export default function AdminApp() {
     if (existing && !editingCover) { setError('هذا الغلاف موجود بالفعل. افتحيه من القائمة للتعديل.'); return; }
     setBusy(true); setError(''); setNotice('');
     try {
+      let previewAssetRef = coverForm.previewAssetRef.trim();
+      if (previewAssetRef.startsWith('data:image/')) {
+        const assetId = `cover_${id}_${Date.now().toString(36)}`;
+        const assetRef = doc(firestore, 'catalogAssets', assetId);
+        await setDoc(assetRef, { assetType: 'cover', itemId: id, dataUrl: previewAssetRef, updatedAt: serverTimestamp() });
+        const verified = await getDoc(assetRef);
+        if (!verified.exists() || verified.data().dataUrl !== previewAssetRef) throw new Error('تعذر التحقق من حفظ معاينة الغلاف.');
+        previewAssetRef = `asset:cover:${assetId}`;
+      }
       await setDoc(doc(firestore, 'covers', id), {
         title: coverForm.title.trim(), subtitle: coverForm.subtitle.trim(),
-        previewAssetRef: coverForm.previewAssetRef.trim(),
+        previewAssetRef,
         sortOrder: existing?.sortOrder ?? covers.length + 1, version: (existing?.version ?? 0) + 1,
         active: existing?.active ?? false, updatedAt: serverTimestamp(),
         ...(existing ? {} : { createdAt: serverTimestamp() }),
@@ -327,7 +396,7 @@ export default function AdminApp() {
       <div className="ap-admin-stats"><div><b>{categories.length}</b><span>تصنيف</span></div><div><b>{artworks.length}/100</b><span>رسمة مسجلة</span></div><div><b>{artworks.filter(x => x.active).length}</b><span>رسمة منشورة</span></div><div><b>{covers.filter(x => x.active).length}/5</b><span>غلاف منشور</span></div></div>
       <div className="ap-admin-tabs">{(['orders','categories','artworks','covers','shipping'] as Tab[]).map(item => <button key={item} className={tab === item ? 'active' : ''} onClick={() => setTab(item)}>{item === 'orders' ? 'الطلبات (' + orders.length + ')' : item === 'categories' ? 'التصنيفات' : item === 'artworks' ? 'الرسومات' : item === 'covers' ? 'الأغلفة' : 'الشحن'}</button>)}</div>
       {notice && <p className="form-success" role="status">{notice}</p>}{error && <p className="form-error" role="alert">{error}</p>}
-      <div className="ap-admin-toolbar"><button className="secondary-button" disabled={busy} onClick={() => tab === 'orders' ? void loadOrders() : void loadData()}>تحديث البيانات</button>{tab === 'categories' && <button className="secondary-button" disabled={busy} onClick={() => void seedCategories()}>إضافة التصنيفات العشرة الأساسية</button>}</div>
+      <div className="ap-admin-toolbar"><button className="secondary-button" disabled={busy} onClick={() => tab === 'orders' ? void loadOrders() : void loadData()}>تحديث البيانات</button>{tab === 'categories' && <button className="secondary-button" disabled={busy} onClick={() => void seedCategories()}>إضافة التصنيفات العشرة الأساسية</button>}{(tab === 'artworks' || tab === 'covers') && (artworks.some(item => item.previewAssetRef?.startsWith('data:image/')) || covers.some(item => item.previewAssetRef?.startsWith('data:image/'))) && <button className="secondary-button" disabled={busy} onClick={() => void migrateLegacyCatalogAssets()}>ترحيل معاينات الصور القديمة بأمان</button>}</div>
       {busy && <p className="backup-help">جارٍ تنفيذ العملية...</p>}
       {tab === 'shipping' && <section className="admin-layout ap-admin-layout"><form className="product-form" onSubmit={saveShippingFee}><h2>سعر الشحن الموحد</h2><p>اكتبي السعر بالجنيه المصري. سيتم تحديث صفحة الطلب تلقائيًا وحفظ السعر في الطلبات الجديدة.</p><label>سعر الشحن (جنيه)<input type="number" min="0" max="5000" step="1" inputMode="numeric" value={shippingFee} onChange={e => setShippingFee(e.target.value)} required /></label><button className="primary-button" disabled={busy}>{busy ? 'جارٍ الحفظ...' : 'حفظ سعر الشحن'}</button><p className="backup-help">السعر الحالي: {shippingFee !== '' ? shippingFee + ' جنيه' : 'لم يتم ضبطه بعد'}. الطلبات القديمة تحتفظ بسعر الشحن المسجل وقت الطلب.</p></form></section>}
       {tab === 'orders' && <>
@@ -361,8 +430,8 @@ export default function AdminApp() {
         {hasMoreOrders && <div className="ap-admin-toolbar"><button className="secondary-button" disabled={busy} onClick={() => void loadOrders(true)}>تحميل 50 طلبًا أقدم</button></div>}
       </section></>}
       {tab === 'categories' && <div className="admin-layout ap-admin-layout"><form className="product-form" onSubmit={saveCategory}><h2>إضافة تصنيف</h2><label>اسم التصنيف<input value={categoryTitle} onChange={e => setCategoryTitle(e.target.value)} maxLength={70} required /></label><button className="primary-button" disabled={busy}>حفظ التصنيف</button><p className="backup-help">المعرف يُنشأ تلقائيًا من الاسم الإنجليزي/الحروف المتاحة؛ للتصنيفات العربية استخدمي زر إضافة التصنيفات الأساسية.</p></form><section className="admin-products"><h2>التصنيفات ({categories.length})</h2>{categories.map(item => <article className="admin-product-row" key={item.id}><div className="admin-product-info"><strong>{item.title}</strong><small>{item.id} · {item.active ? 'مفعّل' : 'مخفي'}</small></div></article>)}</section></div>}
-      {tab === 'artworks' && <div className="admin-layout ap-admin-layout"><form className="product-form" onSubmit={saveArtwork}><h2>{editingArtwork ? 'تعديل الرسمة' : 'إضافة رسمة'}</h2><label>كود الرسمة<input value={artworkForm.id} onChange={e => setArtworkForm({ ...artworkForm, id: e.target.value })} placeholder="AP-001" required /></label><label>اسم الرسمة<input value={artworkForm.title} onChange={e => setArtworkForm({ ...artworkForm, title: e.target.value })} maxLength={100} required /></label><label>التصنيف<select value={artworkForm.categoryId} onChange={e => setArtworkForm({ ...artworkForm, categoryId: e.target.value })} required><option value="">اختاري تصنيفًا</option>{categories.map(c => <option key={c.id} value={c.id}>{c.title}</option>)}</select></label><label>الجملة المصرية<input value={artworkForm.phrase} onChange={e => setArtworkForm({ ...artworkForm, phrase: e.target.value })} maxLength={160} /></label><label>رفع صورة الرسمة (اختياري)<input type="file" accept="image/*" onChange={async e => { const file = e.target.files?.[0]; if (!file) return; setBusy(true); setError(''); try { const image = await compressImageForFirestore(file); setArtworkForm(current => ({ ...current, previewAssetRef: image })); setNotice('تم تجهيز الصورة. اضغطي حفظ المسودة لحفظها.'); } catch (err) { setError(err instanceof Error ? err.message : 'تعذر تجهيز الصورة.'); } finally { setBusy(false); e.target.value = ''; } }} /></label><label>رابط صورة بديل<input value={artworkForm.previewAssetRef.startsWith('data:image/') ? '' : artworkForm.previewAssetRef} onChange={e => setArtworkForm({ ...artworkForm, previewAssetRef: e.target.value })} maxLength={500} placeholder="https://..." /></label>{artworkForm.previewAssetRef && <img src={artworkForm.previewAssetRef} alt="معاينة صورة الرسمة" style={{maxWidth:'100%',maxHeight:220,objectFit:'contain'}} />}<p className="backup-help">يتم ضغط الصورة وحفظ نسخة صغيرة داخل Firestore (حتى نحو 430KB). لا ترفعي ملفات الطباعة الأصلية أو صورًا عالية الدقة هنا.</p><div className="form-actions"><button className="primary-button" disabled={busy || categories.length === 0}>{editingArtwork ? 'حفظ التعديل' : 'حفظ كمسودة'}</button>{editingArtwork && <button type="button" className="secondary-button" onClick={() => { setArtworkForm(emptyArtwork); setEditingArtwork(false); }}>إلغاء</button>}</div></form><section className="admin-products"><div className="admin-list-heading"><h2>الرسومات ({filteredArtworks.length})</h2><span>من أصل 100</span></div><div className="ap-admin-filters"><input value={search} onChange={e => setSearch(e.target.value)} placeholder="بحث بالكود أو الاسم أو الجملة" /><select value={filterCategory} onChange={e => setFilterCategory(e.target.value)}><option value="all">كل التصنيفات</option>{categories.map(c => <option key={c.id} value={c.id}>{c.title}</option>)}</select></div><div className="admin-product-list">{filteredArtworks.map(item => <article className="admin-product-row" key={item.id}><div className="admin-thumb ap-thumb ap-artwork-thumbnail">{item.previewAssetRef ? <img src={item.previewAssetRef} alt={`معاينة ${item.title}`} loading="lazy" style={{width:"100%",height:"100%",objectFit:"cover",display:"block"}} /> : <span aria-label="لا توجد صورة">✿</span>}</div><div className="admin-product-info"><strong>{item.id} · {item.title}</strong><span>{categories.find(c => c.id === item.categoryId)?.title || 'تصنيف غير معروف'}</span><small>{item.phrase || 'بدون جملة'}</small><small>{item.active ? 'منشورة' : 'مسودة مخفية'}</small></div><div className="admin-product-actions ap-publish-actions"><button className="secondary-button" disabled={busy} onClick={() => editArtwork(item)}>تعديل</button><button className={item.active ? "secondary-button ap-publish-button ap-publish-button-active" : "primary-button ap-publish-button"} disabled={busy || !item.phrase?.trim()} onClick={() => void setArtworkActive(item)}>{item.active ? 'إخفاء الرسمة من الموقع' : item.phrase?.trim() ? 'نشر الرسمة على الموقع' : 'أضيفي الجملة أولًا'}</button>{!item.phrase?.trim() && <small className="ap-publish-help" role="status">النشر متوقف لأن الجملة المصرية غير مكتوبة. اضغطي «تعديل»، أضيفي الجملة، ثم احفظي التعديل.</small>}</div></article>)}</div></section></div>}
-      {tab === 'covers' && <div className="admin-layout ap-admin-layout"><form className="product-form" onSubmit={saveCover}><h2>{editingCover ? 'تعديل الغلاف' : 'إضافة غلاف'}</h2><label>كود الغلاف<input value={coverForm.id} onChange={e => setCoverForm({ ...coverForm, id: e.target.value })} placeholder="AP-COVER-01" required /></label><label>اسم الغلاف<input value={coverForm.title} onChange={e => setCoverForm({ ...coverForm, title: e.target.value })} maxLength={50} required /></label><label>النص الفرعي<input value={coverForm.subtitle} onChange={e => setCoverForm({ ...coverForm, subtitle: e.target.value })} maxLength={80} /></label><label>رفع صورة الغلاف (اختياري)<input type="file" accept="image/*" onChange={async e => { const file = e.target.files?.[0]; if (!file) return; setBusy(true); setError(''); try { const image = await compressImageForFirestore(file); setCoverForm(current => ({ ...current, previewAssetRef: image })); setNotice('تم تجهيز الصورة. اضغطي حفظ المسودة لحفظها.'); } catch (err) { setError(err instanceof Error ? err.message : 'تعذر تجهيز الصورة.'); } finally { setBusy(false); e.target.value = ''; } }} /></label><label>رابط صورة بديل<input value={coverForm.previewAssetRef.startsWith('data:image/') ? '' : coverForm.previewAssetRef} onChange={e => setCoverForm({ ...coverForm, previewAssetRef: e.target.value })} maxLength={500} /></label>{coverForm.previewAssetRef && <img src={coverForm.previewAssetRef} alt="معاينة صورة الغلاف" style={{maxWidth:'100%',maxHeight:220,objectFit:'contain'}} />}<p className="backup-help">يتم ضغط الصورة وحفظ نسخة صغيرة داخل Firestore (حتى نحو 430KB). لا ترفعي ملفات الطباعة الأصلية.</p><div className="form-actions"><button className="primary-button" disabled={busy}>{editingCover ? 'حفظ التعديل' : 'حفظ كمسودة'}</button>{editingCover && <button type="button" className="secondary-button" onClick={() => { setCoverForm(emptyCover); setEditingCover(false); }}>إلغاء</button>}</div></form><section className="admin-products"><h2>الأغلفة ({covers.length}/5)</h2>{covers.map(item => <article className="admin-product-row" key={item.id}><div className="admin-thumb ap-thumb">✿</div><div className="admin-product-info"><strong>{item.id} · {item.title}</strong><small>{item.subtitle}</small><small>{item.active ? 'منشور' : 'مسودة مخفية'}</small></div><div className="admin-product-actions"><button className="secondary-button" onClick={() => editCover(item)}>تعديل</button><button className="secondary-button" disabled={busy} onClick={() => void setCoverActive(item)}>{item.active ? 'إخفاء' : 'نشر'}</button></div></article>)}</section></div>}
+      {tab === 'artworks' && <div className="admin-layout ap-admin-layout"><form className="product-form" onSubmit={saveArtwork}><h2>{editingArtwork ? 'تعديل الرسمة' : 'إضافة رسمة'}</h2><label>كود الرسمة<input value={artworkForm.id} onChange={e => setArtworkForm({ ...artworkForm, id: e.target.value })} placeholder="AP-001" required /></label><label>اسم الرسمة<input value={artworkForm.title} onChange={e => setArtworkForm({ ...artworkForm, title: e.target.value })} maxLength={100} required /></label><label>التصنيف<select value={artworkForm.categoryId} onChange={e => setArtworkForm({ ...artworkForm, categoryId: e.target.value })} required><option value="">اختاري تصنيفًا</option>{categories.map(c => <option key={c.id} value={c.id}>{c.title}</option>)}</select></label><label>الجملة المصرية<input value={artworkForm.phrase} onChange={e => setArtworkForm({ ...artworkForm, phrase: e.target.value })} maxLength={160} /></label><label>رفع صورة الرسمة (اختياري)<input type="file" accept="image/*" onChange={async e => { const file = e.target.files?.[0]; if (!file) return; setBusy(true); setError(''); try { const image = await compressImageForFirestore(file); setArtworkForm(current => ({ ...current, previewAssetRef: image })); setNotice('تم تجهيز الصورة. اضغطي حفظ المسودة لحفظها.'); } catch (err) { setError(err instanceof Error ? err.message : 'تعذر تجهيز الصورة.'); } finally { setBusy(false); e.target.value = ''; } }} /></label><label>رابط صورة بديل<input value={artworkForm.previewAssetRef.startsWith('data:image/') || artworkForm.previewAssetRef.startsWith('asset:') ? '' : artworkForm.previewAssetRef} onChange={e => setArtworkForm({ ...artworkForm, previewAssetRef: e.target.value })} maxLength={500} placeholder="https://..." /></label>{artworkForm.previewAssetRef && <CatalogImage source={artworkForm.previewAssetRef} alt="معاينة صورة الرسمة" fit="contain" style={{maxWidth:'100%',height:220,maxHeight:220}} />}<p className="backup-help">يتم ضغط الصورة وحفظ نسخة صغيرة داخل Firestore (حتى نحو 430KB). لا ترفعي ملفات الطباعة الأصلية أو صورًا عالية الدقة هنا.</p><div className="form-actions"><button className="primary-button" disabled={busy || categories.length === 0}>{editingArtwork ? 'حفظ التعديل' : 'حفظ كمسودة'}</button>{editingArtwork && <button type="button" className="secondary-button" onClick={() => { setArtworkForm(emptyArtwork); setEditingArtwork(false); }}>إلغاء</button>}</div></form><section className="admin-products"><div className="admin-list-heading"><h2>الرسومات ({filteredArtworks.length})</h2><span>من أصل 100</span></div><div className="ap-admin-filters"><input value={search} onChange={e => setSearch(e.target.value)} placeholder="بحث بالكود أو الاسم أو الجملة" /><select value={filterCategory} onChange={e => setFilterCategory(e.target.value)}><option value="all">كل التصنيفات</option>{categories.map(c => <option key={c.id} value={c.id}>{c.title}</option>)}</select></div><div className="admin-product-list">{filteredArtworks.map(item => <article className="admin-product-row" key={item.id}><div className="admin-thumb ap-thumb ap-artwork-thumbnail">{item.previewAssetRef ? <CatalogImage source={item.previewAssetRef} alt={`معاينة ${item.title}`} fit="cover" /> : <span aria-label="لا توجد صورة">✿</span>}</div><div className="admin-product-info"><strong>{item.id} · {item.title}</strong><span>{categories.find(c => c.id === item.categoryId)?.title || 'تصنيف غير معروف'}</span><small>{item.phrase || 'بدون جملة'}</small><small>{item.active ? 'منشورة' : 'مسودة مخفية'}</small></div><div className="admin-product-actions ap-publish-actions"><button className="secondary-button" disabled={busy} onClick={() => editArtwork(item)}>تعديل</button><button className={item.active ? "secondary-button ap-publish-button ap-publish-button-active" : "primary-button ap-publish-button"} disabled={busy || !item.phrase?.trim()} onClick={() => void setArtworkActive(item)}>{item.active ? 'إخفاء الرسمة من الموقع' : item.phrase?.trim() ? 'نشر الرسمة على الموقع' : 'أضيفي الجملة أولًا'}</button>{!item.phrase?.trim() && <small className="ap-publish-help" role="status">النشر متوقف لأن الجملة المصرية غير مكتوبة. اضغطي «تعديل»، أضيفي الجملة، ثم احفظي التعديل.</small>}</div></article>)}</div></section></div>}
+      {tab === 'covers' && <div className="admin-layout ap-admin-layout"><form className="product-form" onSubmit={saveCover}><h2>{editingCover ? 'تعديل الغلاف' : 'إضافة غلاف'}</h2><label>كود الغلاف<input value={coverForm.id} onChange={e => setCoverForm({ ...coverForm, id: e.target.value })} placeholder="AP-COVER-01" required /></label><label>اسم الغلاف<input value={coverForm.title} onChange={e => setCoverForm({ ...coverForm, title: e.target.value })} maxLength={50} required /></label><label>النص الفرعي<input value={coverForm.subtitle} onChange={e => setCoverForm({ ...coverForm, subtitle: e.target.value })} maxLength={80} /></label><label>رفع صورة الغلاف (اختياري)<input type="file" accept="image/*" onChange={async e => { const file = e.target.files?.[0]; if (!file) return; setBusy(true); setError(''); try { const image = await compressImageForFirestore(file); setCoverForm(current => ({ ...current, previewAssetRef: image })); setNotice('تم تجهيز الصورة. اضغطي حفظ المسودة لحفظها.'); } catch (err) { setError(err instanceof Error ? err.message : 'تعذر تجهيز الصورة.'); } finally { setBusy(false); e.target.value = ''; } }} /></label><label>رابط صورة بديل<input value={coverForm.previewAssetRef.startsWith('data:image/') || coverForm.previewAssetRef.startsWith('asset:') ? '' : coverForm.previewAssetRef} onChange={e => setCoverForm({ ...coverForm, previewAssetRef: e.target.value })} maxLength={500} /></label>{coverForm.previewAssetRef && <CatalogImage source={coverForm.previewAssetRef} alt="معاينة صورة الغلاف" fit="contain" style={{maxWidth:'100%',height:220,maxHeight:220}} />}<p className="backup-help">يتم ضغط الصورة وحفظ نسخة صغيرة داخل Firestore (حتى نحو 430KB). لا ترفعي ملفات الطباعة الأصلية.</p><div className="form-actions"><button className="primary-button" disabled={busy}>{editingCover ? 'حفظ التعديل' : 'حفظ كمسودة'}</button>{editingCover && <button type="button" className="secondary-button" onClick={() => { setCoverForm(emptyCover); setEditingCover(false); }}>إلغاء</button>}</div></form><section className="admin-products"><h2>الأغلفة ({covers.length}/5)</h2>{covers.map(item => <article className="admin-product-row" key={item.id}><div className="admin-thumb ap-thumb">{item.previewAssetRef ? <CatalogImage source={item.previewAssetRef} alt={item.title} fit="cover" /> : '✿'}</div><div className="admin-product-info"><strong>{item.id} · {item.title}</strong><small>{item.subtitle}</small><small>{item.active ? 'منشور' : 'مسودة مخفية'}</small></div><div className="admin-product-actions"><button className="secondary-button" onClick={() => editCover(item)}>تعديل</button><button className="secondary-button" disabled={busy} onClick={() => void setCoverActive(item)}>{item.active ? 'إخفاء' : 'نشر'}</button></div></article>)}</section></div>}
     </main>
     <footer className="site-footer ap-admin-footer"><strong>ANTI PRESSURE · فُكّي الضغط</strong><span>صلاحيات الإدارة تتحقق من Firebase Authentication custom claim.</span></footer>
   </div>;
