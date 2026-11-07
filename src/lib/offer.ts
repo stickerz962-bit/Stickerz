@@ -1,4 +1,4 @@
-export const INTRO_OFFER_DURATION_MS = 60 * 60 * 1000;
+export const INTRO_OFFER_DURATION_MS = 24 * 60 * 60 * 1000;
 
 export function getOfferEndAt(storage: Pick<Storage, 'getItem' | 'setItem'>, key: string, now: number): number {
   const saved = Number(storage.getItem(key));
