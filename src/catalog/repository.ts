@@ -25,17 +25,17 @@ function parseCategory(id: string, value: Record<string, unknown>): CatalogCateg
 }
 
 function parseArtwork(id: string, value: Record<string, unknown>): CatalogArtwork | null {
-  if (!isText(value.title) || !isText(value.categoryId) || !isText(value.previewAssetRef) ||
+  if (!isText(value.title) || !isText(value.categoryId) ||
       !isNumber(value.sortOrder) || !isNumber(value.version) || typeof value.active !== 'boolean') return null;
-  return { id, title: value.title, categoryId: value.categoryId, previewAssetRef: value.previewAssetRef,
+  return { id, title: value.title, categoryId: value.categoryId, previewAssetRef: isText(value.previewAssetRef) ? value.previewAssetRef : '',
     sortOrder: value.sortOrder, version: value.version, active: value.active,
     ...(isText(value.phrase) ? { phrase: value.phrase } : {}) };
 }
 
 function parseCover(id: string, value: Record<string, unknown>): CatalogCover | null {
-  if (!isText(value.title) || !isText(value.previewAssetRef) || !isNumber(value.sortOrder) ||
+  if (!isText(value.title) || !isNumber(value.sortOrder) ||
       !isNumber(value.version) || typeof value.active !== 'boolean') return null;
-  return { id, title: value.title, previewAssetRef: value.previewAssetRef, sortOrder: value.sortOrder,
+  return { id, title: value.title, previewAssetRef: isText(value.previewAssetRef) ? value.previewAssetRef : '', sortOrder: value.sortOrder,
     version: value.version, active: value.active,
     ...(isText(value.subtitle) ? { subtitle: value.subtitle } : {}) };
 }
