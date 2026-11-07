@@ -9,8 +9,8 @@ type Artwork = { id: string; title: string; categoryId: string; phrase: string; 
 type Cover = { id: string; title: string; subtitle: string; previewAssetRef: string; sortOrder: number; version: number; active: boolean };
 type Order = { id: string; trackingToken?: string; publicReference?: string; customer?: { name?: string; phone?: string }; shipping?: { governorateName?: string; areaName?: string; address?: string; deliveryNotes?: string }; book?: { artworks?: Array<{ artworkId?: string; titleSnapshot?: string; printOrder?: number }>; cover?: { titleSnapshot?: string }; personalizedName?: string }; pricing?: { bookPrice?: number; standardBookPrice?: number; shippingFee?: number | null; totalAmount?: number | null; offerApplied?: boolean }; paymentMethod?: string; paymentStatus?: string; fulfillmentStatus?: string; partnerCode?: string | null; ambassadorReferralCode?: string | null; deliveredAt?: { toDate?: () => Date }; createdAt?: { toDate?: () => Date } };
 type Tab = 'orders' | 'categories' | 'artworks' | 'covers' | 'shipping';
-const orderStatuses = ['new','confirmed','pdf_generating','ready_for_printing','printing','quality_check','ready_for_shipping','shipped','delivered','cancelled'] as const;
-const orderStatusLabels: Record<string,string> = { new:'طلب جديد', confirmed:'تم التأكيد', pdf_generating:'تجهيز PDF', ready_for_printing:'جاهز للطباعة', printing:'قيد الطباعة', quality_check:'مراجعة الجودة', ready_for_shipping:'جاهز للشحن', shipped:'تم الشحن', delivered:'تم التسليم', cancelled:'ملغي' };
+const orderStatuses = ['new','confirmed','artwork_codes_review','ready_for_printing','printing','quality_check','ready_for_shipping','shipped','delivered','cancelled'] as const;
+const orderStatusLabels: Record<string,string> = { new:'طلب جديد', confirmed:'تم التأكيد', artwork_codes_review:'مراجعة أكواد الرسومات', pdf_generating:'مراجعة أكواد الرسومات', ready_for_printing:'جاهز للطباعة', printing:'قيد الطباعة', quality_check:'مراجعة الجودة', ready_for_shipping:'جاهز للشحن', shipped:'تم الشحن', delivered:'تم التسليم', cancelled:'ملغي' };
 const paymentStatusLabels: Record<string,string> = { unpaid:'غير مدفوع (الدفع عند الاستلام)', pending_review:'InstaPay — مراجعة مطلوبة', paid:'مدفوع', rejected:'مرفوض', refunded:'مسترد' };
 
 const starterCategories = [
@@ -313,8 +313,8 @@ export default function AdminApp() {
     <div className="announcement">ANTI PRESSURE · فُكّي الضغط — لوحة الإدارة الآمنة</div>
     <header className="site-header"><a className="brand ap-admin-brand" href="./"><span className="brand-mark">✿</span><span><strong>ANTI PRESSURE</strong><small>فُكّي الضغط</small></span></a><div className="ap-admin-user"><span>{user.email}</span><a className="secondary-button" href="./admin-ambassadors.html">إدارة السفيرات</a><button className="secondary-button" onClick={() => void logout()}>خروج</button></div></header>
     <main className="admin-page ap-admin-page">
-      <div className="admin-title"><div><span className="eyebrow">إدارة المحتوى المنشور</span><h1>كتالوج فُكّي الضغط</h1><p>إدارة التصنيفات والرسومات والأغلفة. العناصر الجديدة تُحفظ مخفية حتى اعتمادها.</p></div></div>
-      <div className="preview-warning"><strong>حدود آمنة:</strong> هذه اللوحة تدير بيانات الكتالوج فقط. لا يوجد رفع ملفات في هذه المرحلة؛ لا تضعي روابط الرسومات الأصلية أو ملفات الطباعة. استخدمي مرجع معاينة عامًّا معتمدًا فقط.</div>
+      <div className="admin-title"><div><span className="eyebrow">إدارة المحتوى المنشور</span><h1>كتالوج فُكّي الضغط</h1><p>إدارة التصنيفات والرسومات والأغلفة المعتمدة. العناصر الجديدة تُحفظ كمسودة حتى نشرها.</p></div></div>
+      <div className="preview-warning"><strong>إدارة المكتبة:</strong> ارفعي معاينة واضحة لكل رسمة وغلاف، واحتفظي بكود فريد لكل عنصر. الأكواد الظاهرة في الطلبات هي مرجع تجهيز الطباعة.</div>
       <div className="ap-admin-stats"><div><b>{categories.length}</b><span>تصنيف</span></div><div><b>{artworks.length}/100</b><span>رسمة مسجلة</span></div><div><b>{artworks.filter(x => x.active).length}</b><span>رسمة منشورة</span></div><div><b>{covers.filter(x => x.active).length}/5</b><span>غلاف منشور</span></div></div>
       <div className="ap-admin-tabs">{(['orders','categories','artworks','covers','shipping'] as Tab[]).map(item => <button key={item} className={tab === item ? 'active' : ''} onClick={() => setTab(item)}>{item === 'orders' ? 'الطلبات (' + orders.length + ')' : item === 'categories' ? 'التصنيفات' : item === 'artworks' ? 'الرسومات' : item === 'covers' ? 'الأغلفة' : 'الشحن'}</button>)}</div>
       {notice && <p className="form-success" role="status">{notice}</p>}{error && <p className="form-error" role="alert">{error}</p>}
@@ -346,7 +346,7 @@ export default function AdminApp() {
           <div className="admin-product-actions ap-order-status">
             {order.paymentStatus !== 'paid' && order.paymentStatus !== 'refunded' && <button className="secondary-button" disabled={busy} onClick={() => void updateOrderPaymentStatus(order,'paid')}>تأكيد استلام المبلغ</button>}
             {order.paymentStatus === 'paid' && (order.fulfillmentStatus === 'delivered' || !!order.deliveredAt) && <button className="secondary-button" disabled={busy} onClick={() => void updateOrderPaymentStatus(order,'refunded')}>تسجيل رد قيمة الطلب</button>}
-            <label>حالة الطلب<select value={order.fulfillmentStatus || 'new'} disabled={busy} onChange={e => void updateOrderStatus(order,e.target.value)}>{orderStatuses.map(status => <option key={status} value={status}>{orderStatusLabels[status]}</option>)}</select></label>
+            <label>حالة الطلب<select value={order.fulfillmentStatus === 'pdf_generating' ? 'artwork_codes_review' : order.fulfillmentStatus || 'new'} disabled={busy} onChange={e => void updateOrderStatus(order,e.target.value)}>{orderStatuses.map(status => <option key={status} value={status}>{orderStatusLabels[status]}</option>)}</select></label>
           </div>
         </article>)}
       </section></>}
