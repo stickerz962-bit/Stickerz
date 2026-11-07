@@ -19,22 +19,6 @@ const steps = [
   { number: '06', icon: '♡', title: 'اختاري الدفع', text: 'الدفع عند الاستلام أو InstaPay بعد مراجعة التحويل.' },
 ];
 
-const categories = ['فوضى المسؤوليات', 'تقلبات المزاج', 'الناس والعلاقات', 'قهوة وأكل', 'حب وعلاقات', 'شغل وفلوس', 'البيت والعيلة', 'اهتمام بنفسي', 'تفكير زيادة', 'حكمة وضحك'];
-const artworks = [
-  { title: 'قهوة وراحة', mark: '☕', tone: 'peach' },
-  { title: 'يوم طويل', mark: '☼', tone: 'lilac' },
-  { title: 'مساحة هادية', mark: '✿', tone: 'mint' },
-  { title: 'دماغ مشغولة', mark: '☁', tone: 'yellow' },
-  { title: 'على رواق', mark: '♡', tone: 'pink' },
-  { title: 'أنا أهو', mark: '✧', tone: 'blue' },
-];
-const covers = [
-  { title: 'الهدوء', subtitle: 'لحظة لنفسي', tone: 'cover-calm', mark: '☾' },
-  { title: 'فكّيها', subtitle: 'الدنيا مش مستاهلة', tone: 'cover-fun', mark: '✿' },
-  { title: 'على رواق', subtitle: 'براحة وبمزاجي', tone: 'cover-flowers', mark: '❀' },
-  { title: 'مش ناقصة', subtitle: 'بس مكملة', tone: 'cover-bold', mark: '✦' },
-  { title: 'مساحة لنفسي', subtitle: 'وقت ليا أنا', tone: 'cover-space', mark: '☾' },
-];
 const faqs = [
   { q: 'الكتاب فيه كام رسمة؟', a: 'الكتاب بيتكوّن من 30 رسمة مختلفة، وإنتِ بتختاريهم بنفسك من مكتبة الرسومات.' },
   { q: 'ترتيب الرسومات بيتحدد إزاي؟', a: 'ترتيب صفحات الكتاب بيتحدد تلقائيًا حسب ترتيب اختيارك للرسومات، ومفيش ترتيب يدوي في المعاينة.' },
@@ -52,7 +36,7 @@ function Brand({ footer = false }: { footer?: boolean }) {
 
 
 const trackingSteps = [
-  ['new', 'تم استلام الطلب'], ['confirmed', 'تم تأكيد الطلب'], ['pdf_generating', 'تجهيز ملفات الكتاب'],
+  ['new', 'تم استلام الطلب'], ['confirmed', 'تم تأكيد الطلب'], ['artwork_codes_review', 'مراجعة أكواد الرسومات'],
   ['ready_for_printing', 'جاهز للطباعة'], ['printing', 'قيد الطباعة'], ['quality_check', 'مراجعة الجودة'],
   ['ready_for_shipping', 'جاهز للشحن'], ['shipped', 'خرج للشحن'], ['delivered', 'تم التسليم'],
 ];
@@ -80,7 +64,8 @@ function OrderTracking({ token }: { token: string }) {
     if (context) setAmbassadorDashboardUrl(buildAmbassadorDashboardUrl(context.code, context.accessToken));
     if (readAmbassadorReferralTrackingToken() === token) clearAmbassadorReferral();
   }, [record, token]);
-  const status = record?.fulfillmentStatus || 'new';
+  const storedStatus = record?.fulfillmentStatus || 'new';
+  const status = storedStatus === 'pdf_generating' ? 'artwork_codes_review' : storedStatus;
   const currentIndex = trackingSteps.findIndex(item => item[0] === status);
   return <div className="anti-shell ap-tracking-page" dir="rtl"><header className="site-header"><a className="brand" href="./"><span className="brand-spark">✳</span><span className="brand-word">ANTI<br/>PRESSURE</span><span className="brand-arabic">فُكّي الضغط</span></a><a className="header-cta" href="./">الرئيسية</a></header><main className="ap-tracking-card"><span className="eyebrow">ANTI PRESSURE · متابعة الطلب</span><h1>طلبك فين دلوقتي؟</h1>{loading ? <p>جارٍ تحميل حالة الطلب...</p> : failed ? <><p>رابط المتابعة غير صحيح أو لم يعد متاحًا.</p><a className="primary-button" href="./">العودة للموقع</a></> : <><strong className="ap-tracking-reference">{record?.publicReference}</strong><p className="ap-tracking-current">{status === 'cancelled' ? 'تم إلغاء الطلب' : trackingLabels[status] || 'جارٍ تحديث الحالة'}</p><div className="ap-tracking-timeline">{trackingSteps.map(([key,label],index) => <div key={key} className={'ap-tracking-step ' + (status === 'cancelled' ? '' : index <= currentIndex ? 'done' : '')}><i>{index < currentIndex ? '✓' : index + 1}</i><span>{label}</span></div>)}</div>{status === 'cancelled' && <p className="ap-tracking-cancelled">تم إلغاء هذا الطلب.</p>}{status === 'delivered' && ambassadorDashboardUrl && <section className="ap-ambassador-unlock"><span>♡</span><h2>كتابك وصل.. وبقت ليكي مساحة حلوة!</h2><p>اتفعّلت مساحتك كسفيرة لفُكّي الضغط. شاركي رابطك واكسبي 15 جنيهًا عن كل طلب يتسلّم من خلالك.</p><a className="primary-button" href={ambassadorDashboardUrl}>افتحي مساحتي الحلوة</a><small>احتفظي برابط المساحة الخاصة، وشاركي رابط الدعوة من داخلها فقط.</small></section>}<small>آخر تحديث: {record?.updatedAt?.toDate ? record.updatedAt.toDate().toLocaleString('ar-EG') : 'قيد التحديث'}</small><button className="secondary-button" onClick={() => void refresh()}>تحديث الحالة</button><p className="ap-tracking-privacy">صفحة المتابعة تعرض حالة الطلب فقط، ولا تعرض بياناتك الشخصية أو عنوان الشحن.</p></>}</main></div>;
 }
@@ -122,7 +107,7 @@ export default function App() {
 
   const [offerRemainingMs, setOfferRemainingMs] = useState<number | null>(null);
   useEffect(() => {
-    const storageKey = 'anti-pressure-intro-offer-end-v1';
+    const storageKey = 'anti-pressure-intro-offer-end-v2';
     const endAt = getOfferEndAt(localStorage, storageKey, Date.now());
     const update = () => setOfferRemainingMs(getOfferRemainingMs(endAt, Date.now()));
     update();
@@ -130,24 +115,13 @@ export default function App() {
     return () => window.clearInterval(timer);
   }, []);
   const offerActive = offerRemainingMs !== null && offerRemainingMs > 0;
-  const [catalogData, setCatalogData] = useState<CatalogData>({
-    categories: categories.map((title, index) => ({ id: String(index + 1), title, slug: String(index + 1), sortOrder: index, active: true })),
-    artworks: artworks.map((item, index) => ({ id: 'AP-' + String(index + 1).padStart(3, '0'), title: item.title, categoryId: String(index + 1), previewAssetRef: '', sortOrder: index, version: 1, active: true })),
-    covers: covers.map((item, index) => ({ id: 'cover-' + String(index + 1), title: item.title, subtitle: item.subtitle, previewAssetRef: '', sortOrder: index, version: 1, active: true })),
-  });
-  const [catalogMode, setCatalogMode] = useState<'demo' | 'firestore'>('demo');
+  const [catalogData, setCatalogData] = useState<CatalogData>({ categories: [], artworks: [], covers: [] });
   const [catalogNotice, setCatalogNotice] = useState('');
   useEffect(() => {
     let cancelled = false;
-    const demoData: CatalogData = {
-      categories: categories.map((title, index) => ({ id: String(index + 1), title, slug: String(index + 1), sortOrder: index, active: true })),
-      artworks: artworks.map((item, index) => ({ id: 'AP-' + String(index + 1).padStart(3, '0'), title: item.title, categoryId: String(index + 1), previewAssetRef: '', sortOrder: index, version: 1, active: true })),
-      covers: covers.map((item, index) => ({ id: 'cover-' + String(index + 1), title: item.title, subtitle: item.subtitle, previewAssetRef: '', sortOrder: index, version: 1, active: true })),
-    };
-    loadCatalog(demoData).then(result => {
+    loadCatalog().then(result => {
       if (cancelled) return;
       setCatalogData(result.data);
-      setCatalogMode(result.source);
       setCatalogNotice(result.warning || '');
     }).catch(() => setCatalogNotice('تعذر تحميل المكتبة حاليًا.'));
     return () => { cancelled = true; };
@@ -198,23 +172,24 @@ export default function App() {
       </section>
 
       <section className="gallery-section section-wrap" id="gallery">
-        <div className="section-heading heading-row"><div><span className="eyebrow">كل رسمة ليها مود</span><h2>اختاري اللي شبهك</h2><p>مكتبة متنوعة فيها تفاصيل من يومنا وضحكنا وحاجات بنفكر فيها.</p></div><span className="side-note">10 تصنيفات · 100 رسمة عند اكتمال المكتبة</span></div>
+        <div className="section-heading heading-row"><div><span className="eyebrow">كل رسمة ليها مود</span><h2>اختاري اللي شبهك</h2><p>مكتبة متنوعة فيها تفاصيل من يومنا وضحكنا وحاجات بنفكر فيها.</p></div><span className="side-note">{catalogData.categories.length} تصنيفات · {catalogData.artworks.length} رسمة متاحة</span></div>
         {catalogNotice && <p className="gallery-disclaimer" role="status">{catalogNotice}</p>}
         <div className="category-chips">{catalogData.categories.map((category, index) => <span key={category.id}>{category.title}<i>{String(index + 1).padStart(2, '0')}</i></span>)}</div>
-        <div className="artwork-grid">{catalogData.artworks.slice(0, 6).map((art, index) => <article className="artwork-card" key={art.id}><div className={'artwork-preview ' + ['peach','lilac','mint','yellow','pink','blue'][index % 6]}><span className="artwork-sun">✧</span><span className="artwork-symbol">{['☕','☼','✿','☁','♡','✧'][index % 6]}</span><span className="artwork-line">﹏﹏﹏</span><small>فُكّي الضغط</small></div><div className="artwork-caption"><b>{art.title}</b><span>{catalogMode === 'demo' ? 'نموذج توضيحي' : art.id}</span></div></article>)}</div>
-        <p className="gallery-disclaimer">دي معاينات توضيحية لروح المكتبة؛ الرسومات النهائية هتتعرض بعد تجهيزها واعتمادها.</p>
+        <div className="artwork-grid">{catalogData.artworks.slice(0, 6).map(art => <article className="artwork-card" key={art.id}><div className="artwork-preview">{art.previewAssetRef ? <img src={art.previewAssetRef} alt={art.title} loading="lazy" /> : <span>معاينة غير متاحة</span>}</div><div className="artwork-caption"><b>{art.title}</b><span>{art.id}</span></div></article>)}</div>
+        {!catalogData.artworks.length && <p className="gallery-disclaimer">سيتم عرض الرسومات المعتمدة هنا فور إتاحتها.</p>}
       </section>
 
       <section className="covers-section" id="covers">
         <div className="section-wrap">
           <div className="section-heading"><span className="eyebrow">الغلاف اللي على مزاجك</span><h2>اختاري حكاية الغلاف</h2><p>اختاري التصميم الأقرب ليكي، واسمك هيكون جزء منه.</p></div>
-          <div className="covers-grid">{catalogData.covers.map((cover, index) => <article className="cover-option" key={cover.id}><div className={'cover-art ' + ['cover-calm','cover-fun','cover-flowers','cover-bold','cover-space'][index % 5]}><span className="cover-decoration">{['☾','✿','❀','✦','☾'][index % 5]}</span><b>{cover.title}</b><small>{cover.subtitle}</small><span className="cover-person">☺</span></div><strong>{cover.title}</strong></article>)}</div>
+          <div className="covers-grid">{catalogData.covers.map(cover => <article className="cover-option" key={cover.id}><div className="cover-art">{cover.previewAssetRef ? <img src={cover.previewAssetRef} alt={cover.title} loading="lazy" /> : <span>معاينة غير متاحة</span>}</div><strong>{cover.title}</strong></article>)}</div>
+          {!catalogData.covers.length && <p className="gallery-disclaimer">سيتم عرض الأغلفة المعتمدة هنا فور إتاحتها.</p>}
         </div>
       </section>
 
       <section className="price-section section-wrap" id="about">
         <div className="price-copy"><span className="eyebrow">تفصيلة صغيرة تفرق</span><h2>مساحتك... وكتابك... ومزاجك</h2><p>كتاب تلوين متفصّل على اختياراتك، بغلاف مخصص و30 رسمة مختلفة، علشان تاخدي وقت لنفسك وتلوّني على رواق.</p><a className="primary-button" href="#design">ابدئي تصميم كتابك <span>←</span></a></div>
-        <div className="price-card"><span className="price-label">سعر الكتاب</span><div className="offer-price-row"><div className="price-number">{offerActive ? "190" : "240"} <small>جنيه</small></div>{offerActive && <span className="old-price">240 جنيه</span>}</div><span className="offer-status">{offerActive ? "عرض ترحيبي لمدة ساعة" : "انتهى العرض — السعر الأساسي"}</span>{offerActive && <div className="offer-countdown" role="timer" aria-live="off"><span>الوقت المتبقي للعرض</span><strong>{formatOfferCountdown(offerRemainingMs ?? 0)}</strong></div>}<span className="price-includes">30 رسمة + غلاف باسمك + تجليد سلك</span><div className="price-divider"></div><p>الشحن بيتحسب حسب منطقتك وبيظهر قبل تأكيد الطلب.</p><small className="price-footnote">طرق الدفع: عند الاستلام أو InstaPay بعد مراجعة التحويل.</small></div>
+        <div className="price-card"><span className="price-label">سعر الكتاب</span><div className="offer-price-row"><div className="price-number">{offerActive ? "190" : "240"} <small>جنيه</small></div>{offerActive && <span className="old-price">240 جنيه</span>}</div><span className="offer-status">{offerActive ? "عرض ترحيبي لمدة 24 ساعة" : "انتهى العرض — السعر الأساسي"}</span>{offerActive && <div className="offer-countdown" role="timer" aria-live="off"><span>الوقت المتبقي للعرض</span><strong>{formatOfferCountdown(offerRemainingMs ?? 0)}</strong></div>}<span className="price-includes">30 رسمة + غلاف باسمك + تجليد سلك</span><div className="price-divider"></div><p>الشحن بيتحسب حسب منطقتك وبيظهر قبل تأكيد الطلب.</p><small className="price-footnote">طرق الدفع: عند الاستلام أو InstaPay بعد مراجعة التحويل.</small></div>
       </section>
 
       <section className="customer-quick-access section-wrap" id="customer-area" aria-label="طلباتي وبرنامج السفيرات"><div className="section-heading"><span className="eyebrow">مساحتك الخاصة ♡</span><h2>طلباتي وسفيراتي</h2><p>روابطك محفوظة على نفس الجهاز علشان ترجعي لها بسهولة.</p></div><div className="customer-quick-grid">{savedTrackingTokens.length ? savedTrackingTokens.map((token,index) => <a className="secondary-button" key={token} href={'?track=' + token}>متابعة الطلب {savedTrackingTokens.length > 1 ? (index + 1) : ''} ←</a>) : <p>لما تعملي طلب، رابط متابعته هيظهر هنا تلقائيًا.</p>}{savedAmbassadorUrl ? <a className="primary-button" href={savedAmbassadorUrl}>مساحة سفيراتي ♡</a> : <p>رابط مساحة السفيرات هيظهر هنا بعد إنشاء طلبك، ويُتاح البرنامج بعد استيفاء شروط التأهيل وتفعيل المكافآت.</p>}</div></section>
