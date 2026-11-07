@@ -53,15 +53,12 @@ async function readActive<T>(
 }
 
 /**
- * Demo catalog is used only when demo mode is explicitly selected or Firebase is not configured.
- * Once connected to Firestore, missing real catalog content must never be replaced by mock artwork.
+ * The live storefront must never substitute mock artwork or covers for the approved catalog.
+ * Only published records with real preview assets are returned to customers.
  */
-export async function loadCatalog(demoData: CatalogData): Promise<CatalogResult> {
-  if (import.meta.env.VITE_CATALOG_MODE === 'demo') {
-    return { data: demoData, source: 'demo' };
-  }
+export async function loadCatalog(): Promise<CatalogResult> {
   if (!firebaseConfigured || !firestore) {
-    return { data: demoData, source: 'demo', warning: 'Firebase settings are missing; showing demo catalog.' };
+    return { data: emptyCatalog, source: 'firestore', warning: 'تعذر الاتصال بمكتبة الرسومات المعتمدة. حاولي مرة أخرى لاحقًا.' };
   }
 
   try {
@@ -70,12 +67,16 @@ export async function loadCatalog(demoData: CatalogData): Promise<CatalogResult>
       readActive('artworks', parseArtwork),
       readActive('covers', parseCover),
     ]);
-    // Keep the prototype usable while the real artwork library is still empty. Never mix demo art into a partially populated live catalog.
-    if (artworks.length === 0) {
-      return { data: demoData, source: 'demo', warning: 'المكتبة الأصلية لسه بتتجهز؛ بنعرض الرسومات التجريبية مؤقتًا.' };
-    }
-    return { data: { categories, artworks, covers: covers.length ? covers : demoData.covers }, source: 'firestore', ...(covers.length ? {} : { warning: 'الأغلفة الأصلية لسه بتتجهز؛ بنعرض نماذج الأغلفة مؤقتًا.' }) };
+    return {
+      data: {
+        categories,
+        artworks: artworks.filter(item => isText(item.previewAssetRef)),
+        covers: covers.filter(item => isText(item.previewAssetRef)),
+      },
+      source: 'firestore',
+      ...(artworks.length === 0 ? { warning: 'لا توجد رسومات منشورة في المكتبة حتى الآن.' } : {}),
+    };
   } catch {
-    return { data: emptyCatalog, source: 'firestore', warning: 'The live catalog could not be loaded.' };
+    return { data: emptyCatalog, source: 'firestore', warning: 'تعذر تحميل مكتبة الرسومات المعتمدة.' };
   }
 }
