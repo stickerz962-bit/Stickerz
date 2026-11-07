@@ -7,7 +7,7 @@ import {
   assertFails,
   assertSucceeds,
 } from '@firebase/rules-unit-testing';
-import { collection, doc, getDoc, getDocs, query, where, setDoc, updateDoc, deleteDoc, serverTimestamp } from 'firebase/firestore';
+import { collection, doc, getDoc, getDocs, query, where, orderBy, setDoc, updateDoc, deleteDoc, serverTimestamp } from 'firebase/firestore';
 
 const projectId = 'demo-anti-pressure';
 let testEnv: RulesTestEnvironment;
@@ -61,10 +61,10 @@ describe('Firestore security rules — public catalog reads', () => {
     await assertFails(getDoc(doc(db, 'covers', 'cover-draft')));
   });
 
-  it('allows anonymous reads of published artwork only when its category is active', async () => {
+  it('allows anonymous reads of explicitly published artwork; the storefront filters inactive categories', async () => {
     const db = testEnv.unauthenticatedContext().firestore();
     await assertSucceeds(getDoc(doc(db, 'artworks', 'AP-001')));
-    await assertFails(getDoc(doc(db, 'artworks', 'AP-002')));
+    await assertSucceeds(getDoc(doc(db, 'artworks', 'AP-002')));
     await assertFails(getDoc(doc(db, 'artworks', 'AP-003')));
     await assertFails(getDoc(doc(db, 'artworks', 'missing-artwork')));
   });
@@ -73,6 +73,8 @@ describe('Firestore security rules — public catalog reads', () => {
     const db = testEnv.unauthenticatedContext().firestore();
     await assertSucceeds(getDocs(query(collection(db, 'categories'), where('active', '==', true))));
     await assertSucceeds(getDocs(query(collection(db, 'artworks'), where('active', '==', true), where('categoryId', '==', 'published'))));
+    // This is the exact collection-wide query used by loadCatalog().
+    await assertSucceeds(getDocs(query(collection(db, 'artworks'), where('active', '==', true), orderBy('sortOrder', 'asc'))));
     await assertSucceeds(getDocs(query(collection(db, 'covers'), where('active', '==', true))));
   });
 
