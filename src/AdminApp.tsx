@@ -241,7 +241,8 @@ export default function AdminApp() {
   };
 
   const migrateLegacyCatalogAssets = async () => {
-    if (!firestore) return;
+    const db = firestore;
+    if (!db) return;
     const tasks = [
       ...artworks.filter(item => item.previewAssetRef?.startsWith('data:image/')).map(item => ({ type: 'artwork' as const, collectionName: 'artworks', item })),
       ...covers.filter(item => item.previewAssetRef?.startsWith('data:image/')).map(item => ({ type: 'cover' as const, collectionName: 'covers', item })),
@@ -259,12 +260,12 @@ export default function AdminApp() {
         const group = tasks.slice(index, index + 4);
         const results = await Promise.all(group.map(async task => {
           const assetId = task.type + '_' + task.item.id + '_legacy_v1';
-          const assetRef = doc(firestore, 'catalogAssets', assetId);
+          const assetRef = doc(db, 'catalogAssets', assetId);
           try {
             await setDoc(assetRef, { assetType: task.type, itemId: task.item.id, dataUrl: task.item.previewAssetRef, updatedAt: serverTimestamp() });
             const verified = await getDoc(assetRef);
             if (!verified.exists() || verified.data().dataUrl !== task.item.previewAssetRef) throw new Error('Asset verification failed');
-            await updateDoc(doc(firestore, task.collectionName, task.item.id), { previewAssetRef: 'asset:' + task.type + ':' + assetId, updatedAt: serverTimestamp() });
+            await updateDoc(doc(db, task.collectionName, task.item.id), { previewAssetRef: 'asset:' + task.type + ':' + assetId, updatedAt: serverTimestamp() });
             return true;
           } catch { return false; }
         }));
