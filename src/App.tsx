@@ -97,7 +97,13 @@ export default function App() {
       if (Array.isArray(value)) setSavedTrackingTokens([...new Set(value.filter((token: unknown) => typeof token === 'string' && /^[a-f0-9]{64}$/.test(token)))].slice(0, 20));
     } catch { setSavedTrackingTokens([]); }
     const context = readAmbassadorContext();
-    if (context) setSavedAmbassadorUrl(buildAmbassadorDashboardUrl(context.code, context.accessToken));
+    if (context) {
+      setSavedAmbassadorUrl(buildAmbassadorDashboardUrl(context.code, context.accessToken));
+      if (/^[a-f0-9]{64}$/.test(context.trackingToken)) {
+        setSavedTrackingTokens(current => [...new Set([context.trackingToken, ...current])].slice(0, 20));
+        try { localStorage.setItem(CUSTOMER_TRACKING_KEY, JSON.stringify([...new Set([context.trackingToken, ...JSON.parse(localStorage.getItem(CUSTOMER_TRACKING_KEY) || '[]')])].slice(0, 20))); } catch { /* keep in-memory fallback */ }
+      }
+    }
   }, []);
   const ambassadorMatch = /^#ambassador\/(AP[A-F0-9]{20})\/([a-f0-9]{64})$/.exec(routeHash);
   useEffect(() => {
