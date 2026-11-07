@@ -26,14 +26,14 @@ const marks = ['✿','☕','♡','☼','☁','✧','❀','⌂','♫','☆'];
 const tones = ['peach','lilac','mint','yellow','pink','blue'];
 const catalog = categories.flatMap((category, ci) => titles[ci].map((title, ti) => ({
   id: 'AP-' + String(ci * 10 + ti + 1).padStart(3, '0'),
-  category, title, mark: marks[(ci + ti) % marks.length], tone: tones[(ci * 2 + ti) % tones.length],
+  category, title, mark: marks[(ci + ti) % marks.length], tone: tones[(ci * 2 + ti) % tones.length], imageSrc: '',
 })));
 const covers = [
-  { id: 'calm', title: 'الهدوء', subtitle: 'لحظة لنفسي', tone: 'cover-calm', mark: '☾' },
-  { id: 'fun', title: 'فكّيها', subtitle: 'الدنيا مش مستاهلة', tone: 'cover-fun', mark: '✿' },
-  { id: 'flowers', title: 'على رواق', subtitle: 'براحة وبمزاجي', tone: 'cover-flowers', mark: '❀' },
-  { id: 'bold', title: 'مش ناقصة', subtitle: 'بس مكملة', tone: 'cover-bold', mark: '✦' },
-  { id: 'space', title: 'مساحة لنفسي', subtitle: 'وقت ليا أنا', tone: 'cover-space', mark: '☾' },
+  { id: 'calm', title: 'الهدوء', subtitle: 'لحظة لنفسي', tone: 'cover-calm', mark: '☾' , imageSrc: '' },
+  { id: 'fun', title: 'فكّيها', subtitle: 'الدنيا مش مستاهلة', tone: 'cover-fun', mark: '✿' , imageSrc: '' },
+  { id: 'flowers', title: 'على رواق', subtitle: 'براحة وبمزاجي', tone: 'cover-flowers', mark: '❀' , imageSrc: '' },
+  { id: 'bold', title: 'مش ناقصة', subtitle: 'بس مكملة', tone: 'cover-bold', mark: '✦' , imageSrc: '' },
+  { id: 'space', title: 'مساحة لنفسي', subtitle: 'وقت ليا أنا', tone: 'cover-space', mark: '☾' , imageSrc: '' },
 ];
 const STORAGE_KEY = 'anti-pressure:selected-artworks:v1';
 const DRAFT_KEY = 'anti-pressure:cover-draft:v1';
@@ -66,6 +66,18 @@ export default function Builder() {
   const [trackingUrl, setTrackingUrl] = useState('');
   const [draft, setDraft] = useState<Draft>({ coverId: 'calm', name: '' });
   const [offerRemainingMs, setOfferRemainingMs] = useState<number | null>(null);
+  const [shippingFee, setShippingFee] = useState<number | null>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    if (!firestore) return;
+    getDoc(doc(firestore, 'settings', 'public')).then(snapshot => {
+      if (cancelled) return;
+      const value = snapshot.exists() ? snapshot.data().shippingFee : null;
+      setShippingFee(typeof value === 'number' && Number.isInteger(value) && value >= 0 ? value : null);
+    }).catch(() => { if (!cancelled) setShippingFee(null); });
+    return () => { cancelled = true; };
+  }, []);
 
   // Reuse the homepage's original deadline; entering or changing builder stages never restarts the offer.
   useEffect(() => {
@@ -94,10 +106,10 @@ export default function Builder() {
         setCategoryItems(result.data.categories.map(item => item.title));
         setCatalogItems(result.data.artworks.map((item, index) => ({
           id: item.id, title: item.title, category: categoryTitles.get(item.categoryId) || 'تصنيفات أخرى',
-          mark: marks[index % marks.length], tone: tones[index % tones.length],
+          mark: marks[index % marks.length], tone: tones[index % tones.length], imageSrc: item.previewAssetRef || '',
         })));
         setCoverItems(result.data.covers.map((item, index) => ({
-          id: item.id, title: item.title, subtitle: item.subtitle || '',
+          id: item.id, title: item.title, subtitle: item.subtitle || '', imageSrc: item.previewAssetRef || '',
           tone: ['cover-calm','cover-fun','cover-flowers','cover-bold','cover-space'][index % 5],
           mark: ['☾','✿','❀','✦','☾'][index % 5],
         })));
@@ -157,6 +169,7 @@ export default function Builder() {
     event.preventDefault();
     setOrderError(''); setOrderSuccess('');
     if (!firestore) { setOrderError('خدمة الطلبات غير متاحة حاليًا. جرّبي مرة أخرى لاحقًا.'); return; }
+    if (shippingFee === null) { setOrderError('سعر الشحن لم يتم ضبطه بعد. تواصلي معنا أو حاولي لاحقًا.'); return; }
     if (selected.length !== 30 || new Set(selected).size !== 30 || !draft.name.trim() || !activeCover) {
       setOrderError('راجعي اختيارات الكتاب: لازم 30 رسمة مختلفة وغلاف واسم.'); return;
     }
@@ -170,6 +183,7 @@ export default function Builder() {
     setOrderBusy(true);
     try {
       const price = offerRemainingMs !== null && offerRemainingMs > 0 ? 190 : 240;
+      const totalAmount = price + shippingFee;
       const artworkSnapshot = selected.map((artworkId, index) => {
         const item = catalogItems.find(entry => entry.id === artworkId);
         return { artworkId, titleSnapshot: item?.title || artworkId, printOrder: index + 1 };
@@ -198,9 +212,9 @@ export default function Builder() {
       batch.set(orderRef, {
         publicReference,
         customer: { name: checkout.name.trim(), phone },
-        shipping: { governorateName: checkout.governorate.trim(), areaName: checkout.area.trim(), address: checkout.address.trim(), deliveryNotes: checkout.notes.trim(), fee: null },
+        shipping: { governorateName: checkout.governorate.trim(), areaName: checkout.area.trim(), address: checkout.address.trim(), deliveryNotes: checkout.notes.trim(), fee: shippingFee },
         book: { artworks: artworkSnapshot, cover: { coverId: activeCover.id, titleSnapshot: activeCover.title }, personalizedName: draft.name.trim() },
-        pricing: { currency: 'EGP', standardBookPrice: 240, bookPrice: price, shippingFee: null, totalAmount: null, offerApplied: price === 190 },
+        pricing: { currency: 'EGP', standardBookPrice: 240, bookPrice: price, shippingFee, totalAmount, offerApplied: price === 190 },
         paymentMethod: checkout.paymentMethod,
         paymentStatus: checkout.paymentMethod === 'instapay' ? 'pending_review' : 'unpaid',
         fulfillmentStatus: 'new',
@@ -266,7 +280,7 @@ export default function Builder() {
             const locked = !isSelected && selected.length === 30;
             return <article className={'builder-art-card ' + (isSelected ? 'selected' : '')} key={item.id}>
               <button className="art-preview-button" type="button" onClick={() => setPreview(item)} aria-label={'معاينة ' + item.title}>
-                <div className={'builder-art-visual ' + item.tone}><span className="demo-stamp">نموذج</span><span className="demo-main-mark">{item.mark}</span><span className="demo-line">﹏  ◡  ﹏</span><small>{item.title}</small><span className="demo-spark">✧</span></div>
+                {item.imageSrc ? <img src={item.imageSrc} alt={item.title} style={{width:'100%',height:'100%',objectFit:'contain',background:'#fff'}} /> : <div className={'builder-art-visual ' + item.tone}><span className="demo-stamp">نموذج</span><span className="demo-main-mark">{item.mark}</span><span className="demo-line">﹏  ◡  ﹏</span><small>{item.title}</small><span className="demo-spark">✧</span></div>}
               </button>
               <div className="builder-card-meta"><div><b>{item.title}</b><small>{item.category}</small></div><button type="button" className={'select-art-button ' + (isSelected ? 'is-selected' : '')} disabled={locked} onClick={() => toggle(item.id)}>{isSelected ? '✓ تم الاختيار' : '+ اختاري'}</button></div>
               <span className="art-code">{item.id}</span>
@@ -288,7 +302,7 @@ export default function Builder() {
             <h2>اختاري الغلاف اللي شبهك</h2>
             <div className="cover-picker-grid">
               {coverItems.map(cover => <button type="button" key={cover.id} className={'cover-picker ' + (draft.coverId === cover.id ? 'active' : '')} onClick={() => setDraft(current => ({ ...current, coverId: cover.id }))} aria-pressed={draft.coverId === cover.id}>
-                <span className={'cover-picker-art ' + cover.tone}><i>{cover.mark}</i><b>{cover.title}</b><small>{cover.subtitle}</small></span>
+                <span className={'cover-picker-art ' + cover.tone}>{cover.imageSrc ? <img src={cover.imageSrc} alt={cover.title} style={{width:'100%',height:'100%',objectFit:'contain',background:'#fff'}} /> : <><i>{cover.mark}</i><b>{cover.title}</b><small>{cover.subtitle}</small></>}</span>
                 <span className="cover-picker-label">{cover.title}{draft.coverId === cover.id ? ' ✓' : ''}</span>
               </button>)}
             </div>
@@ -360,10 +374,10 @@ export default function Builder() {
             <label>العنوان بالتفصيل<textarea value={checkout.address} onChange={e => setCheckout(v => ({...v,address:e.target.value}))} maxLength={300} rows={3} required /></label>
             <label>ملاحظات للتوصيل (اختياري)<textarea value={checkout.notes} onChange={e => setCheckout(v => ({...v,notes:e.target.value}))} maxLength={300} rows={2} /></label>
             <fieldset className="checkout-payment"><legend>طريقة الدفع</legend><label><input type="radio" name="paymentMethod" value="cod" checked={checkout.paymentMethod==='cod'} onChange={() => setCheckout(v=>({...v,paymentMethod:'cod'}))}/> الدفع عند الاستلام</label><label><input type="radio" name="paymentMethod" value="instapay" checked={checkout.paymentMethod==='instapay'} onChange={() => setCheckout(v=>({...v,paymentMethod:'instapay'}))}/> InstaPay (تأكيد يدوي من الإدارة)</label></fieldset>
-            <p className="backup-help">الشحن منفصل وسيتم تأكيد تكلفته معك قبل اعتماد الطلب. اختيار InstaPay لا يعني أن الدفع تم.</p>
+            <p className="backup-help">سعر الشحن ثابت حاليًا: {shippingFee === null ? 'لم يتم تحديده بعد' : shippingFee + ' جنيه'}. اختيار InstaPay لا يعني أن الدفع تم.</p>
             {orderError && <p className="form-error" role="alert">{orderError}</p>}
             {orderSuccess && <div className="form-success ap-tracking-success" role="status"><p>{orderSuccess}</p>{trackingUrl && <><a href={trackingUrl}>افتحي صفحة متابعة الطلب</a><button type="button" className="secondary-button" onClick={() => void navigator.clipboard.writeText(trackingUrl)}>نسخ رابط المتابعة</button><small>الرابط خاص بطلبك؛ احتفظي به للرجوع إليه في أي وقت.</small></>}</div>}
-            <div className="form-actions"><button type="button" className="secondary-button" onClick={() => setStep('book')} disabled={orderBusy}>رجوع للمعاينة</button><button type="submit" className="primary-button" disabled={orderBusy}>{orderBusy ? 'جارٍ إرسال الطلب...' : 'تأكيد الطلب'}</button></div>
+            <div className="form-actions"><button type="button" className="secondary-button" onClick={() => setStep('book')} disabled={orderBusy}>رجوع للمعاينة</button><button type="submit" className="primary-button" disabled={orderBusy || shippingFee === null}>{orderBusy ? 'جارٍ إرسال الطلب...' : 'تأكيد الطلب'}</button></div>
           </form>
           <aside className="checkout-summary">
             <h2>ملخص كتابك</h2>
@@ -371,8 +385,8 @@ export default function Builder() {
             <p>30 رسمة مختارة · غلاف {activeCover.title}</p>
             <div className="checkout-price"><span>سعر الكتاب</span><strong>{offerRemainingMs !== null && offerRemainingMs > 0 ? '190' : '240'} جنيه</strong></div>
             {offerRemainingMs !== null && offerRemainingMs > 0 && <small>عرض الساعة الأولى · ينتهي خلال {formatOfferCountdown(offerRemainingMs)}</small>}
-            <div className="checkout-price"><span>الشحن</span><strong>يُحدد حسب العنوان</strong></div>
-            <div className="checkout-price"><span>الإجمالي</span><strong>سعر الكتاب + الشحن</strong></div>
+            <div className="checkout-price"><span>الشحن</span><strong>{shippingFee === null ? 'غير محدد' : shippingFee + ' جنيه'}</strong></div>
+            <div className="checkout-price"><span>الإجمالي</span><strong>{(offerRemainingMs !== null && offerRemainingMs > 0 ? 190 : 240) + (shippingFee ?? 0)} جنيه</strong></div>
           </aside>
         </section>
       </main>
@@ -394,7 +408,7 @@ export default function Builder() {
     {preview && step === 'artworks' && <div className="preview-backdrop" role="presentation" onMouseDown={e => { if (e.target === e.currentTarget) setPreview(null); }}>
       <section className="art-preview-modal" role="dialog" aria-modal="true" aria-label="معاينة الرسمة">
         <button className="preview-close" type="button" onClick={() => setPreview(null)} aria-label="إغلاق">×</button>
-        <div className={'builder-art-visual preview-large ' + preview.tone}><span className="demo-stamp">نموذج تجريبي</span><span className="demo-main-mark">{preview.mark}</span><span className="demo-line">﹏  ◡  ﹏</span><small>{preview.title}</small><span className="demo-spark">✧</span></div>
+        {preview.imageSrc ? <img src={preview.imageSrc} alt={preview.title} style={{width:'100%',maxHeight:360,objectFit:'contain',background:'#fff'}} /> : <div className={'builder-art-visual preview-large ' + preview.tone}><span className="demo-stamp">نموذج تجريبي</span><span className="demo-main-mark">{preview.mark}</span><span className="demo-line">﹏  ◡  ﹏</span><small>{preview.title}</small><span className="demo-spark">✧</span></div>}
         <h2>{preview.title}</h2><p>{preview.category} · {preview.id}</p>
         <button type="button" className="continue-selection modal-select" onClick={() => { toggle(preview.id); setPreview(null); }}>{selectedSet.has(preview.id) ? 'إزالة من اختياراتي' : 'اختاري الرسمة دي'}</button>
       </section>
