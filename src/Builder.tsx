@@ -264,7 +264,7 @@ export default function Builder() {
             const locked = !isSelected && selected.length === 30;
             return <article className={'builder-art-card ' + (isSelected ? 'selected' : '')} key={item.id}>
               <button className="art-preview-button" type="button" onClick={() => setPreview(item)} aria-label={'معاينة ' + item.title}>
-                {item.imageSrc ? <img src={item.imageSrc} alt={item.title} style={{width:'100%',height:'100%',objectFit:'contain',background:'#fff'}} /> : <div className="builder-art-unavailable">الصورة غير متاحة</div>}
+                {item.imageSrc ? <img src={item.imageSrc} alt={item.title} loading="lazy" decoding="async" style={{width:'100%',height:'100%',objectFit:'contain',background:'#fff'}} /> : <div className="builder-art-unavailable">الصورة غير متاحة</div>}
               </button>
               <div className="builder-card-meta"><div><b>{item.title}</b><small>{item.category}</small></div><button type="button" className={'select-art-button ' + (isSelected ? 'is-selected' : '')} disabled={locked} onClick={() => toggle(item.id)}>{isSelected ? '✓ تم الاختيار' : '+ اختاري'}</button></div>
               <span className="art-code">{item.id}</span>
