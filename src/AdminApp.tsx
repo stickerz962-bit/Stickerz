@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState, type FormEvent } from 'react';
 import { onAuthStateChanged, signInWithEmailAndPassword, signOut, type User } from 'firebase/auth';
-import { collection, doc, getDocs, orderBy, query, serverTimestamp, setDoc, updateDoc, writeBatch } from 'firebase/firestore';
+import { collection, doc, getDocs, limit, orderBy, query, serverTimestamp, setDoc, startAfter, updateDoc, writeBatch, type DocumentData, type QueryDocumentSnapshot } from 'firebase/firestore';
 import { auth, firebaseConfigured, firestore } from './firebase/client';
 import './styles.css';
 
@@ -39,6 +39,8 @@ export default function AdminApp() {
   const [artworks, setArtworks] = useState<Artwork[]>([]);
   const [covers, setCovers] = useState<Cover[]>([]);
   const [orders, setOrders] = useState<Order[]>([]);
+  const [lastOrderCursor, setLastOrderCursor] = useState<QueryDocumentSnapshot<DocumentData> | null>(null);
+  const [hasMoreOrders, setHasMoreOrders] = useState(false);
   const [shippingFee, setShippingFee] = useState('');
   const [artworkForm, setArtworkForm] = useState(emptyArtwork);
   const [coverForm, setCoverForm] = useState(emptyCover);
@@ -106,12 +108,19 @@ export default function AdminApp() {
     finally { setBusy(false); }
   };
 
-  const loadOrders = async () => {
+  const loadOrders = async (append = false) => {
     if (!firestore) return;
     setBusy(true); setError('');
     try {
-      const snap = await getDocs(query(collection(firestore, 'orders'), orderBy('createdAt', 'desc')));
-      setOrders(snap.docs.map(d => ({ id: d.id, ...d.data() } as Order)));
+      const baseQuery = query(collection(firestore, 'orders'), orderBy('createdAt', 'desc'));
+      const ordersQuery = append && lastOrderCursor
+        ? query(baseQuery, startAfter(lastOrderCursor), limit(50))
+        : query(baseQuery, limit(50));
+      const snap = await getDocs(ordersQuery);
+      const nextOrders = snap.docs.map(d => ({ id: d.id, ...d.data() } as Order));
+      setOrders(current => append ? [...current, ...nextOrders] : nextOrders);
+      setLastOrderCursor(snap.docs.length ? snap.docs[snap.docs.length - 1] : null);
+      setHasMoreOrders(snap.docs.length === 50);
     } catch {
       setError('تعذر تحميل الطلبات. تأكدي من صلاحية admin:true ومن قواعد Firestore المنشورة.');
     } finally { setBusy(false); }
@@ -126,7 +135,7 @@ export default function AdminApp() {
     setBusy(true); setError(''); setNotice('');
     try {
       await updateDoc(doc(firestore, 'orders', order.id), { paymentStatus: status, updatedAt: serverTimestamp() });
-      await loadOrders();
+      setOrders(current => current.map(item => item.id === order.id ? { ...item, paymentStatus: status } : item));
       setNotice(status === 'refunded' ? 'تم تسجيل رد قيمة الطلب، وسيتم عكس مكافأة الإحالة تلقائيًا.' : 'تم تسجيل استلام قيمة الطلب.');
     } catch { setError('تعذر تحديث حالة الدفع.'); }
     finally { setBusy(false); }
@@ -140,7 +149,7 @@ export default function AdminApp() {
       batch.update(doc(firestore, 'orders', order.id), { fulfillmentStatus: status, ...(status === 'delivered' ? { deliveredAt: serverTimestamp() } : {}), updatedAt: serverTimestamp() });
       if (order.trackingToken) batch.update(doc(firestore, 'orderTracking', order.trackingToken), { fulfillmentStatus: status, updatedAt: serverTimestamp() });
       await batch.commit();
-      await loadOrders();
+      setOrders(current => current.map(item => item.id === order.id ? { ...item, fulfillmentStatus: status } : item));
       setNotice('تم تحديث حالة الطلب ' + (order.publicReference || order.id));
     } catch { setError('تعذر تحديث حالة الطلب. راجعي صلاحيات الأدمن وقواعد Firestore.'); }
     finally { setBusy(false); }
@@ -323,14 +332,14 @@ export default function AdminApp() {
       {tab === 'shipping' && <section className="admin-layout ap-admin-layout"><form className="product-form" onSubmit={saveShippingFee}><h2>سعر الشحن الموحد</h2><p>اكتبي السعر بالجنيه المصري. سيتم تحديث صفحة الطلب تلقائيًا وحفظ السعر في الطلبات الجديدة.</p><label>سعر الشحن (جنيه)<input type="number" min="0" max="5000" step="1" inputMode="numeric" value={shippingFee} onChange={e => setShippingFee(e.target.value)} required /></label><button className="primary-button" disabled={busy}>{busy ? 'جارٍ الحفظ...' : 'حفظ سعر الشحن'}</button><p className="backup-help">السعر الحالي: {shippingFee !== '' ? shippingFee + ' جنيه' : 'لم يتم ضبطه بعد'}. الطلبات القديمة تحتفظ بسعر الشحن المسجل وقت الطلب.</p></form></section>}
       {tab === 'orders' && <>
         <section className="ap-order-stats">
-          <button className={orderFilter === 'all' ? 'selected' : ''} onClick={() => setOrderFilter('all')}><b>{orders.length}</b><span>كل الطلبات</span></button>
+          <button className={orderFilter === 'all' ? 'selected' : ''} onClick={() => setOrderFilter('all')}><b>{orders.length}</b><span>الطلبات المحمّلة</span></button>
           <button className={orderFilter === 'new' ? 'selected' : ''} onClick={() => setOrderFilter('new')}><b>{orders.filter(x => x.fulfillmentStatus === 'new').length}</b><span>طلبات جديدة</span></button>
           <button className={orderFilter === 'active' ? 'selected' : ''} onClick={() => setOrderFilter('active')}><b>{orders.filter(x => !['new','delivered','cancelled'].includes(x.fulfillmentStatus || 'new')).length}</b><span>قيد التنفيذ</span></button>
           <button className={orderFilter === 'delivered' ? 'selected' : ''} onClick={() => setOrderFilter('delivered')}><b>{orders.filter(x => x.fulfillmentStatus === 'delivered').length}</b><span>تم التسليم</span></button>
           <button className={orderFilter === 'cancelled' ? 'selected' : ''} onClick={() => setOrderFilter('cancelled')}><b>{orders.filter(x => x.fulfillmentStatus === 'cancelled').length}</b><span>ملغاة</span></button>
         </section>
         <section className="admin-products ap-orders-list">
-        <div className="admin-list-heading"><h2>طلبات العملاء ({orders.length})</h2><span>الأحدث أولًا · اختاري بطاقة لتحديث الحالة</span></div>
+        <div className="admin-list-heading"><h2>الطلبات المحمّلة ({orders.length})</h2><span>الأحدث أولًا · اختاري بطاقة لتحديث الحالة</span></div>
         {orders.length === 0 && <div className="builder-empty">مفيش طلبات لسه. أول طلب يتسجل من الموقع هيظهر هنا تلقائيًا.</div>}
         {orders.filter(order => orderFilter === 'all' || (orderFilter === 'active' ? !['new','delivered','cancelled'].includes(order.fulfillmentStatus || 'new') : order.fulfillmentStatus === orderFilter)).map(order => <article className="admin-product-row ap-order-row" key={order.id}>
           <div className="admin-product-info ap-order-info">
@@ -349,6 +358,7 @@ export default function AdminApp() {
             <label>حالة الطلب<select value={order.fulfillmentStatus === 'pdf_generating' ? 'artwork_codes_review' : order.fulfillmentStatus || 'new'} disabled={busy} onChange={e => void updateOrderStatus(order,e.target.value)}>{orderStatuses.map(status => <option key={status} value={status}>{orderStatusLabels[status]}</option>)}</select></label>
           </div>
         </article>)}
+        {hasMoreOrders && <div className="ap-admin-toolbar"><button className="secondary-button" disabled={busy} onClick={() => void loadOrders(true)}>تحميل 50 طلبًا أقدم</button></div>}
       </section></>}
       {tab === 'categories' && <div className="admin-layout ap-admin-layout"><form className="product-form" onSubmit={saveCategory}><h2>إضافة تصنيف</h2><label>اسم التصنيف<input value={categoryTitle} onChange={e => setCategoryTitle(e.target.value)} maxLength={70} required /></label><button className="primary-button" disabled={busy}>حفظ التصنيف</button><p className="backup-help">المعرف يُنشأ تلقائيًا من الاسم الإنجليزي/الحروف المتاحة؛ للتصنيفات العربية استخدمي زر إضافة التصنيفات الأساسية.</p></form><section className="admin-products"><h2>التصنيفات ({categories.length})</h2>{categories.map(item => <article className="admin-product-row" key={item.id}><div className="admin-product-info"><strong>{item.title}</strong><small>{item.id} · {item.active ? 'مفعّل' : 'مخفي'}</small></div></article>)}</section></div>}
       {tab === 'artworks' && <div className="admin-layout ap-admin-layout"><form className="product-form" onSubmit={saveArtwork}><h2>{editingArtwork ? 'تعديل الرسمة' : 'إضافة رسمة'}</h2><label>كود الرسمة<input value={artworkForm.id} onChange={e => setArtworkForm({ ...artworkForm, id: e.target.value })} placeholder="AP-001" required /></label><label>اسم الرسمة<input value={artworkForm.title} onChange={e => setArtworkForm({ ...artworkForm, title: e.target.value })} maxLength={100} required /></label><label>التصنيف<select value={artworkForm.categoryId} onChange={e => setArtworkForm({ ...artworkForm, categoryId: e.target.value })} required><option value="">اختاري تصنيفًا</option>{categories.map(c => <option key={c.id} value={c.id}>{c.title}</option>)}</select></label><label>الجملة المصرية<input value={artworkForm.phrase} onChange={e => setArtworkForm({ ...artworkForm, phrase: e.target.value })} maxLength={160} /></label><label>رفع صورة الرسمة (اختياري)<input type="file" accept="image/*" onChange={async e => { const file = e.target.files?.[0]; if (!file) return; setBusy(true); setError(''); try { const image = await compressImageForFirestore(file); setArtworkForm(current => ({ ...current, previewAssetRef: image })); setNotice('تم تجهيز الصورة. اضغطي حفظ المسودة لحفظها.'); } catch (err) { setError(err instanceof Error ? err.message : 'تعذر تجهيز الصورة.'); } finally { setBusy(false); e.target.value = ''; } }} /></label><label>رابط صورة بديل<input value={artworkForm.previewAssetRef.startsWith('data:image/') ? '' : artworkForm.previewAssetRef} onChange={e => setArtworkForm({ ...artworkForm, previewAssetRef: e.target.value })} maxLength={500} placeholder="https://..." /></label>{artworkForm.previewAssetRef && <img src={artworkForm.previewAssetRef} alt="معاينة صورة الرسمة" style={{maxWidth:'100%',maxHeight:220,objectFit:'contain'}} />}<p className="backup-help">يتم ضغط الصورة وحفظ نسخة صغيرة داخل Firestore (حتى نحو 430KB). لا ترفعي ملفات الطباعة الأصلية أو صورًا عالية الدقة هنا.</p><div className="form-actions"><button className="primary-button" disabled={busy || categories.length === 0}>{editingArtwork ? 'حفظ التعديل' : 'حفظ كمسودة'}</button>{editingArtwork && <button type="button" className="secondary-button" onClick={() => { setArtworkForm(emptyArtwork); setEditingArtwork(false); }}>إلغاء</button>}</div></form><section className="admin-products"><div className="admin-list-heading"><h2>الرسومات ({filteredArtworks.length})</h2><span>من أصل 100</span></div><div className="ap-admin-filters"><input value={search} onChange={e => setSearch(e.target.value)} placeholder="بحث بالكود أو الاسم أو الجملة" /><select value={filterCategory} onChange={e => setFilterCategory(e.target.value)}><option value="all">كل التصنيفات</option>{categories.map(c => <option key={c.id} value={c.id}>{c.title}</option>)}</select></div><div className="admin-product-list">{filteredArtworks.map(item => <article className="admin-product-row" key={item.id}><div className="admin-thumb ap-thumb ap-artwork-thumbnail">{item.previewAssetRef ? <img src={item.previewAssetRef} alt={`معاينة ${item.title}`} loading="lazy" style={{width:"100%",height:"100%",objectFit:"cover",display:"block"}} /> : <span aria-label="لا توجد صورة">✿</span>}</div><div className="admin-product-info"><strong>{item.id} · {item.title}</strong><span>{categories.find(c => c.id === item.categoryId)?.title || 'تصنيف غير معروف'}</span><small>{item.phrase || 'بدون جملة'}</small><small>{item.active ? 'منشورة' : 'مسودة مخفية'}</small></div><div className="admin-product-actions ap-publish-actions"><button className="secondary-button" disabled={busy} onClick={() => editArtwork(item)}>تعديل</button><button className={item.active ? "secondary-button ap-publish-button ap-publish-button-active" : "primary-button ap-publish-button"} disabled={busy || !item.phrase?.trim()} onClick={() => void setArtworkActive(item)}>{item.active ? 'إخفاء الرسمة من الموقع' : item.phrase?.trim() ? 'نشر الرسمة على الموقع' : 'أضيفي الجملة أولًا'}</button>{!item.phrase?.trim() && <small className="ap-publish-help" role="status">النشر متوقف لأن الجملة المصرية غير مكتوبة. اضغطي «تعديل»، أضيفي الجملة، ثم احفظي التعديل.</small>}</div></article>)}</div></section></div>}
