@@ -22,8 +22,11 @@ service cloud.firestore {
     }
 
     match /artworks/{artworkId} {
-      allow read: if isAdmin()
-        || (resource.data.active == true && categoryIsActive(resource.data.categoryId));
+      // Public catalog query reads every explicitly published artwork, then the
+      // storefront limits visible items to its separately published categories.
+      // Firestore rules are not filters: requiring a dynamic category lookup here
+      // rejects the storefront's collection-wide active == true query.
+      allow read: if isAdmin() || resource.data.active == true;
       allow create, update, delete: if isAdmin();
     }
 
