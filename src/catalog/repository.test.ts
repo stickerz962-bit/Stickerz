@@ -1,23 +1,18 @@
 import { describe, expect, it, vi } from 'vitest';
-import type { CatalogData } from './types';
 
-const demo: CatalogData = {
-  categories: [{ id: 'demo', title: 'تصنيف تجريبي', slug: 'demo', sortOrder: 0, active: true }],
-  artworks: [{ id: 'AP-DEMO', title: 'رسمة تجريبية', categoryId: 'demo', previewAssetRef: '', sortOrder: 0, version: 1, active: true }],
-  covers: [{ id: 'cover-demo', title: 'غلاف تجريبي', previewAssetRef: '', sortOrder: 0, version: 1, active: true }],
-};
+vi.mock('../firebase/client', () => ({ firebaseConfigured: false, firestore: null }));
 
-describe('catalog repository safe fallback', () => {
-  it('returns the supplied demo catalog when demo mode is explicitly enabled', async () => {
-    // CI may provide Firebase secrets, so make this test independent of runner configuration.
+describe('catalog repository launch behavior', () => {
+  it('never falls back to mock artwork when Firebase is unavailable', async () => {
     vi.stubEnv('VITE_CATALOG_MODE', 'demo');
     vi.resetModules();
 
     const { loadCatalog } = await import('./repository');
-    const result = await loadCatalog(demo);
+    const result = await loadCatalog();
 
-    expect(result.source).toBe('demo');
-    expect(result.data).toEqual(demo);
+    expect(result.source).toBe('firestore');
+    expect(result.data).toEqual({ categories: [], artworks: [], covers: [] });
+    expect(result.warning).toContain('تعذر الاتصال');
 
     vi.unstubAllEnvs();
     vi.resetModules();
