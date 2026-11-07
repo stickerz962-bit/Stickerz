@@ -19,22 +19,6 @@ const steps = [
   { number: '06', icon: '♡', title: 'اختاري الدفع', text: 'الدفع عند الاستلام أو InstaPay بعد مراجعة التحويل.' },
 ];
 
-const categories = ['فوضى المسؤوليات', 'تقلبات المزاج', 'الناس والعلاقات', 'قهوة وأكل', 'حب وعلاقات', 'شغل وفلوس', 'البيت والعيلة', 'اهتمام بنفسي', 'تفكير زيادة', 'حكمة وضحك'];
-const artworks = [
-  { title: 'قهوة وراحة', mark: '☕', tone: 'peach' },
-  { title: 'يوم طويل', mark: '☼', tone: 'lilac' },
-  { title: 'مساحة هادية', mark: '✿', tone: 'mint' },
-  { title: 'دماغ مشغولة', mark: '☁', tone: 'yellow' },
-  { title: 'على رواق', mark: '♡', tone: 'pink' },
-  { title: 'أنا أهو', mark: '✧', tone: 'blue' },
-];
-const covers = [
-  { title: 'الهدوء', subtitle: 'لحظة لنفسي', tone: 'cover-calm', mark: '☾' },
-  { title: 'فكّيها', subtitle: 'الدنيا مش مستاهلة', tone: 'cover-fun', mark: '✿' },
-  { title: 'على رواق', subtitle: 'براحة وبمزاجي', tone: 'cover-flowers', mark: '❀' },
-  { title: 'مش ناقصة', subtitle: 'بس مكملة', tone: 'cover-bold', mark: '✦' },
-  { title: 'مساحة لنفسي', subtitle: 'وقت ليا أنا', tone: 'cover-space', mark: '☾' },
-];
 const faqs = [
   { q: 'الكتاب فيه كام رسمة؟', a: 'الكتاب بيتكوّن من 30 رسمة مختلفة، وإنتِ بتختاريهم بنفسك من مكتبة الرسومات.' },
   { q: 'ترتيب الرسومات بيتحدد إزاي؟', a: 'ترتيب صفحات الكتاب بيتحدد تلقائيًا حسب ترتيب اختيارك للرسومات، ومفيش ترتيب يدوي في المعاينة.' },
