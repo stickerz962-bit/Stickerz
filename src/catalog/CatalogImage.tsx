@@ -21,7 +21,10 @@ function loadAsset(source: string): Promise<string | null> {
   const request = getDoc(doc(firestore, 'catalogAssets', assetId)).then(snapshot => {
     const value = snapshot.exists() ? snapshot.data().dataUrl : null;
     return typeof value === 'string' && value.startsWith('data:image/') ? value : null;
-  }).catch(() => null);
+  }).catch(() => {
+    assetCache.delete(source);
+    return null;
+  });
   assetCache.set(source, request);
   return request;
 }
@@ -35,6 +38,7 @@ export default function CatalogImage({ source = '', alt, fit = 'contain', classN
   const containerRef = useRef<HTMLDivElement>(null);
   const [resolvedSource, setResolvedSource] = useState('');
   const [failed, setFailed] = useState(false);
+  const [retryCount, setRetryCount] = useState(0);
 
   useEffect(() => {
     let cancelled = false;
@@ -70,13 +74,13 @@ export default function CatalogImage({ source = '', alt, fit = 'contain', classN
       cancelled = true;
       observer.disconnect();
     };
-  }, [source]);
+  }, [source, retryCount]);
 
   return <div ref={containerRef} className={className} style={{ display: 'block', width: '100%', height: '100%', ...style }}>
     {resolvedSource
       ? <img src={resolvedSource} alt={alt} loading="lazy" decoding="async" onError={() => setFailed(true)} style={{ width: '100%', height: '100%', display: 'block', objectFit: fit }} />
       : failed
-        ? <span role="img" aria-label={alt} style={{ display: 'grid', width: '100%', height: '100%', placeItems: 'center', color: '#999', fontSize: 11 }}>المعاينة غير متاحة</span>
+        ? <button type="button" onClick={() => setRetryCount(value => value + 1)} aria-label={'إعادة تحميل ' + alt} style={{ display: 'grid', width: '100%', height: '100%', placeItems: 'center', border: 0, background: 'transparent', color: '#999', font: 'inherit', fontSize: 11, cursor: 'pointer' }}>تعذر التحميل · إعادة المحاولة</button>
         : null}
   </div>;
 }
