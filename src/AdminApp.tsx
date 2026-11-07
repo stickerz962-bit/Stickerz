@@ -206,7 +206,8 @@ export default function AdminApp() {
     canvas.height = Math.max(1, Math.round(bitmap.height * scale));
     const context = canvas.getContext('2d');
     if (!context) throw new Error('تعذر تجهيز الصورة.');
-    context.fillStyle = '#fff';\n    context.fillRect(0, 0, canvas.width, canvas.height);\n    context.drawImage(bitmap, 0, 0, canvas.width, canvas.height);
+    context.fillStyle = '#fff';
+    context.fillRect(0, 0, canvas.width, canvas.height);\n    context.drawImage(bitmap, 0, 0, canvas.width, canvas.height);
     bitmap.close();
     let quality = 0.72;
     let dataUrl = canvas.toDataURL('image/jpeg', quality);
