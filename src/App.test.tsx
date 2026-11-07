@@ -81,7 +81,7 @@ describe('ANTI PRESSURE customer experience', () => {
     expect(screen.getByText('عرضك مستمر طوال رحلتك')).toBeInTheDocument();
     expect(screen.getByText('عرض الـ24 ساعة · ينتهي خلال', { exact: false })).toBeInTheDocument();
     expect(screen.getByText('190 جنيه')).toBeInTheDocument();
-    await screen.findAllByRole('button', { name: '+ اختاري' }).slice(0, 30).forEach(button => fireEvent.click(button));
+    (await screen.findAllByRole('button', { name: '+ اختاري' })).slice(0, 30).forEach(button => fireEvent.click(button));
     fireEvent.click(screen.getByRole('button', { name: /اختاري الغلاف/ }));
     expect(screen.getByText('عرضك مستمر طوال رحلتك')).toBeInTheDocument();
     expect(screen.getByText('190 جنيه')).toBeInTheDocument();
@@ -93,7 +93,7 @@ describe('ANTI PRESSURE customer experience', () => {
 
   it('shows the regular price after the persisted offer expires', () => {
     window.location.hash = '#design';
-    localStorage.setItem('anti-pressure-intro-offer-end-v1', String(Date.now() - 1));
+    localStorage.setItem('anti-pressure-intro-offer-end-v2', String(Date.now() - 1));
     render(<App />);
     expect(screen.getByText('انتهى العرض الترحيبي')).toBeInTheDocument();
     expect(screen.getByText('240 جنيه')).toBeInTheDocument();
@@ -102,12 +102,12 @@ describe('ANTI PRESSURE customer experience', () => {
   it('uses automatic selection order in the preview and does not expose manual reorder controls', async () => {
     window.location.hash = '#design';
     render(<App />);
-    screen.getAllByRole('button', { name: '+ اختاري' }).slice(0, 30).forEach(button => fireEvent.click(button));
+    (await screen.findAllByRole('button', { name: '+ اختاري' })).slice(0, 30).forEach(button => fireEvent.click(button));
     fireEvent.click(screen.getByRole('button', { name: /اختاري الغلاف/ }));
     fireEvent.change(screen.getByLabelText('الاسم اللي يظهر على الغلاف'), { target: { value: 'سارة' } });
     fireEvent.click(screen.getByRole('button', { name: /حفظ اختيارات الغلاف/ }));
-    expect(screen.getByText('قائمة مش بتخلص').parentElement).toHaveTextContent('صفحة 1');
-    expect(screen.getByText('خمس دقايق كمان').parentElement).toHaveTextContent('صفحة 2');
+    expect(screen.getByText('رسمة فعلية 1').parentElement).toHaveTextContent('صفحة 1');
+    expect(screen.getByText('رسمة فعلية 2').parentElement).toHaveTextContent('صفحة 2');
     expect(screen.queryByRole('button', { name: /نقل .* لأعلى|نقل .* لأسفل/ })).not.toBeInTheDocument();
   });
 
