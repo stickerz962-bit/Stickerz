@@ -70,7 +70,9 @@ export async function loadCatalog(): Promise<CatalogResult> {
     return {
       data: {
         categories,
-        artworks: artworks.filter(item => isText(item.previewAssetRef)),
+        // Only show artwork whose record is published, has a real preview,
+        // and belongs to a currently published category.
+        artworks: artworks.filter(item => isText(item.previewAssetRef) && categories.some(category => category.id === item.categoryId)),
         covers: covers.filter(item => isText(item.previewAssetRef)),
       },
       source: 'firestore',
