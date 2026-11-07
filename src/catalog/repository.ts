@@ -56,7 +56,7 @@ async function readActive<T>(
  * The live storefront must never substitute mock artwork or covers for the approved catalog.
  * Only published records with real preview assets are returned to customers.
  */
-export async function loadCatalog(): Promise<CatalogResult> {
+async function loadCatalogFromFirestore(): Promise<CatalogResult> {
   if (!firebaseConfigured || !firestore) {
     return { data: emptyCatalog, source: 'firestore', warning: 'تعذر الاتصال بمكتبة الرسومات المعتمدة. حاولي مرة أخرى لاحقًا.' };
   }
@@ -81,4 +81,28 @@ export async function loadCatalog(): Promise<CatalogResult> {
   } catch {
     return { data: emptyCatalog, source: 'firestore', warning: 'تعذر تحميل مكتبة الرسومات المعتمدة.' };
   }
+}
+
+
+/**
+ * The homepage and builder share one catalog request during the same browser session.
+ * This avoids downloading every embedded preview image twice when a customer opens
+ * the builder immediately after browsing the storefront.
+ */
+const CATALOG_CACHE_TTL_MS = 5 * 60 * 1000;
+let catalogCache: { expiresAt: number; promise: Promise<CatalogResult> } | null = null;
+
+export function loadCatalog(): Promise<CatalogResult> {
+  if (catalogCache && catalogCache.expiresAt > Date.now()) return catalogCache.promise;
+  const promise = loadCatalogFromFirestore();
+  catalogCache = { expiresAt: Date.now() + CATALOG_CACHE_TTL_MS, promise };
+  void promise.catch(() => {
+    if (catalogCache?.promise === promise) catalogCache = null;
+  });
+  return promise;
+}
+
+/** Clear the in-memory cache after an explicit catalog refresh in a future admin workflow. */
+export function clearCatalogCache(): void {
+  catalogCache = null;
 }
