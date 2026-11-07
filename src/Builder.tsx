@@ -150,17 +150,6 @@ export default function Builder() {
     if (selected.length >= 30) { setNotice('اختيارك اكتمل 30 رسمة. شيلي رسمة الأول لو حابة تختاري غيرها.'); return; }
     setSelected(current => [...current, id]);
   }
-  function moveArtwork(id: string, direction: -1 | 1) {
-    setSelected(current => {
-      const index = current.indexOf(id);
-      const target = index + direction;
-      if (index < 0 || target < 0 || target >= current.length) return current;
-      const reordered = [...current];
-      [reordered[index], reordered[target]] = [reordered[target], reordered[index]];
-      return reordered;
-    });
-    setNotice('');
-  }
 
   async function submitOrder(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -228,6 +217,12 @@ export default function Builder() {
       });
       await batch.commit();
       saveAmbassadorContext({ ...ambassadorCredentials, sourceOrderId: orderRef.id, trackingToken });
+      try {
+        const key = 'anti-pressure:customer-tracking-tokens:v1';
+        const saved = JSON.parse(localStorage.getItem(key) || '[]');
+        const tokens = Array.isArray(saved) ? saved.filter((value: unknown) => typeof value === 'string' && /^[a-f0-9]{64}$/.test(value)) : [];
+        localStorage.setItem(key, JSON.stringify([...new Set([trackingToken, ...tokens])].slice(0, 20)));
+      } catch { /* The tracking link remains available in the order confirmation. */ }
       attachAmbassadorReferralToOrder(ambassadorReferralCode, trackingToken);
       const url = new URL(window.location.href);
       url.hash = '';
@@ -235,7 +230,7 @@ export default function Builder() {
       url.searchParams.delete('amb');
       url.searchParams.set('track', trackingToken);
       setTrackingUrl(url.toString());
-      setOrderSuccess('تم استلام طلبك بنجاح! رقم الطلب: ' + orderRef.id + ' — احتفظي برابط المتابعة الخاص بطلبك.');
+      setOrderSuccess('تم استلام طلبك بنجاح! رقم الطلب: ' + orderRef.id + ' — رابط متابعة طلبك محفوظ على هذا الجهاز، وتقدري ترجعي له من «طلباتي».');
       setNotice('');
       setSelected([]);
       setDraft({coverId:'calm',name:''});
@@ -262,7 +257,7 @@ export default function Builder() {
         <div className="builder-intro">
           <span className="eyebrow">الخطوة الأولى · اختياراتك على مزاجك</span>
           <h1>اختاري 30 رسمة بتحبيها</h1>
-          <p>خدي وقتك، قلّبي في التصنيفات، واختاري الرسومات اللي حابة تكون في كتابك، وبعدها رتّبي صفحات كتابك بنفسك قبل المعاينة.</p>
+          <p>خدي وقتك، قلّبي في التصنيفات، واختاري الرسومات اللي حابة تكون في كتابك، وترتيب الصفحات بيتحدد تلقائيًا حسب اختيارك.</p>
           <div className="demo-alert"><span>✦</span><div><b>معاينة تجريبية للمكتبة</b><small>الأشكال الحالية نماذج مؤقتة لا تمثل الرسومات النهائية. هنستبدلها بالرسومات الأصلية بعد اعتمادها.</small></div></div>
         </div>
         <section className="selection-toolbar" aria-label="أدوات البحث والتصفية">
@@ -346,8 +341,8 @@ export default function Builder() {
             <button type="button" className="clear-selection" onClick={() => setStep('cover')}>تعديل الغلاف أو الاسم</button>
           </div>
           <div className="book-artwork-review">
-            <div className="book-review-heading"><div><b>رسومات كتابك</b><small>رتّبي الصفحات زي ما تحبي · 30 رسمة</small></div><button type="button" className="clear-selection" onClick={() => setStep('artworks')}>تعديل الرسومات</button></div>
-            <div className="book-review-grid">{selected.map((id, index) => { const item = catalogItems.find(entry => entry.id === id); if (!item) return null; return <div className="book-review-item" key={id}><span className={'book-review-art ' + item.tone}>{item.mark}</span><span><b>{item.title}</b><small>صفحة {index + 1}</small></span><span className="book-review-order"><button type="button" aria-label={'نقل ' + item.title + ' لأعلى'} disabled={index === 0} onClick={() => moveArtwork(id, -1)}>↑</button><button type="button" aria-label={'نقل ' + item.title + ' لأسفل'} disabled={index === selected.length - 1} onClick={() => moveArtwork(id, 1)}>↓</button></span></div>; })}</div>
+            <div className="book-review-heading"><div><b>رسومات كتابك</b><small>ترتيب تلقائي · 30 رسمة</small></div><button type="button" className="clear-selection" onClick={() => setStep('artworks')}>تعديل الرسومات</button></div>
+            <div className="book-review-grid">{selected.map((id, index) => { const item = catalogItems.find(entry => entry.id === id); if (!item) return null; return <div className="book-review-item" key={id}><span className={'book-review-art ' + item.tone}>{item.mark}</span><span><b>{item.title}</b><small>صفحة {index + 1}</small></span></div>; })}</div>
             <div className="book-preview-note">دي مراجعة لاختياراتك وشكل الغلاف فقط. ملفات الطباعة النهائية، بيانات الشحن، وحساب تكلفة التوصيل لسه مش مفعّلين.</div>
             <div className="book-preview-actions"><button type="button" className="clear-selection" onClick={() => setStep('cover')}>رجوع</button><button type="button" className="continue-selection" disabled={selected.length !== 30 || !draft.name.trim()} onClick={() => { setOrderError(''); setOrderSuccess(''); setStep('checkout'); window.scrollTo({top:0,behavior:'smooth'}); }}>إدخال بيانات الطلب ←</button></div>
             {notice && step === 'book' && <div className="cover-save-note" role="status">{notice}</div>}
@@ -373,7 +368,7 @@ export default function Builder() {
             <fieldset className="checkout-payment"><legend>طريقة الدفع</legend><label><input type="radio" name="paymentMethod" value="cod" checked={checkout.paymentMethod==='cod'} onChange={() => setCheckout(v=>({...v,paymentMethod:'cod'}))}/> الدفع عند الاستلام</label><label><input type="radio" name="paymentMethod" value="instapay" checked={checkout.paymentMethod==='instapay'} onChange={() => setCheckout(v=>({...v,paymentMethod:'instapay'}))}/> InstaPay (تأكيد يدوي من الإدارة)</label></fieldset>
             <p className="backup-help">سعر الشحن ثابت حاليًا: {shippingFee === null ? 'لم يتم تحديده بعد' : shippingFee + ' جنيه'}. اختيار InstaPay لا يعني أن الدفع تم.</p>
             {orderError && <p className="form-error" role="alert">{orderError}</p>}
-            {orderSuccess && <div className="form-success ap-tracking-success" role="status"><p>{orderSuccess}</p>{trackingUrl && <><a href={trackingUrl}>افتحي صفحة متابعة الطلب</a><button type="button" className="secondary-button" onClick={() => void navigator.clipboard.writeText(trackingUrl)}>نسخ رابط المتابعة</button><small>الرابط خاص بطلبك؛ احتفظي به للرجوع إليه في أي وقت.</small></>}</div>}
+            {orderSuccess && <div className="form-success ap-tracking-success" role="status"><p>{orderSuccess}</p>{trackingUrl && <><a href={trackingUrl}>افتحي صفحة متابعة الطلب</a><button type="button" className="secondary-button" onClick={() => void navigator.clipboard.writeText(trackingUrl)}>نسخ رابط المتابعة</button><small>الرابط خاص بطلبك. هتلاقي الطلب محفوظًا في قسم «طلباتي» على نفس الجهاز.</small></>}</div>}
             <div className="form-actions"><button type="button" className="secondary-button" onClick={() => setStep('book')} disabled={orderBusy}>رجوع للمعاينة</button><button type="submit" className="primary-button" disabled={orderBusy || shippingFee === null}>{orderBusy ? 'جارٍ إرسال الطلب...' : 'تأكيد الطلب'}</button></div>
           </form>
           <aside className="checkout-summary">
