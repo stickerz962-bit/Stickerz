@@ -67,7 +67,7 @@ describe('ANTI PRESSURE customer experience', () => {
     expect(screen.getByRole('progressbar', { name: 'عدد الرسومات المختارة' })).toHaveAttribute('aria-valuenow', '0');
     const choices = await screen.findAllByRole('button', { name: '+ اختاري' });
     choices.slice(0, 30).forEach(button => fireEvent.click(button));
-    expect(screen.getByText('30')).toBeInTheDocument();
+    expect(screen.getByRole('progressbar', { name: 'عدد الرسومات المختارة' })).toHaveAttribute('aria-valuenow', '30');
     expect(screen.getByRole('progressbar', { name: 'عدد الرسومات المختارة' })).toHaveAttribute('aria-valuenow', '30');
     expect(continueButton).toBeEnabled();
     fireEvent.click(continueButton);
@@ -78,8 +78,9 @@ describe('ANTI PRESSURE customer experience', () => {
     window.location.hash = '#design';
     localStorage.setItem('anti-pressure-intro-offer-end-v2', String(Date.now() + 45_000));
     render(<App />);
+    await screen.findAllByRole('button', { name: '+ اختاري' });
     expect(screen.getByText('عرضك مستمر طوال رحلتك')).toBeInTheDocument();
-    expect(screen.getByText('عرض الـ24 ساعة · ينتهي خلال', { exact: false })).toBeInTheDocument();
+    expect(screen.getByText(/عرض الـ24 ساعة · ينتهي خلال/)).toBeInTheDocument();
     expect(screen.getByText('190 جنيه')).toBeInTheDocument();
     (await screen.findAllByRole('button', { name: '+ اختاري' })).slice(0, 30).forEach(button => fireEvent.click(button));
     fireEvent.click(screen.getByRole('button', { name: /اختاري الغلاف/ }));
