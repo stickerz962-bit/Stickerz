@@ -336,9 +336,9 @@ export default function AdminApp() {
           <div className="admin-product-info ap-order-info">
             <strong>{order.publicReference || order.id}</strong>
             <span>{order.customer?.name || 'اسم غير متاح'} · {order.customer?.phone || 'رقم غير متاح'}</span>
-            <small>{order.shipping?.governorateName || ''} — {order.shipping?.areaName || ''} · {order.shipping?.address || ''}</small>
+            <small>العنوان: {order.shipping?.governorateName || '—'} — {order.shipping?.areaName || '—'} · {order.shipping?.address || '—'}</small>{order.shipping?.deliveryNotes && <small>ملاحظات التوصيل: {order.shipping.deliveryNotes}</small>}
             <small>الغلاف: {order.book?.cover?.titleSnapshot || '—'} · الاسم على الغلاف: {order.book?.personalizedName || '—'}</small>
-            <small>الرسومات ({order.book?.artworks?.length || 0}): {(order.book?.artworks || []).map(x => x.artworkId || x.titleSnapshot).join('، ')}</small>
+            <details className="ap-order-artwork-details"><summary>تفاصيل الرسومات ({order.book?.artworks?.length || 0}/30) — اضغطي لعرض الأكواد والأسماء</summary><ol>{(order.book?.artworks || []).map((art, index) => <li key={(art.artworkId || 'art') + index}><b>{art.artworkId || 'كود غير متاح'}</b><span>{art.titleSnapshot || 'اسم غير متاح'}</span></li>)}</ol></details>
             <small>سعر الكتاب: {order.pricing?.bookPrice ?? '—'} جنيه · الشحن: {order.pricing?.shippingFee ?? 'يُحدد'} · الإجمالي: {order.pricing?.totalAmount ?? 'يُحدد'} جنيه</small>
             <small>الدفع: {paymentStatusLabels[order.paymentStatus || ''] || order.paymentStatus || '—'} · {order.paymentMethod === 'cod' ? 'الدفع عند الاستلام' : 'InstaPay'}</small>
             <small>كود الشريك: {order.partnerCode || 'بدون كود'} · كود سفيرة العميلة: {order.ambassadorReferralCode || 'بدون إحالة'} · {order.createdAt?.toDate ? order.createdAt.toDate().toLocaleString('ar-EG') : 'وقت التسجيل غير متاح'}</small>

@@ -8,6 +8,7 @@ import { firestore } from './firebase/client';
 import type { CatalogData } from './catalog/types';
 import AmbassadorApp from './AmbassadorApp';
 import { buildAmbassadorDashboardUrl, captureAmbassadorReferral, clearAmbassadorReferral, readAmbassadorContext, readAmbassadorReferralTrackingToken } from './lib/ambassador';
+const CUSTOMER_TRACKING_KEY = 'anti-pressure:customer-tracking-tokens:v1';
 
 const steps = [
   { number: '01', icon: '✎', title: 'اختاري 30 رسمة', text: 'من مكتبتنا اختاري الرسومات اللي شبه يومك ومزاجك.' },
@@ -36,7 +37,7 @@ const covers = [
 ];
 const faqs = [
   { q: 'الكتاب فيه كام رسمة؟', a: 'الكتاب بيتكوّن من 30 رسمة مختلفة، وإنتِ بتختاريهم بنفسك من مكتبة الرسومات.' },
-  { q: 'ينفع أختار ترتيب الرسومات؟', a: 'أكيد، بعد اختيار الـ30 رسمة تقدري ترتبي الصفحات بنفسك من معاينة الكتاب باستخدام الأسهم قبل اعتماد التصميم.' },
+  { q: 'ترتيب الرسومات بيتحدد إزاي؟', a: 'ترتيب صفحات الكتاب بيتحدد تلقائيًا حسب ترتيب اختيارك للرسومات، ومفيش ترتيب يدوي في المعاينة.' },
   { q: 'هل أقدر أكتب اسمي على الغلاف؟', a: 'أكيد، اكتبي الاسم وشوفي معاينة الغلاف قبل ما تأكدي الطلب.' },
   { q: 'إيه طرق الدفع المتاحة؟', a: 'الدفع عند الاستلام أو InstaPay. تحويل InstaPay بيحتاج مراجعة يدوية قبل تأكيد الدفع.' },
   { q: 'الشحن بكام؟', a: 'سعر الشحن الموحد بيظهر في صفحة الطلب قبل التأكيد، وبيتحدث حسب السعر المحدد من الإدارة.' },
@@ -88,6 +89,22 @@ export default function App() {
   const [openFaq, setOpenFaq] = useState<number | null>(0);
   const trackingToken = new URLSearchParams(window.location.search).get('track');
   const [routeHash, setRouteHash] = useState(window.location.hash);
+  const [savedTrackingTokens, setSavedTrackingTokens] = useState<string[]>([]);
+  const [savedAmbassadorUrl, setSavedAmbassadorUrl] = useState('');
+  useEffect(() => {
+    try {
+      const value = JSON.parse(localStorage.getItem(CUSTOMER_TRACKING_KEY) || '[]');
+      if (Array.isArray(value)) setSavedTrackingTokens([...new Set(value.filter((token: unknown) => typeof token === 'string' && /^[a-f0-9]{64}$/.test(token)))].slice(0, 20));
+    } catch { setSavedTrackingTokens([]); }
+    const context = readAmbassadorContext();
+    if (context) {
+      setSavedAmbassadorUrl(buildAmbassadorDashboardUrl(context.code, context.accessToken));
+      if (/^[a-f0-9]{64}$/.test(context.trackingToken)) {
+        setSavedTrackingTokens(current => [...new Set([context.trackingToken, ...current])].slice(0, 20));
+        try { localStorage.setItem(CUSTOMER_TRACKING_KEY, JSON.stringify([...new Set([context.trackingToken, ...JSON.parse(localStorage.getItem(CUSTOMER_TRACKING_KEY) || '[]')])].slice(0, 20))); } catch { /* keep in-memory fallback */ }
+      }
+    }
+  }, []);
   const ambassadorMatch = /^#ambassador\/(AP[A-F0-9]{20})\/([a-f0-9]{64})$/.exec(routeHash);
   useEffect(() => {
     const pendingTrackingToken = readAmbassadorReferralTrackingToken();
@@ -149,7 +166,7 @@ export default function App() {
     <header className="site-header">
       <Brand />
       <nav className="main-nav" aria-label="القائمة الرئيسية">
-        <a className="active" href="#home">الرئيسية</a><a href="#how">كيف تصممي كتابك؟</a><a href="#covers">الأغلفة</a><a href="#gallery">الرسومات</a><a href="#about">عنّا</a><a href="#faq">الأسئلة الشائعة</a>
+        <a className="active" href="#home">الرئيسية</a><a href="#how">كيف تصممي كتابك؟</a><a href="#covers">الأغلفة</a><a href="#gallery">الرسومات</a><a href="#about">عنّا</a><a href="#faq">الأسئلة الشائعة</a><a href="#customer-area">طلباتي وسفيراتي</a>
       </nav>
       <a className="header-cta" href="#design">صممي كتابك <span>←</span></a>
     </header>
@@ -200,6 +217,7 @@ export default function App() {
         <div className="price-card"><span className="price-label">سعر الكتاب</span><div className="offer-price-row"><div className="price-number">{offerActive ? "190" : "240"} <small>جنيه</small></div>{offerActive && <span className="old-price">240 جنيه</span>}</div><span className="offer-status">{offerActive ? "عرض ترحيبي لمدة ساعة" : "انتهى العرض — السعر الأساسي"}</span>{offerActive && <div className="offer-countdown" role="timer" aria-live="off"><span>الوقت المتبقي للعرض</span><strong>{formatOfferCountdown(offerRemainingMs ?? 0)}</strong></div>}<span className="price-includes">30 رسمة + غلاف باسمك + تجليد سلك</span><div className="price-divider"></div><p>الشحن بيتحسب حسب منطقتك وبيظهر قبل تأكيد الطلب.</p><small className="price-footnote">طرق الدفع: عند الاستلام أو InstaPay بعد مراجعة التحويل.</small></div>
       </section>
 
+      <section className="customer-quick-access section-wrap" id="customer-area" aria-label="طلباتي وبرنامج السفيرات"><div className="section-heading"><span className="eyebrow">مساحتك الخاصة ♡</span><h2>طلباتي وسفيراتي</h2><p>روابطك محفوظة على نفس الجهاز علشان ترجعي لها بسهولة.</p></div><div className="customer-quick-grid">{savedTrackingTokens.length ? savedTrackingTokens.map((token,index) => <a className="secondary-button" key={token} href={'?track=' + token}>متابعة الطلب {savedTrackingTokens.length > 1 ? (index + 1) : ''} ←</a>) : <p>لما تعملي طلب، رابط متابعته هيظهر هنا تلقائيًا.</p>}{savedAmbassadorUrl ? <a className="primary-button" href={savedAmbassadorUrl}>مساحة سفيراتي ♡</a> : <p>رابط مساحة السفيرات هيظهر هنا بعد إنشاء طلبك، ويُتاح البرنامج بعد استيفاء شروط التأهيل وتفعيل المكافآت.</p>}</div></section>
       <section className="faq-section section-wrap" id="faq">
         <div className="section-heading"><span className="eyebrow">حاجات ممكن تسألي عنها</span><h2>الأسئلة الشائعة</h2></div>
         <div className="faq-list">{faqs.map((faq, index) => <article className={'faq-item ' + (openFaq === index ? 'is-open' : '')} key={faq.q}><button type="button" aria-expanded={openFaq === index} onClick={() => setOpenFaq(openFaq === index ? null : index)}><span>{faq.q}</span><b>{openFaq === index ? '−' : '+'}</b></button>{openFaq === index && <p>{faq.a}</p>}</article>)}</div>
@@ -207,6 +225,6 @@ export default function App() {
       <section className="final-cta"><span>♡</span><h2>جاهزة تفكّي الضغط؟</h2><p>اعملي كتابك بطريقتك، واختاري كل رسمة على مزاجك.</p><a className="primary-button" href="#design">يلا نصمم كتابي <span>←</span></a></section>
     </main>
 
-    <footer className="site-footer"><div className="footer-main"><Brand footer /><p>مساحة لطيفة، رسومات على مزاجك، وكتاب معمول ليكي.</p><nav><a href="#how">كيف تصممي كتابك؟</a><a href="#gallery">الرسومات</a><a href="#covers">الأغلفة</a><a href="#faq">الأسئلة الشائعة</a></nav></div><div className="footer-bottom"><span>© {new Date().getFullYear()} ANTI PRESSURE — فُكّي الضغط</span><span>كتابك... على مزاجك! ♡</span></div></footer>
+    <footer className="site-footer"><div className="footer-main"><Brand footer /><p>مساحة لطيفة، رسومات على مزاجك، وكتاب معمول ليكي.</p><nav><a href="#how">كيف تصممي كتابك؟</a><a href="#gallery">الرسومات</a><a href="#covers">الأغلفة</a><a href="#faq">الأسئلة الشائعة</a><a href="#customer-area">طلباتي وسفيراتي</a></nav></div><div className="footer-bottom"><span>© {new Date().getFullYear()} ANTI PRESSURE — فُكّي الضغط</span><span>كتابك... على مزاجك! ♡</span></div></footer>
   </div>;
 }
