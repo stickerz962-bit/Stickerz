@@ -72,15 +72,19 @@ export default function AdminApp() {
     if (!firestore) return;
     setBusy(true); setError('');
     try {
+      // Read the full collections and sort client-side. Firestore orderBy excludes
+      // documents that don't have sortOrder, which can make legacy drafts disappear.
       const [categorySnap, artworkSnap, coverSnap, settingsSnap] = await Promise.all([
-        getDocs(query(collection(firestore, 'categories'), orderBy('sortOrder', 'asc'))),
-        getDocs(query(collection(firestore, 'artworks'), orderBy('sortOrder', 'asc'))),
-        getDocs(query(collection(firestore, 'covers'), orderBy('sortOrder', 'asc'))),
+        getDocs(collection(firestore, 'categories')),
+        getDocs(collection(firestore, 'artworks')),
+        getDocs(collection(firestore, 'covers')),
         getDocs(collection(firestore, 'settings')),
       ]);
-      setCategories(categorySnap.docs.map(d => ({ id: d.id, ...d.data() } as Category)));
-      setArtworks(artworkSnap.docs.map(d => ({ id: d.id, ...d.data() } as Artwork)));
-      setCovers(coverSnap.docs.map(d => ({ id: d.id, ...d.data() } as Cover)));
+      const sortByOrder = <T extends { sortOrder?: number; id: string }>(items: T[]) =>
+        items.sort((a, b) => (a.sortOrder ?? Number.MAX_SAFE_INTEGER) - (b.sortOrder ?? Number.MAX_SAFE_INTEGER) || a.id.localeCompare(b.id));
+      setCategories(sortByOrder(categorySnap.docs.map(d => ({ id: d.id, ...d.data() } as Category))));
+      setArtworks(sortByOrder(artworkSnap.docs.map(d => ({ id: d.id, ...d.data() } as Artwork))));
+      setCovers(sortByOrder(coverSnap.docs.map(d => ({ id: d.id, ...d.data() } as Cover))));
       const publicSettings = settingsSnap.docs.find(d => d.id === 'public')?.data();
       setShippingFee(typeof publicSettings?.shippingFee === 'number' ? String(publicSettings.shippingFee) : '');
     } catch {
@@ -241,7 +245,7 @@ export default function AdminApp() {
       }, { merge: true });
       setArtworkForm(emptyArtwork); setEditingArtwork(false); await loadData();
       setNotice(existing ? 'تم تحديث الرسمة. حالة النشر لم تتغير.' : 'تم حفظ الرسمة كمسودة مخفية؛ راجعيها ثم انشريها.');
-    } catch { setError('تعذر حفظ الرسمة.'); }
+    } catch (err) { const detail = err instanceof Error ? err.message : String(err); setError('تعذر حفظ الرسمة في Firestore. (' + detail + ')'); }
     finally { setBusy(false); }
   };
 
