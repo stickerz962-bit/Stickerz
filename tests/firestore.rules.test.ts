@@ -24,7 +24,7 @@ async function seed() {
     await setDoc(doc(db, 'artworks', 'AP-003'), { title: 'Artwork 3', active: false, categoryId: 'published', sortOrder: 3 });
     await setDoc(doc(db, 'covers', 'cover-live'), { title: 'Cover live', active: true, sortOrder: 1 });
     await setDoc(doc(db, 'covers', 'cover-draft'), { title: 'Cover draft', active: false, sortOrder: 2 });
-    await setDoc(doc(db, 'settings', 'public'), { shopName: 'ANTI PRESSURE' });
+    await setDoc(doc(db, 'settings', 'public'), { shopName: 'ANTI PRESSURE', shippingFee: 50 });
     await setDoc(doc(db, 'settings', 'private'), { secret: 'never-public' });
     await setDoc(doc(db, 'orders', 'order-1'), { status: 'new' });
     await setDoc(doc(db, 'payments', 'payment-1'), { status: 'pending' });
@@ -190,7 +190,7 @@ describe('Firestore security rules — guest checkout orders', () => {
     return {
       publicReference: 'AP-TEST-0001',
       customer: { name: 'Test Customer', phone: '01012345678' },
-      shipping: { governorateName: 'Cairo', areaName: 'Nasr City', address: 'Test street 123', deliveryNotes: '', fee: null },
+      shipping: { governorateName: 'Cairo', areaName: 'Nasr City', address: 'Test street 123', deliveryNotes: '', fee: 50 },
       book: {
         artworks: Array.from({ length: 30 }, (_, index) => ({
           artworkId: 'AP-' + String(index + 1).padStart(3, '0'),
@@ -200,7 +200,7 @@ describe('Firestore security rules — guest checkout orders', () => {
         cover: { coverId: 'AP-COVER-01', titleSnapshot: 'Calm cover' },
         personalizedName: 'Test Name',
       },
-      pricing: { currency: 'EGP', standardBookPrice: 240, bookPrice: 240, shippingFee: null, totalAmount: null, offerApplied: false },
+      pricing: { currency: 'EGP', standardBookPrice: 240, bookPrice: 240, shippingFee: 50, totalAmount: 290, offerApplied: false },
       paymentMethod: 'cod',
       paymentStatus: 'unpaid',
       fulfillmentStatus: 'new',
@@ -304,9 +304,9 @@ describe('Firestore security rules — ambassador checkout attribution', () => {
     return {
       publicReference: 'AP-TEST-0001',
       customer: { name: 'Test Customer', phone: '01012345678' },
-      shipping: { governorateName: 'Cairo', areaName: 'Nasr City', address: 'Test street 123', deliveryNotes: '', fee: null },
+      shipping: { governorateName: 'Cairo', areaName: 'Nasr City', address: 'Test street 123', deliveryNotes: '', fee: 50 },
       book: { artworks: Array.from({ length: 30 }, (_, index) => ({ artworkId: 'AP-' + String(index + 1).padStart(3, '0'), titleSnapshot: 'Artwork ' + (index + 1), printOrder: index + 1 })), cover: { coverId: 'AP-COVER-01', titleSnapshot: 'Calm cover' }, personalizedName: 'Test Name' },
-      pricing: { currency: 'EGP', standardBookPrice: 240, bookPrice: 240, shippingFee: null, totalAmount: null, offerApplied: false },
+      pricing: { currency: 'EGP', standardBookPrice: 240, bookPrice: 240, shippingFee: 50, totalAmount: 290, offerApplied: false },
       paymentMethod: 'cod', paymentStatus: 'unpaid', fulfillmentStatus: 'new', partnerCode: null,
       trackingToken: 'd'.repeat(64), createdAt: serverTimestamp(), updatedAt: serverTimestamp(),
     };

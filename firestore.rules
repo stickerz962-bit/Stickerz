@@ -119,7 +119,8 @@ service cloud.firestore {
         && request.resource.data.shipping.address.size() <= 300
         && request.resource.data.shipping.deliveryNotes is string
         && request.resource.data.shipping.deliveryNotes.size() <= 300
-        && request.resource.data.shipping.fee == null
+        && request.resource.data.shipping.fee is int
+        && request.resource.data.shipping.fee == get(/databases/$(database)/documents/settings/public).data.shippingFee
         && request.resource.data.book is map
         && request.resource.data.book.keys().hasOnly(['artworks', 'cover', 'personalizedName'])
         && request.resource.data.book.artworks is list
@@ -139,8 +140,9 @@ service cloud.firestore {
         && request.resource.data.pricing.currency == 'EGP'
         && request.resource.data.pricing.standardBookPrice == 240
         && request.resource.data.pricing.bookPrice in [190, 240]
-        && request.resource.data.pricing.shippingFee == null
-        && request.resource.data.pricing.totalAmount == null
+        && request.resource.data.pricing.shippingFee is int
+        && request.resource.data.pricing.shippingFee == get(/databases/$(database)/documents/settings/public).data.shippingFee
+        && request.resource.data.pricing.totalAmount == request.resource.data.pricing.bookPrice + request.resource.data.pricing.shippingFee
         && request.resource.data.pricing.offerApplied is bool
         && request.resource.data.pricing.offerApplied == (request.resource.data.pricing.bookPrice == 190)
         && request.resource.data.paymentMethod in ['cod', 'instapay']

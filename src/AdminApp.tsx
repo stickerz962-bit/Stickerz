@@ -8,7 +8,7 @@ type Category = { id: string; title: string; slug: string; sortOrder: number; ac
 type Artwork = { id: string; title: string; categoryId: string; phrase: string; previewAssetRef: string; sortOrder: number; version: number; active: boolean };
 type Cover = { id: string; title: string; subtitle: string; previewAssetRef: string; sortOrder: number; version: number; active: boolean };
 type Order = { id: string; trackingToken?: string; publicReference?: string; customer?: { name?: string; phone?: string }; shipping?: { governorateName?: string; areaName?: string; address?: string; deliveryNotes?: string }; book?: { artworks?: Array<{ artworkId?: string; titleSnapshot?: string; printOrder?: number }>; cover?: { titleSnapshot?: string }; personalizedName?: string }; pricing?: { bookPrice?: number; standardBookPrice?: number; shippingFee?: number | null; totalAmount?: number | null; offerApplied?: boolean }; paymentMethod?: string; paymentStatus?: string; fulfillmentStatus?: string; partnerCode?: string | null; ambassadorReferralCode?: string | null; deliveredAt?: { toDate?: () => Date }; createdAt?: { toDate?: () => Date } };
-type Tab = 'orders' | 'categories' | 'artworks' | 'covers';
+type Tab = 'orders' | 'categories' | 'artworks' | 'covers' | 'shipping';
 const orderStatuses = ['new','confirmed','pdf_generating','ready_for_printing','printing','quality_check','ready_for_shipping','shipped','delivered','cancelled'] as const;
 const orderStatusLabels: Record<string,string> = { new:'طلب جديد', confirmed:'تم التأكيد', pdf_generating:'تجهيز PDF', ready_for_printing:'جاهز للطباعة', printing:'قيد الطباعة', quality_check:'مراجعة الجودة', ready_for_shipping:'جاهز للشحن', shipped:'تم الشحن', delivered:'تم التسليم', cancelled:'ملغي' };
 const paymentStatusLabels: Record<string,string> = { unpaid:'غير مدفوع (الدفع عند الاستلام)', pending_review:'InstaPay — مراجعة مطلوبة', paid:'مدفوع', rejected:'مرفوض', refunded:'مسترد' };
@@ -39,6 +39,7 @@ export default function AdminApp() {
   const [artworks, setArtworks] = useState<Artwork[]>([]);
   const [covers, setCovers] = useState<Cover[]>([]);
   const [orders, setOrders] = useState<Order[]>([]);
+  const [shippingFee, setShippingFee] = useState('');
   const [artworkForm, setArtworkForm] = useState(emptyArtwork);
   const [coverForm, setCoverForm] = useState(emptyCover);
   const [categoryTitle, setCategoryTitle] = useState('');
@@ -71,17 +72,34 @@ export default function AdminApp() {
     if (!firestore) return;
     setBusy(true); setError('');
     try {
-      const [categorySnap, artworkSnap, coverSnap] = await Promise.all([
+      const [categorySnap, artworkSnap, coverSnap, settingsSnap] = await Promise.all([
         getDocs(query(collection(firestore, 'categories'), orderBy('sortOrder', 'asc'))),
         getDocs(query(collection(firestore, 'artworks'), orderBy('sortOrder', 'asc'))),
         getDocs(query(collection(firestore, 'covers'), orderBy('sortOrder', 'asc'))),
+        getDocs(collection(firestore, 'settings')),
       ]);
       setCategories(categorySnap.docs.map(d => ({ id: d.id, ...d.data() } as Category)));
       setArtworks(artworkSnap.docs.map(d => ({ id: d.id, ...d.data() } as Artwork)));
       setCovers(coverSnap.docs.map(d => ({ id: d.id, ...d.data() } as Cover)));
+      const publicSettings = settingsSnap.docs.find(d => d.id === 'public')?.data();
+      setShippingFee(typeof publicSettings?.shippingFee === 'number' ? String(publicSettings.shippingFee) : '');
     } catch {
       setError('تعذر تحميل بيانات الكتالوج. تأكدي من صلاحية admin:true ومن إعدادات Firestore.');
     } finally { setBusy(false); }
+  };
+
+  const saveShippingFee = async (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    if (!firestore) return;
+    const fee = Number(shippingFee);
+    if (!Number.isFinite(fee) || fee < 0 || fee > 5000 || !Number.isInteger(fee)) { setError('اكتبي سعر شحن صحيح من 0 إلى 5000 جنيه.'); return; }
+    setBusy(true); setError(''); setNotice('');
+    try {
+      await setDoc(doc(firestore, 'settings', 'public'), { shippingFee: fee, updatedAt: serverTimestamp() }, { merge: true });
+      setShippingFee(String(fee));
+      setNotice('تم حفظ سعر الشحن. هيظهر تلقائيًا للعميلات في صفحة الطلبات الجديدة.');
+    } catch { setError('تعذر حفظ سعر الشحن. تأكدي من صلاحية الأدمن وقواعد Firestore.'); }
+    finally { setBusy(false); }
   };
 
   const loadOrders = async () => {
@@ -178,6 +196,30 @@ export default function AdminApp() {
     finally { setBusy(false); }
   };
 
+  const compressImageForFirestore = async (file: File): Promise<string> => {
+    if (!file.type.startsWith('image/')) throw new Error('اختاري ملف صورة فقط.');
+    if (file.size > 12 * 1024 * 1024) throw new Error('حجم الصورة قبل الضغط يجب ألا يتجاوز 12 ميجابايت.');
+    const bitmap = await createImageBitmap(file);
+    const scale = Math.min(1, 1000 / Math.max(bitmap.width, bitmap.height));
+    const canvas = document.createElement('canvas');
+    canvas.width = Math.max(1, Math.round(bitmap.width * scale));
+    canvas.height = Math.max(1, Math.round(bitmap.height * scale));
+    const context = canvas.getContext('2d');
+    if (!context) throw new Error('تعذر تجهيز الصورة.');
+    context.fillStyle = '#fff';
+    context.fillRect(0, 0, canvas.width, canvas.height);
+    context.drawImage(bitmap, 0, 0, canvas.width, canvas.height);
+    bitmap.close();
+    let quality = 0.72;
+    let dataUrl = canvas.toDataURL('image/jpeg', quality);
+    while (dataUrl.length > 430_000 && quality > 0.35) {
+      quality -= 0.08;
+      dataUrl = canvas.toDataURL('image/jpeg', quality);
+    }
+    if (dataUrl.length > 430_000) throw new Error('الصورة كبيرة جدًا حتى بعد الضغط. اختاري صورة أصغر.');
+    return dataUrl;
+  };
+
   const saveArtwork = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     if (!firestore) return;
@@ -270,10 +312,11 @@ export default function AdminApp() {
       <div className="admin-title"><div><span className="eyebrow">إدارة المحتوى المنشور</span><h1>كتالوج فُكّي الضغط</h1><p>إدارة التصنيفات والرسومات والأغلفة. العناصر الجديدة تُحفظ مخفية حتى اعتمادها.</p></div></div>
       <div className="preview-warning"><strong>حدود آمنة:</strong> هذه اللوحة تدير بيانات الكتالوج فقط. لا يوجد رفع ملفات في هذه المرحلة؛ لا تضعي روابط الرسومات الأصلية أو ملفات الطباعة. استخدمي مرجع معاينة عامًّا معتمدًا فقط.</div>
       <div className="ap-admin-stats"><div><b>{categories.length}</b><span>تصنيف</span></div><div><b>{artworks.length}/100</b><span>رسمة مسجلة</span></div><div><b>{artworks.filter(x => x.active).length}</b><span>رسمة منشورة</span></div><div><b>{covers.filter(x => x.active).length}/5</b><span>غلاف منشور</span></div></div>
-      <div className="ap-admin-tabs">{(['orders','categories','artworks','covers'] as Tab[]).map(item => <button key={item} className={tab === item ? 'active' : ''} onClick={() => setTab(item)}>{item === 'orders' ? 'الطلبات (' + orders.length + ')' : item === 'categories' ? 'التصنيفات' : item === 'artworks' ? 'الرسومات' : 'الأغلفة'}</button>)}</div>
+      <div className="ap-admin-tabs">{(['orders','categories','artworks','covers','shipping'] as Tab[]).map(item => <button key={item} className={tab === item ? 'active' : ''} onClick={() => setTab(item)}>{item === 'orders' ? 'الطلبات (' + orders.length + ')' : item === 'categories' ? 'التصنيفات' : item === 'artworks' ? 'الرسومات' : item === 'covers' ? 'الأغلفة' : 'الشحن'}</button>)}</div>
       {notice && <p className="form-success" role="status">{notice}</p>}{error && <p className="form-error" role="alert">{error}</p>}
       <div className="ap-admin-toolbar"><button className="secondary-button" disabled={busy} onClick={() => tab === 'orders' ? void loadOrders() : void loadData()}>تحديث البيانات</button>{tab === 'categories' && <button className="secondary-button" disabled={busy} onClick={() => void seedCategories()}>إضافة التصنيفات العشرة الأساسية</button>}</div>
       {busy && <p className="backup-help">جارٍ تنفيذ العملية...</p>}
+      {tab === 'shipping' && <section className="admin-layout ap-admin-layout"><form className="product-form" onSubmit={saveShippingFee}><h2>سعر الشحن الموحد</h2><p>اكتبي السعر بالجنيه المصري. سيتم تحديث صفحة الطلب تلقائيًا وحفظ السعر في الطلبات الجديدة.</p><label>سعر الشحن (جنيه)<input type="number" min="0" max="5000" step="1" inputMode="numeric" value={shippingFee} onChange={e => setShippingFee(e.target.value)} required /></label><button className="primary-button" disabled={busy}>{busy ? 'جارٍ الحفظ...' : 'حفظ سعر الشحن'}</button><p className="backup-help">السعر الحالي: {shippingFee !== '' ? shippingFee + ' جنيه' : 'لم يتم ضبطه بعد'}. الطلبات القديمة تحتفظ بسعر الشحن المسجل وقت الطلب.</p></form></section>}
       {tab === 'orders' && <>
         <section className="ap-order-stats">
           <button className={orderFilter === 'all' ? 'selected' : ''} onClick={() => setOrderFilter('all')}><b>{orders.length}</b><span>كل الطلبات</span></button>
@@ -304,8 +347,8 @@ export default function AdminApp() {
         </article>)}
       </section></>}
       {tab === 'categories' && <div className="admin-layout ap-admin-layout"><form className="product-form" onSubmit={saveCategory}><h2>إضافة تصنيف</h2><label>اسم التصنيف<input value={categoryTitle} onChange={e => setCategoryTitle(e.target.value)} maxLength={70} required /></label><button className="primary-button" disabled={busy}>حفظ التصنيف</button><p className="backup-help">المعرف يُنشأ تلقائيًا من الاسم الإنجليزي/الحروف المتاحة؛ للتصنيفات العربية استخدمي زر إضافة التصنيفات الأساسية.</p></form><section className="admin-products"><h2>التصنيفات ({categories.length})</h2>{categories.map(item => <article className="admin-product-row" key={item.id}><div className="admin-product-info"><strong>{item.title}</strong><small>{item.id} · {item.active ? 'مفعّل' : 'مخفي'}</small></div></article>)}</section></div>}
-      {tab === 'artworks' && <div className="admin-layout ap-admin-layout"><form className="product-form" onSubmit={saveArtwork}><h2>{editingArtwork ? 'تعديل الرسمة' : 'إضافة رسمة'}</h2><label>كود الرسمة<input value={artworkForm.id} onChange={e => setArtworkForm({ ...artworkForm, id: e.target.value })} placeholder="AP-001" required /></label><label>اسم الرسمة<input value={artworkForm.title} onChange={e => setArtworkForm({ ...artworkForm, title: e.target.value })} maxLength={100} required /></label><label>التصنيف<select value={artworkForm.categoryId} onChange={e => setArtworkForm({ ...artworkForm, categoryId: e.target.value })} required><option value="">اختاري تصنيفًا</option>{categories.map(c => <option key={c.id} value={c.id}>{c.title}</option>)}</select></label><label>الجملة المصرية<input value={artworkForm.phrase} onChange={e => setArtworkForm({ ...artworkForm, phrase: e.target.value })} maxLength={160} /></label><label>مرجع صورة المعاينة فقط<input value={artworkForm.previewAssetRef} onChange={e => setArtworkForm({ ...artworkForm, previewAssetRef: e.target.value })} maxLength={500} placeholder="https://.../AP-001-preview.webp" /></label><p className="backup-help">لا تضعي رابط الأصل أو ملف PDF. الرسمة تُحفظ كمسودة غير منشورة أولًا.</p><div className="form-actions"><button className="primary-button" disabled={busy || categories.length === 0}>{editingArtwork ? 'حفظ التعديل' : 'حفظ كمسودة'}</button>{editingArtwork && <button type="button" className="secondary-button" onClick={() => { setArtworkForm(emptyArtwork); setEditingArtwork(false); }}>إلغاء</button>}</div></form><section className="admin-products"><div className="admin-list-heading"><h2>الرسومات ({filteredArtworks.length})</h2><span>من أصل 100</span></div><div className="ap-admin-filters"><input value={search} onChange={e => setSearch(e.target.value)} placeholder="بحث بالكود أو الاسم أو الجملة" /><select value={filterCategory} onChange={e => setFilterCategory(e.target.value)}><option value="all">كل التصنيفات</option>{categories.map(c => <option key={c.id} value={c.id}>{c.title}</option>)}</select></div><div className="admin-product-list">{filteredArtworks.map(item => <article className="admin-product-row" key={item.id}><div className="admin-thumb ap-thumb">✿</div><div className="admin-product-info"><strong>{item.id} · {item.title}</strong><span>{categories.find(c => c.id === item.categoryId)?.title || 'تصنيف غير معروف'}</span><small>{item.phrase || 'بدون جملة'}</small><small>{item.active ? 'منشورة' : 'مسودة مخفية'}</small></div><div className="admin-product-actions"><button className="secondary-button" onClick={() => editArtwork(item)}>تعديل</button><button className="secondary-button" disabled={busy || !item.previewAssetRef || !item.phrase} onClick={() => void setArtworkActive(item)}>{item.active ? 'إخفاء' : 'نشر'}</button></div></article>)}</div></section></div>}
-      {tab === 'covers' && <div className="admin-layout ap-admin-layout"><form className="product-form" onSubmit={saveCover}><h2>{editingCover ? 'تعديل الغلاف' : 'إضافة غلاف'}</h2><label>كود الغلاف<input value={coverForm.id} onChange={e => setCoverForm({ ...coverForm, id: e.target.value })} placeholder="AP-COVER-01" required /></label><label>اسم الغلاف<input value={coverForm.title} onChange={e => setCoverForm({ ...coverForm, title: e.target.value })} maxLength={50} required /></label><label>النص الفرعي<input value={coverForm.subtitle} onChange={e => setCoverForm({ ...coverForm, subtitle: e.target.value })} maxLength={80} /></label><label>مرجع صورة المعاينة فقط<input value={coverForm.previewAssetRef} onChange={e => setCoverForm({ ...coverForm, previewAssetRef: e.target.value })} maxLength={500} /></label><p className="backup-help">لا تضعي ملف الغلاف الأصلي أو ملف الطباعة هنا.</p><div className="form-actions"><button className="primary-button" disabled={busy}>{editingCover ? 'حفظ التعديل' : 'حفظ كمسودة'}</button>{editingCover && <button type="button" className="secondary-button" onClick={() => { setCoverForm(emptyCover); setEditingCover(false); }}>إلغاء</button>}</div></form><section className="admin-products"><h2>الأغلفة ({covers.length}/5)</h2>{covers.map(item => <article className="admin-product-row" key={item.id}><div className="admin-thumb ap-thumb">✿</div><div className="admin-product-info"><strong>{item.id} · {item.title}</strong><small>{item.subtitle}</small><small>{item.active ? 'منشور' : 'مسودة مخفية'}</small></div><div className="admin-product-actions"><button className="secondary-button" onClick={() => editCover(item)}>تعديل</button><button className="secondary-button" disabled={busy || !item.previewAssetRef} onClick={() => void setCoverActive(item)}>{item.active ? 'إخفاء' : 'نشر'}</button></div></article>)}</section></div>}
+      {tab === 'artworks' && <div className="admin-layout ap-admin-layout"><form className="product-form" onSubmit={saveArtwork}><h2>{editingArtwork ? 'تعديل الرسمة' : 'إضافة رسمة'}</h2><label>كود الرسمة<input value={artworkForm.id} onChange={e => setArtworkForm({ ...artworkForm, id: e.target.value })} placeholder="AP-001" required /></label><label>اسم الرسمة<input value={artworkForm.title} onChange={e => setArtworkForm({ ...artworkForm, title: e.target.value })} maxLength={100} required /></label><label>التصنيف<select value={artworkForm.categoryId} onChange={e => setArtworkForm({ ...artworkForm, categoryId: e.target.value })} required><option value="">اختاري تصنيفًا</option>{categories.map(c => <option key={c.id} value={c.id}>{c.title}</option>)}</select></label><label>الجملة المصرية<input value={artworkForm.phrase} onChange={e => setArtworkForm({ ...artworkForm, phrase: e.target.value })} maxLength={160} /></label><label>رفع صورة الرسمة (اختياري)<input type="file" accept="image/*" onChange={async e => { const file = e.target.files?.[0]; if (!file) return; setBusy(true); setError(''); try { const image = await compressImageForFirestore(file); setArtworkForm(current => ({ ...current, previewAssetRef: image })); setNotice('تم تجهيز الصورة. اضغطي حفظ المسودة لحفظها.'); } catch (err) { setError(err instanceof Error ? err.message : 'تعذر تجهيز الصورة.'); } finally { setBusy(false); e.target.value = ''; } }} /></label><label>رابط صورة بديل<input value={artworkForm.previewAssetRef.startsWith('data:image/') ? '' : artworkForm.previewAssetRef} onChange={e => setArtworkForm({ ...artworkForm, previewAssetRef: e.target.value })} maxLength={500} placeholder="https://..." /></label>{artworkForm.previewAssetRef && <img src={artworkForm.previewAssetRef} alt="معاينة صورة الرسمة" style={{maxWidth:'100%',maxHeight:220,objectFit:'contain'}} />}<p className="backup-help">يتم ضغط الصورة وحفظ نسخة صغيرة داخل Firestore (حتى نحو 430KB). لا ترفعي ملفات الطباعة الأصلية أو صورًا عالية الدقة هنا.</p><div className="form-actions"><button className="primary-button" disabled={busy || categories.length === 0}>{editingArtwork ? 'حفظ التعديل' : 'حفظ كمسودة'}</button>{editingArtwork && <button type="button" className="secondary-button" onClick={() => { setArtworkForm(emptyArtwork); setEditingArtwork(false); }}>إلغاء</button>}</div></form><section className="admin-products"><div className="admin-list-heading"><h2>الرسومات ({filteredArtworks.length})</h2><span>من أصل 100</span></div><div className="ap-admin-filters"><input value={search} onChange={e => setSearch(e.target.value)} placeholder="بحث بالكود أو الاسم أو الجملة" /><select value={filterCategory} onChange={e => setFilterCategory(e.target.value)}><option value="all">كل التصنيفات</option>{categories.map(c => <option key={c.id} value={c.id}>{c.title}</option>)}</select></div><div className="admin-product-list">{filteredArtworks.map(item => <article className="admin-product-row" key={item.id}><div className="admin-thumb ap-thumb">✿</div><div className="admin-product-info"><strong>{item.id} · {item.title}</strong><span>{categories.find(c => c.id === item.categoryId)?.title || 'تصنيف غير معروف'}</span><small>{item.phrase || 'بدون جملة'}</small><small>{item.active ? 'منشورة' : 'مسودة مخفية'}</small></div><div className="admin-product-actions"><button className="secondary-button" onClick={() => editArtwork(item)}>تعديل</button><button className="secondary-button" disabled={busy || !item.phrase} onClick={() => void setArtworkActive(item)}>{item.active ? 'إخفاء' : 'نشر'}</button></div></article>)}</div></section></div>}
+      {tab === 'covers' && <div className="admin-layout ap-admin-layout"><form className="product-form" onSubmit={saveCover}><h2>{editingCover ? 'تعديل الغلاف' : 'إضافة غلاف'}</h2><label>كود الغلاف<input value={coverForm.id} onChange={e => setCoverForm({ ...coverForm, id: e.target.value })} placeholder="AP-COVER-01" required /></label><label>اسم الغلاف<input value={coverForm.title} onChange={e => setCoverForm({ ...coverForm, title: e.target.value })} maxLength={50} required /></label><label>النص الفرعي<input value={coverForm.subtitle} onChange={e => setCoverForm({ ...coverForm, subtitle: e.target.value })} maxLength={80} /></label><label>رفع صورة الغلاف (اختياري)<input type="file" accept="image/*" onChange={async e => { const file = e.target.files?.[0]; if (!file) return; setBusy(true); setError(''); try { const image = await compressImageForFirestore(file); setCoverForm(current => ({ ...current, previewAssetRef: image })); setNotice('تم تجهيز الصورة. اضغطي حفظ المسودة لحفظها.'); } catch (err) { setError(err instanceof Error ? err.message : 'تعذر تجهيز الصورة.'); } finally { setBusy(false); e.target.value = ''; } }} /></label><label>رابط صورة بديل<input value={coverForm.previewAssetRef.startsWith('data:image/') ? '' : coverForm.previewAssetRef} onChange={e => setCoverForm({ ...coverForm, previewAssetRef: e.target.value })} maxLength={500} /></label>{coverForm.previewAssetRef && <img src={coverForm.previewAssetRef} alt="معاينة صورة الغلاف" style={{maxWidth:'100%',maxHeight:220,objectFit:'contain'}} />}<p className="backup-help">يتم ضغط الصورة وحفظ نسخة صغيرة داخل Firestore (حتى نحو 430KB). لا ترفعي ملفات الطباعة الأصلية.</p><div className="form-actions"><button className="primary-button" disabled={busy}>{editingCover ? 'حفظ التعديل' : 'حفظ كمسودة'}</button>{editingCover && <button type="button" className="secondary-button" onClick={() => { setCoverForm(emptyCover); setEditingCover(false); }}>إلغاء</button>}</div></form><section className="admin-products"><h2>الأغلفة ({covers.length}/5)</h2>{covers.map(item => <article className="admin-product-row" key={item.id}><div className="admin-thumb ap-thumb">✿</div><div className="admin-product-info"><strong>{item.id} · {item.title}</strong><small>{item.subtitle}</small><small>{item.active ? 'منشور' : 'مسودة مخفية'}</small></div><div className="admin-product-actions"><button className="secondary-button" onClick={() => editCover(item)}>تعديل</button><button className="secondary-button" disabled={busy} onClick={() => void setCoverActive(item)}>{item.active ? 'إخفاء' : 'نشر'}</button></div></article>)}</section></div>}
     </main>
     <footer className="site-footer ap-admin-footer"><strong>ANTI PRESSURE · فُكّي الضغط</strong><span>صلاحيات الإدارة تتحقق من Firebase Authentication custom claim.</span></footer>
   </div>;
