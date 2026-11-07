@@ -353,3 +353,7 @@ body{background:#fff9f2;color:#302b48}.anti-shell{background:linear-gradient(180
 .ap-amb-admin-login input{padding:12px;border:1px solid #e7d8df;border-radius:12px}
 @media(max-width:760px){.ap-ambassador-stats,.ap-amb-admin-stats{grid-template-columns:repeat(2,minmax(0,1fr))}.ap-ambassador-grid{grid-template-columns:1fr}.ap-amb-payout-row{grid-template-columns:1fr}}
 @media(max-width:460px){.ap-ambassador-actions{display:grid}.ap-ambassador-actions>*{width:100%}.ap-amb-admin-nav{gap:5px}.ap-amb-admin-nav a,.ap-amb-admin-nav button{font-size:11px;padding:8px}}
+
+
+/* Customer saved order / ambassador links and structured admin order details */
+.customer-quick-access{padding:48px 24px;margin:28px auto;background:#fff4f7;border:1px solid #f3dce5;border-radius:24px}.customer-quick-grid{display:flex;flex-wrap:wrap;align-items:center;gap:12px}.customer-quick-grid>p{margin:0;color:#77798a}.ap-order-artwork-details{margin-top:8px;padding:10px 12px;background:#fff8f5;border:1px solid #eee5df;border-radius:12px}.ap-order-artwork-details summary{cursor:pointer;font-weight:800;color:#a84e70}.ap-order-artwork-details ol{display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:5px 18px;margin:12px 0 0;padding-right:24px}.ap-order-artwork-details li{padding:4px 0}.ap-order-artwork-details li b{display:inline-block;direction:ltr;margin-left:8px;color:#202b49}.ap-order-artwork-details li span{color:#77798a}.book-review-order{display:none!important}
