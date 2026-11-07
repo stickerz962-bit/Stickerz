@@ -2,7 +2,6 @@ import { useEffect, useMemo, useState, type FormEvent } from 'react';
 import { collection, doc, getDoc, onSnapshot, serverTimestamp, writeBatch } from 'firebase/firestore';
 import { firestore } from './firebase/client';
 import { loadCatalog } from './catalog/repository';
-import type { CatalogData } from './catalog/types';
 import { getOfferEndAt, getOfferRemainingMs, formatOfferCountdown } from './lib/offer';
 import { attachAmbassadorReferralToOrder, clearAmbassadorReferral, getOrCreateAmbassadorCredentials, hashAmbassadorToken, readAmbassadorReferral, readAmbassadorReferralTrackingToken, saveAmbassadorContext } from './lib/ambassador';
 
@@ -48,10 +47,9 @@ function readDraft(): Draft {
 
 export default function Builder() {
   const [selected, setSelected] = useState<string[]>([]);
-  const [catalogItems, setCatalogItems] = useState(catalog);
-  const [coverItems, setCoverItems] = useState(covers);
-  const [categoryItems, setCategoryItems] = useState(categories);
-  const [catalogSource, setCatalogSource] = useState<'demo' | 'firestore'>('demo');
+  const [catalogItems, setCatalogItems] = useState([] as typeof catalog);
+  const [coverItems, setCoverItems] = useState([] as typeof covers);
+  const [categoryItems, setCategoryItems] = useState<string[]>([]);
   const [catalogWarning, setCatalogWarning] = useState('');
   const [activeCategory, setActiveCategory] = useState('الكل');
   const [search, setSearch] = useState('');
@@ -78,7 +76,7 @@ export default function Builder() {
 
   // Reuse the homepage's original deadline; entering or changing builder stages never restarts the offer.
   useEffect(() => {
-    const endAt = getOfferEndAt(localStorage, 'anti-pressure-intro-offer-end-v1', Date.now());
+    const endAt = getOfferEndAt(localStorage, 'anti-pressure-intro-offer-end-v2', Date.now());
     const update = () => setOfferRemainingMs(getOfferRemainingMs(endAt, Date.now()));
     update();
     const timer = window.setInterval(update, 1000);
@@ -86,15 +84,9 @@ export default function Builder() {
   }, []);
 
   useEffect(() => {
-    const demoData: CatalogData = {
-      categories: categories.map((title, index) => ({ id: String(index + 1), title, slug: String(index + 1), sortOrder: index, active: true })),
-      artworks: catalog.map((item, index) => ({ id: item.id, title: item.title, categoryId: String(Math.floor(index / 10) + 1), previewAssetRef: '', sortOrder: index, version: 1, active: true })),
-      covers: covers.map((item, index) => ({ id: item.id, title: item.title, subtitle: item.subtitle, previewAssetRef: '', sortOrder: index, version: 1, active: true })),
-    };
     let cancelled = false;
-    loadCatalog(demoData).then(result => {
+    loadCatalog().then(result => {
       if (cancelled) return;
-      setCatalogSource(result.source);
       setCatalogWarning(result.warning || '');
       if (result.source === 'firestore') {
         const categoryTitles = new Map(result.data.categories.map(item => [item.id, item.title]));
@@ -258,13 +250,13 @@ export default function Builder() {
           <span className="eyebrow">الخطوة الأولى · اختياراتك على مزاجك</span>
           <h1>اختاري 30 رسمة بتحبيها</h1>
           <p>خدي وقتك، قلّبي في التصنيفات، واختاري الرسومات اللي حابة تكون في كتابك، وترتيب الصفحات بيتحدد تلقائيًا حسب اختيارك.</p>
-          <div className="demo-alert"><span>✦</span><div><b>معاينة تجريبية للمكتبة</b><small>الأشكال الحالية نماذج مؤقتة لا تمثل الرسومات النهائية. هنستبدلها بالرسومات الأصلية بعد اعتمادها.</small></div></div>
+          <div className="catalog-live-note"><span>✦</span><div><b>مكتبة الرسومات المعتمدة</b><small>كل رسمة معروضة بصورتها الفعلية وكودها المستخدم في تجهيز الطباعة.</small></div></div>
         </div>
         <section className="selection-toolbar" aria-label="أدوات البحث والتصفية">
           <label className="art-search"><span>⌕</span><input value={search} onChange={e => setSearch(e.target.value)} placeholder="دوري على رسمة أو تصنيف..." aria-label="ابحثي عن رسمة" /></label>
           <div className="filter-chips"><button className={activeCategory === 'الكل' ? 'chosen' : ''} onClick={() => setActiveCategory('الكل')}>كل الرسومات <small>{catalogItems.length}</small></button>{categoryItems.map((category, i) => <button key={category} className={activeCategory === category ? 'chosen' : ''} onClick={() => setActiveCategory(category)}>{category}<small>{String(i + 1).padStart(2, '0')}</small></button>)}</div>
         </section>
-        {catalogWarning && <div className="demo-alert" role="status"><span>✦</span><div><b>{catalogSource === 'demo' ? 'المكتبة التجريبية' : 'تنبيه تحميل المكتبة'}</b><small>{catalogWarning}</small></div></div>}
+        {catalogWarning && <div className="catalog-live-note" role="status"><span>✦</span><div><b>تنبيه المكتبة</b><small>{catalogWarning}</small></div></div>}
         <div className="builder-results"><span>{visible.length} رسمة في العرض</span><span>اختاري 30 رسمة مختلفة فقط</span></div>
         <section className="builder-grid" aria-label="مكتبة الرسومات">
           {visible.map(item => {
@@ -272,14 +264,14 @@ export default function Builder() {
             const locked = !isSelected && selected.length === 30;
             return <article className={'builder-art-card ' + (isSelected ? 'selected' : '')} key={item.id}>
               <button className="art-preview-button" type="button" onClick={() => setPreview(item)} aria-label={'معاينة ' + item.title}>
-                {item.imageSrc ? <img src={item.imageSrc} alt={item.title} style={{width:'100%',height:'100%',objectFit:'contain',background:'#fff'}} /> : <div className={'builder-art-visual ' + item.tone}><span className="demo-stamp">نموذج</span><span className="demo-main-mark">{item.mark}</span><span className="demo-line">﹏  ◡  ﹏</span><small>{item.title}</small><span className="demo-spark">✧</span></div>}
+                {item.imageSrc ? <img src={item.imageSrc} alt={item.title} style={{width:'100%',height:'100%',objectFit:'contain',background:'#fff'}} /> : <div className="builder-art-unavailable">الصورة غير متاحة</div>}
               </button>
               <div className="builder-card-meta"><div><b>{item.title}</b><small>{item.category}</small></div><button type="button" className={'select-art-button ' + (isSelected ? 'is-selected' : '')} disabled={locked} onClick={() => toggle(item.id)}>{isSelected ? '✓ تم الاختيار' : '+ اختاري'}</button></div>
               <span className="art-code">{item.id}</span>
             </article>;
           })}
         </section>
-        {visible.length === 0 && <div className="builder-empty">ملقيناش رسومات بالكلمة دي. جربي كلمة تانية أو اختاري تصنيف مختلف.</div>}
+        {visible.length === 0 && <div className="builder-empty">لا توجد رسومات معتمدة متاحة حاليًا. يرجى المحاولة لاحقًا.</div>}
       </main>
 
     </> : step === 'cover' ? <>
@@ -294,7 +286,7 @@ export default function Builder() {
             <h2>اختاري الغلاف اللي شبهك</h2>
             <div className="cover-picker-grid">
               {coverItems.map(cover => <button type="button" key={cover.id} className={'cover-picker ' + (draft.coverId === cover.id ? 'active' : '')} onClick={() => setDraft(current => ({ ...current, coverId: cover.id }))} aria-pressed={draft.coverId === cover.id}>
-                <span className={'cover-picker-art ' + cover.tone}>{cover.imageSrc ? <img src={cover.imageSrc} alt={cover.title} style={{width:'100%',height:'100%',objectFit:'contain',background:'#fff'}} /> : <><i>{cover.mark}</i><b>{cover.title}</b><small>{cover.subtitle}</small></>}</span>
+                <span className={'cover-picker-art ' + cover.tone}>{cover.imageSrc ? <img src={cover.imageSrc} alt={cover.title} style={{width:'100%',height:'100%',objectFit:'contain',background:'#fff'}} /> : <span>صورة الغلاف غير متاحة</span>}</span>
                 <span className="cover-picker-label">{cover.title}{draft.coverId === cover.id ? ' ✓' : ''}</span>
               </button>)}
             </div>
@@ -308,7 +300,7 @@ export default function Builder() {
             {notice && <div className="cover-save-note" role="status">{notice}</div>}
           </div>
           <div className="cover-live-panel">
-            <span className="cover-preview-caption">معاينة تقريبية للغلاف</span>
+            <span className="cover-preview-caption">معاينة الغلاف المختار</span>
             <div className={'cover-live-art ' + activeCover.tone}>
               <span className="cover-live-decoration">{activeCover.mark}</span>
               <span className="cover-live-brand">ANTI PRESSURE · فُكّي الضغط</span>
@@ -316,7 +308,7 @@ export default function Builder() {
               <span className="cover-live-name" style={{ fontSize: fittedNameSize + 'px' }}>{draft.name.trim() || 'اسمك هنا'}</span>
               <span className="cover-live-bottom">{activeCover.subtitle}</span>
             </div>
-            <p>دي معاينة تصميمية مبدئية، مش ملف الطباعة النهائي. شكل الغلاف النهائي هيتراجع بعد اعتماد الرسومات والأغلفة الأصلية.</p>
+            <p>دي معاينة الغلاف الفعلي مع الاسم اللي اخترتيه.</p>
             <div className="cover-selected-summary"><b>اختيارات كتابك</b><span>30 رسمة مختارة</span><span>غلاف: {activeCover.title}</span><span>الاسم: {draft.name.trim() || 'لم يُكتب بعد'}</span></div>
           </div>
         </section>
@@ -332,6 +324,7 @@ export default function Builder() {
           <div className="book-preview-cover-column">
             <span className="cover-preview-caption">الغلاف المختار</span>
             <div className={'cover-live-art book-final-cover ' + activeCover.tone}>
+              {activeCover.imageSrc && <img src={activeCover.imageSrc} alt={activeCover.title} style={{position:'absolute',inset:0,width:'100%',height:'100%',objectFit:'cover',borderRadius:'inherit'}} />}
               <span className="cover-live-decoration">{activeCover.mark}</span>
               <span className="cover-live-brand">ANTI PRESSURE · فُكّي الضغط</span>
               <strong>كتابك... على مزاجك!</strong>
@@ -342,8 +335,8 @@ export default function Builder() {
           </div>
           <div className="book-artwork-review">
             <div className="book-review-heading"><div><b>رسومات كتابك</b><small>ترتيب تلقائي · 30 رسمة</small></div><button type="button" className="clear-selection" onClick={() => setStep('artworks')}>تعديل الرسومات</button></div>
-            <div className="book-review-grid">{selected.map((id, index) => { const item = catalogItems.find(entry => entry.id === id); if (!item) return null; return <div className="book-review-item" key={id}><span className={'book-review-art ' + item.tone}>{item.mark}</span><span><b>{item.title}</b><small>صفحة {index + 1}</small></span></div>; })}</div>
-            <div className="book-preview-note">دي مراجعة لاختياراتك وشكل الغلاف فقط. ملفات الطباعة النهائية، بيانات الشحن، وحساب تكلفة التوصيل لسه مش مفعّلين.</div>
+            <div className="book-review-grid">{selected.map((id, index) => { const item = catalogItems.find(entry => entry.id === id); if (!item) return null; return <div className="book-review-item" key={id}><span className={'book-review-art ' + item.tone}>{item.imageSrc ? <img src={item.imageSrc} alt={item.title} /> : item.mark}</span><span><b>{item.title}</b><small>{item.id} · صفحة {index + 1}</small></span></div>; })}</div>
+            <div className="book-preview-note">راجعي أكواد الرسومات وترتيبها قبل تأكيد الطلب. تجهيز الطباعة بيتم باستخدام الأكواد المسجلة في طلبك.</div>
             <div className="book-preview-actions"><button type="button" className="clear-selection" onClick={() => setStep('cover')}>رجوع</button><button type="button" className="continue-selection" disabled={selected.length !== 30 || !draft.name.trim()} onClick={() => { setOrderError(''); setOrderSuccess(''); setStep('checkout'); window.scrollTo({top:0,behavior:'smooth'}); }}>إدخال بيانات الطلب ←</button></div>
             {notice && step === 'book' && <div className="cover-save-note" role="status">{notice}</div>}
           </div>
@@ -373,10 +366,10 @@ export default function Builder() {
           </form>
           <aside className="checkout-summary">
             <h2>ملخص كتابك</h2>
-            <div className={'cover-live-art ' + activeCover.tone}><span className="cover-live-decoration">{activeCover.mark}</span><span className="cover-live-brand">ANTI PRESSURE · فُكّي الضغط</span><strong>كتابك... على مزاجك!</strong><span className="cover-live-name">{draft.name.trim()}</span><span className="cover-live-bottom">{activeCover.subtitle}</span></div>
+            <div className={'cover-live-art ' + activeCover.tone}>{activeCover.imageSrc && <img src={activeCover.imageSrc} alt={activeCover.title} style={{position:'absolute',inset:0,width:'100%',height:'100%',objectFit:'cover',borderRadius:'inherit'}} />}<span className="cover-live-decoration">{activeCover.mark}</span><span className="cover-live-brand">ANTI PRESSURE · فُكّي الضغط</span><strong>كتابك... على مزاجك!</strong><span className="cover-live-name">{draft.name.trim()}</span><span className="cover-live-bottom">{activeCover.subtitle}</span></div>
             <p>30 رسمة مختارة · غلاف {activeCover.title}</p>
             <div className="checkout-price"><span>سعر الكتاب</span><strong>{offerRemainingMs !== null && offerRemainingMs > 0 ? '190' : '240'} جنيه</strong></div>
-            {offerRemainingMs !== null && offerRemainingMs > 0 && <small>عرض الساعة الأولى · ينتهي خلال {formatOfferCountdown(offerRemainingMs)}</small>}
+            {offerRemainingMs !== null && offerRemainingMs > 0 && <small>عرض الـ24 ساعة · ينتهي خلال {formatOfferCountdown(offerRemainingMs)}</small>}
             <div className="checkout-price"><span>الشحن</span><strong>{shippingFee === null ? 'غير محدد' : shippingFee + ' جنيه'}</strong></div>
             <div className="checkout-price"><span>الإجمالي</span><strong>{(offerRemainingMs !== null && offerRemainingMs > 0 ? 190 : 240) + (shippingFee ?? 0)} جنيه</strong></div>
           </aside>
@@ -395,12 +388,12 @@ export default function Builder() {
           {offerRemainingMs !== null && offerRemainingMs > 0 && <small>ينتهي خلال {formatOfferCountdown(offerRemainingMs)}</small>}
         </div>
       </div>
-      <div className="journey-actions">{step === 'artworks' ? <><button type="button" className="clear-selection" onClick={clearAll} disabled={!selected.length}>مسح</button><button type="button" className="continue-selection" disabled={selected.length !== 30} onClick={() => {setStep('cover');setNotice('');window.scrollTo({top:0,behavior:'smooth'});}}>اختاري الغلاف ←</button></> : step === 'cover' ? <><button type="button" className="clear-selection" onClick={() => {setStep('artworks');window.scrollTo({top:0,behavior:'smooth'});}}>الرسومات</button><button type="button" className="continue-selection" disabled={!draft.name.trim()} onClick={() => {setNotice('');setStep('book');window.scrollTo({top:0,behavior:'smooth'});}}>معاينة كتابي ←</button></> : step === 'book' ? <><button type="button" className="clear-selection" onClick={() => {setStep('cover');window.scrollTo({top:0,behavior:'smooth'});}}>تعديل الغلاف</button><button type="button" className="continue-selection" onClick={() => {setStep('checkout');window.scrollTo({top:0,behavior:'smooth'});}}>إتمام الطلب ←</button></> : <><button type="button" className="clear-selection" onClick={() => {setStep('book');window.scrollTo({top:0,behavior:'smooth'});}}>المعاينة</button><button type="button" className="continue-selection" onClick={() => {setStep('artworks');window.scrollTo({top:0,behavior:'smooth'});}}>تعديل الرسومات</button></>}</div>
+      <div className="journey-actions">{step === 'artworks' ? <><button type="button" className="clear-selection" onClick={clearAll} disabled={!selected.length}>مسح</button><button type="button" className="continue-selection" disabled={selected.length !== 30 || !coverItems.length} onClick={() => {setStep('cover');setNotice('');window.scrollTo({top:0,behavior:'smooth'});}}>اختاري الغلاف ←</button></> : step === 'cover' ? <><button type="button" className="clear-selection" onClick={() => {setStep('artworks');window.scrollTo({top:0,behavior:'smooth'});}}>الرسومات</button><button type="button" className="continue-selection" disabled={!draft.name.trim()} onClick={() => {setNotice('');setStep('book');window.scrollTo({top:0,behavior:'smooth'});}}>معاينة كتابي ←</button></> : step === 'book' ? <><button type="button" className="clear-selection" onClick={() => {setStep('cover');window.scrollTo({top:0,behavior:'smooth'});}}>تعديل الغلاف</button><button type="button" className="continue-selection" onClick={() => {setStep('checkout');window.scrollTo({top:0,behavior:'smooth'});}}>إتمام الطلب ←</button></> : <><button type="button" className="clear-selection" onClick={() => {setStep('book');window.scrollTo({top:0,behavior:'smooth'});}}>المعاينة</button><button type="button" className="continue-selection" onClick={() => {setStep('artworks');window.scrollTo({top:0,behavior:'smooth'});}}>تعديل الرسومات</button></>}</div>
     </aside>
     {preview && step === 'artworks' && <div className="preview-backdrop" role="presentation" onMouseDown={e => { if (e.target === e.currentTarget) setPreview(null); }}>
       <section className="art-preview-modal" role="dialog" aria-modal="true" aria-label="معاينة الرسمة">
         <button className="preview-close" type="button" onClick={() => setPreview(null)} aria-label="إغلاق">×</button>
-        {preview.imageSrc ? <img src={preview.imageSrc} alt={preview.title} style={{width:'100%',maxHeight:360,objectFit:'contain',background:'#fff'}} /> : <div className={'builder-art-visual preview-large ' + preview.tone}><span className="demo-stamp">نموذج تجريبي</span><span className="demo-main-mark">{preview.mark}</span><span className="demo-line">﹏  ◡  ﹏</span><small>{preview.title}</small><span className="demo-spark">✧</span></div>}
+        {preview.imageSrc ? <img src={preview.imageSrc} alt={preview.title} style={{width:'100%',maxHeight:360,objectFit:'contain',background:'#fff'}} /> : <div className="builder-art-unavailable">الصورة غير متاحة</div>}
         <h2>{preview.title}</h2><p>{preview.category} · {preview.id}</p>
         <button type="button" className="continue-selection modal-select" onClick={() => { toggle(preview.id); setPreview(null); }}>{selectedSet.has(preview.id) ? 'إزالة من اختياراتي' : 'اختاري الرسمة دي'}</button>
       </section>
