@@ -76,4 +76,18 @@ describe('catalog repository launch behavior', () => {
     expect(result.data.artworks.map(item => item.id)).toEqual(['AP-001']);
     expect(result.data.covers.map(item => item.id)).toEqual(['cover-1']);
   });
+  
+  it('shares the same in-flight catalog request between storefront and builder', async () => {
+    state.firebaseConfigured = true;
+    state.firestore = {};
+    state.getDocs.mockResolvedValue({ docs: [] });
+
+    const { loadCatalog } = await import('./repository');
+    const first = loadCatalog();
+    const second = loadCatalog();
+
+    expect(second).toBe(first);
+    await first;
+    expect(state.getDocs).toHaveBeenCalledTimes(3);
+  });
 });
