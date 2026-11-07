@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState, type FormEvent } from 'react';
-import { collection, doc, getDoc, serverTimestamp, writeBatch } from 'firebase/firestore';
+import { collection, doc, getDoc, onSnapshot, serverTimestamp, writeBatch } from 'firebase/firestore';
 import { firestore } from './firebase/client';
 import { loadCatalog } from './catalog/repository';
 import type { CatalogData } from './catalog/types';
@@ -69,14 +69,11 @@ export default function Builder() {
   const [shippingFee, setShippingFee] = useState<number | null>(null);
 
   useEffect(() => {
-    let cancelled = false;
     if (!firestore) return;
-    getDoc(doc(firestore, 'settings', 'public')).then(snapshot => {
-      if (cancelled) return;
+    return onSnapshot(doc(firestore, 'settings', 'public'), snapshot => {
       const value = snapshot.exists() ? snapshot.data().shippingFee : null;
       setShippingFee(typeof value === 'number' && Number.isInteger(value) && value >= 0 ? value : null);
-    }).catch(() => { if (!cancelled) setShippingFee(null); });
-    return () => { cancelled = true; };
+    }, () => setShippingFee(null));
   }, []);
 
   // Reuse the homepage's original deadline; entering or changing builder stages never restarts the offer.
