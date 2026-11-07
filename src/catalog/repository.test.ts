@@ -42,10 +42,11 @@ describe('catalog repository launch behavior', () => {
   it('returns only published artwork belonging to a published category', async () => {
     state.firebaseConfigured = true;
     state.firestore = {};
-    state.getDocs.mockImplementation(async (ref: { name: string }) => {
+    state.getDocs.mockImplementation(async (ref: { name: string; constraints?: Array<{ where?: unknown[] }> }) => {
       const rows: Record<string, Array<{ id: string; value: Record<string, unknown> }>> = {
         categories: [
           { id: 'published', value: { title: 'Published', slug: 'published', sortOrder: 1, active: true } },
+          { id: 'hidden', value: { title: 'Hidden', slug: 'hidden', sortOrder: 2, active: false } },
         ],
         artworks: [
           { id: 'AP-001', value: { title: 'Visible art', categoryId: 'published', previewAssetRef: 'data:image/png;base64,AA==', sortOrder: 1, version: 1, active: true } },
@@ -56,7 +57,17 @@ describe('catalog repository launch behavior', () => {
           { id: 'cover-1', value: { title: 'Cover', previewAssetRef: 'data:image/png;base64,AA==', sortOrder: 1, version: 1, active: true } },
         ],
       };
-      return { docs: (rows[ref.name] || []).map(row => ({ id: row.id, data: () => row.value })) };
+      // Mirror Firestore query behavior: where('active', '==', true) excludes drafts
+      // before the repository receives the snapshot.
+      const matchingRows = (rows[ref.name] || []).filter(row =>
+        (ref.constraints || []).every(constraint => {
+          const clause = constraint.where;
+          if (!clause || clause.length !== 3) return true;
+          const [field, operator, expected] = clause;
+          return operator !== '==' || row.value[String(field)] === expected;
+        }),
+      );
+      return { docs: matchingRows.map(row => ({ id: row.id, data: () => row.value })) };
     });
 
     const { loadCatalog } = await import('./repository');
