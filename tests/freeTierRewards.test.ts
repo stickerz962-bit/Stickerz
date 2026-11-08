@@ -10,6 +10,10 @@ describe("coloring referral reward eligibility", () => {
   it("does not credit the same order twice", () => {
     expect(shouldCreditReferralReward({ ...base, commissionExists: true })).toBe(false);
   });
+  it("does not treat legacy partner-style codes as coloring reward referrals", () => {
+    expect(shouldCreditReferralReward({ ...base, referralCode: "AP-12345678" })).toBe(false);
+    expect(shouldCreditReferralReward({ ...base, referralCode: undefined })).toBe(false);
+  });
   it("rejects self-referrals", () => {
     expect(shouldCreditReferralReward({ ...base, ownCode: base.referralCode })).toBe(false);
   });
