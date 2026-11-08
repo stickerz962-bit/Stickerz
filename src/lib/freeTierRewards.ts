@@ -215,7 +215,7 @@ export async function setRewardProfileStatus(db: Firestore, code: string, status
     const portalSnap = data.accessTokenHash ? await tx.get(portalRef(db, data.accessTokenHash)) : null;
     if (portalSnap && portalSnap.exists() && portalSnap.data().code !== code) throw new Error("PORTAL_CODE_MISMATCH");
     tx.update(ref, { status, updatedAt: serverTimestamp() });
-    if (data.accessTokenHash) tx.set(portalRef(db, data.accessTokenHash), { status, updatedAt: serverTimestamp() }, { merge: true });
+    if (data.accessTokenHash) tx.set(portalRef(db, data.accessTokenHash), portalSnap?.exists() ? { status, updatedAt: serverTimestamp() } : portalSummary(code, { ...data, status }), { merge: true });
   });
 }
 
