@@ -53,6 +53,7 @@ export default function Builder() {
   const [coverItems, setCoverItems] = useState([] as typeof covers);
   const [categoryItems, setCategoryItems] = useState<string[]>([]);
   const [catalogWarning, setCatalogWarning] = useState('');
+  const [catalogLoaded, setCatalogLoaded] = useState(false);
   const [activeCategory, setActiveCategory] = useState('الكل');
   const [search, setSearch] = useState('');
   const [preview, setPreview] = useState<(typeof catalog)[number] | null>(null);
@@ -108,7 +109,8 @@ export default function Builder() {
         setSelected(current => current.filter(id => result.data.artworks.some(item => item.id === id)).slice(0, 30));
         setDraft(current => result.data.covers.some(item => item.id === current.coverId) ? current : { ...current, coverId: result.data.covers[0]?.id || '' });
       }
-    }).catch(() => setCatalogWarning('تعذر تحميل مكتبة الرسومات حاليًا.'));
+      setCatalogLoaded(true);
+    }).catch(() => { setCatalogWarning('تعذر تحميل مكتبة الرسومات حاليًا.'); setCatalogLoaded(true); });
     return () => { cancelled = true; };
   }, []);
 
@@ -277,8 +279,9 @@ export default function Builder() {
           <div className="filter-chips"><button className={activeCategory === 'الكل' ? 'chosen' : ''} onClick={() => setActiveCategory('الكل')}>كل الرسومات <small>{catalogItems.length}</small></button>{categoryItems.map((category, i) => <button key={category} className={activeCategory === category ? 'chosen' : ''} onClick={() => setActiveCategory(category)}>{category}<small>{String(i + 1).padStart(2, '0')}</small></button>)}</div>
         </section>
         {catalogWarning && <div className="catalog-live-note" role="status"><span>✦</span><div><b>تنبيه المكتبة</b><small>{catalogWarning}</small></div></div>}
-        <div className="builder-results"><span>{visible.length} رسمة في العرض</span><span>اختاري 30 رسمة مختلفة فقط</span></div>
-        <section className="builder-grid" aria-label="مكتبة الرسومات">
+        <div className="builder-results"><span>{catalogLoaded ? visible.length + ' رسمة في العرض' : 'جارٍ تحميل الرسومات…'}</span><span>اختاري 30 رسمة مختلفة فقط</span></div>
+        {!catalogLoaded && <div className="builder-empty" role="status">جارٍ تحميل مكتبة الرسومات المعتمدة…</div>}
+        <section className="builder-grid" aria-label="مكتبة الرسومات" aria-busy={!catalogLoaded}>
           {visible.map(item => {
             const isSelected = selectedSet.has(item.id);
             const locked = !isSelected && selected.length === 30;
@@ -291,7 +294,7 @@ export default function Builder() {
             </article>;
           })}
         </section>
-        {visible.length === 0 && <div className="builder-empty">لا توجد رسومات معتمدة متاحة حاليًا. يرجى المحاولة لاحقًا.</div>}
+        {catalogLoaded && visible.length === 0 && <div className="builder-empty">لا توجد رسومات معتمدة متاحة حاليًا. يرجى المحاولة لاحقًا.</div>}
       </main>
 
     </> : step === 'cover' ? <>

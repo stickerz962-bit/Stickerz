@@ -41,6 +41,8 @@ export default function AdminApp() {
   const [artworks, setArtworks] = useState<Artwork[]>([]);
   const [covers, setCovers] = useState<Cover[]>([]);
   const [orders, setOrders] = useState<Order[]>([]);
+  const [catalogInitialLoading, setCatalogInitialLoading] = useState(true);
+  const [ordersInitialLoading, setOrdersInitialLoading] = useState(true);
   const [lastOrderCursor, setLastOrderCursor] = useState<QueryDocumentSnapshot<DocumentData> | null>(null);
   const [hasMoreOrders, setHasMoreOrders] = useState(false);
   const [shippingFee, setShippingFee] = useState('');
@@ -75,7 +77,8 @@ export default function AdminApp() {
   }, []);
 
   const loadData = async () => {
-    if (!firestore) return;
+    if (!firestore) { setCatalogInitialLoading(false); return; }
+    setCatalogInitialLoading(true);
     setBusy(true); setError('');
     try {
       // Read the full collections and sort client-side. Firestore orderBy excludes
@@ -95,7 +98,7 @@ export default function AdminApp() {
       setShippingFee(typeof publicSettings?.shippingFee === 'number' ? String(publicSettings.shippingFee) : '');
     } catch {
       setError('تعذر تحميل بيانات الكتالوج. تأكدي من صلاحية admin:true ومن إعدادات Firestore.');
-    } finally { setBusy(false); }
+    } finally { setBusy(false); setCatalogInitialLoading(false); }
   };
 
   const saveShippingFee = async (event: FormEvent<HTMLFormElement>) => {
@@ -113,7 +116,8 @@ export default function AdminApp() {
   };
 
   const loadOrders = async (append = false) => {
-    if (!firestore) return;
+    if (!firestore) { if (!append) setOrdersInitialLoading(false); return; }
+    if (!append) setOrdersInitialLoading(true);
     setBusy(true); setError('');
     try {
       const baseQuery = query(collection(firestore, 'orders'), orderBy('createdAt', 'desc'));
@@ -127,7 +131,7 @@ export default function AdminApp() {
       setHasMoreOrders(snap.docs.length === 50);
     } catch {
       setError('تعذر تحميل الطلبات. تأكدي من صلاحية admin:true ومن قواعد Firestore المنشورة.');
-    } finally { setBusy(false); }
+    } finally { setBusy(false); if (!append) setOrdersInitialLoading(false); }
   };
 
   const updateOrderPaymentStatus = async (order: Order, status: 'paid' | 'refunded') => {
@@ -401,23 +405,23 @@ export default function AdminApp() {
     <main className="admin-page ap-admin-page">
       <div className="admin-title"><div><span className="eyebrow">إدارة المحتوى المنشور</span><h1>كتالوج فُكّي الضغط</h1><p>إدارة التصنيفات والرسومات والأغلفة المعتمدة. العناصر الجديدة تُحفظ كمسودة حتى نشرها.</p></div></div>
       <div className="preview-warning"><strong>إدارة المكتبة:</strong> ارفعي معاينة واضحة لكل رسمة وغلاف، واحتفظي بكود فريد لكل عنصر. الأكواد الظاهرة في الطلبات هي مرجع تجهيز الطباعة.</div>
-      <div className="ap-admin-stats"><div><b>{categories.length}</b><span>تصنيف</span></div><div><b>{artworks.length}/100</b><span>رسمة مسجلة</span></div><div><b>{artworks.filter(x => x.active).length}</b><span>رسمة منشورة</span></div><div><b>{covers.filter(x => x.active).length}/5</b><span>غلاف منشور</span></div></div>
-      <div className="ap-admin-tabs">{(['orders','categories','artworks','covers','shipping'] as Tab[]).map(item => <button key={item} className={tab === item ? 'active' : ''} onClick={() => setTab(item)}>{item === 'orders' ? 'الطلبات (' + orders.length + ')' : item === 'categories' ? 'التصنيفات' : item === 'artworks' ? 'الرسومات' : item === 'covers' ? 'الأغلفة' : 'الشحن'}</button>)}</div>
+      <div className="ap-admin-stats"><div><b>{catalogInitialLoading ? '…' : categories.length}</b><span>{catalogInitialLoading ? 'جارٍ تحميل التصنيفات' : 'تصنيف'}</span></div><div><b>{catalogInitialLoading ? '…' : artworks.length + '/100'}</b><span>{catalogInitialLoading ? 'جارٍ تحميل الرسومات' : 'رسمة مسجلة'}</span></div><div><b>{catalogInitialLoading ? '…' : artworks.filter(x => x.active).length}</b><span>{catalogInitialLoading ? 'جارٍ التحميل' : 'رسمة منشورة'}</span></div><div><b>{catalogInitialLoading ? '…' : covers.filter(x => x.active).length + '/5'}</b><span>{catalogInitialLoading ? 'جارٍ تحميل الأغلفة' : 'غلاف منشور'}</span></div></div>
+      <div className="ap-admin-tabs">{(['orders','categories','artworks','covers','shipping'] as Tab[]).map(item => <button key={item} className={tab === item ? 'active' : ''} onClick={() => setTab(item)}>{item === 'orders' ? 'الطلبات (' + (ordersInitialLoading ? '…' : orders.length) + ')' : item === 'categories' ? 'التصنيفات' : item === 'artworks' ? 'الرسومات' : item === 'covers' ? 'الأغلفة' : 'الشحن'}</button>)}</div>
       {notice && <p className="form-success" role="status">{notice}</p>}{error && <p className="form-error" role="alert">{error}</p>}
       <div className="ap-admin-toolbar"><button className="secondary-button" disabled={busy} onClick={() => tab === 'orders' ? void loadOrders() : void loadData()}>تحديث البيانات</button>{tab === 'categories' && <button className="secondary-button" disabled={busy} onClick={() => void seedCategories()}>إضافة التصنيفات العشرة الأساسية</button>}</div>
       {busy && <p className="backup-help">جارٍ تنفيذ العملية...</p>}
       {tab === 'shipping' && <section className="admin-layout ap-admin-layout"><form className="product-form" onSubmit={saveShippingFee}><h2>سعر الشحن الموحد</h2><p>اكتبي السعر بالجنيه المصري. سيتم تحديث صفحة الطلب تلقائيًا وحفظ السعر في الطلبات الجديدة.</p><label>سعر الشحن (جنيه)<input type="number" min="0" max="5000" step="1" inputMode="numeric" value={shippingFee} onChange={e => setShippingFee(e.target.value)} required /></label><button className="primary-button" disabled={busy}>{busy ? 'جارٍ الحفظ...' : 'حفظ سعر الشحن'}</button><p className="backup-help">السعر الحالي: {shippingFee !== '' ? shippingFee + ' جنيه' : 'لم يتم ضبطه بعد'}. الطلبات القديمة تحتفظ بسعر الشحن المسجل وقت الطلب.</p></form></section>}
       {tab === 'orders' && <>
         <section className="ap-order-stats">
-          <button className={orderFilter === 'all' ? 'selected' : ''} onClick={() => setOrderFilter('all')}><b>{orders.length}</b><span>الطلبات المحمّلة</span></button>
-          <button className={orderFilter === 'new' ? 'selected' : ''} onClick={() => setOrderFilter('new')}><b>{orders.filter(x => x.fulfillmentStatus === 'new').length}</b><span>طلبات جديدة</span></button>
-          <button className={orderFilter === 'active' ? 'selected' : ''} onClick={() => setOrderFilter('active')}><b>{orders.filter(x => !['new','delivered','cancelled'].includes(x.fulfillmentStatus || 'new')).length}</b><span>قيد التنفيذ</span></button>
-          <button className={orderFilter === 'delivered' ? 'selected' : ''} onClick={() => setOrderFilter('delivered')}><b>{orders.filter(x => x.fulfillmentStatus === 'delivered').length}</b><span>تم التسليم</span></button>
-          <button className={orderFilter === 'cancelled' ? 'selected' : ''} onClick={() => setOrderFilter('cancelled')}><b>{orders.filter(x => x.fulfillmentStatus === 'cancelled').length}</b><span>ملغاة</span></button>
+          <button className={orderFilter === 'all' ? 'selected' : ''} onClick={() => setOrderFilter('all')}><b>{ordersInitialLoading ? '…' : orders.length}</b><span>{ordersInitialLoading ? 'جارٍ تحميل الطلبات' : 'الطلبات المحمّلة'}</span></button>
+          <button className={orderFilter === 'new' ? 'selected' : ''} onClick={() => setOrderFilter('new')}><b>{ordersInitialLoading ? '…' : orders.filter(x => x.fulfillmentStatus === 'new').length}</b><span>{ordersInitialLoading ? 'جارٍ التحميل' : 'طلبات جديدة'}</span></button>
+          <button className={orderFilter === 'active' ? 'selected' : ''} onClick={() => setOrderFilter('active')}><b>{ordersInitialLoading ? '…' : orders.filter(x => !['new','delivered','cancelled'].includes(x.fulfillmentStatus || 'new')).length}</b><span>{ordersInitialLoading ? 'جارٍ التحميل' : 'قيد التنفيذ'}</span></button>
+          <button className={orderFilter === 'delivered' ? 'selected' : ''} onClick={() => setOrderFilter('delivered')}><b>{ordersInitialLoading ? '…' : orders.filter(x => x.fulfillmentStatus === 'delivered').length}</b><span>{ordersInitialLoading ? 'جارٍ التحميل' : 'تم التسليم'}</span></button>
+          <button className={orderFilter === 'cancelled' ? 'selected' : ''} onClick={() => setOrderFilter('cancelled')}><b>{ordersInitialLoading ? '…' : orders.filter(x => x.fulfillmentStatus === 'cancelled').length}</b><span>{ordersInitialLoading ? 'جارٍ التحميل' : 'ملغاة'}</span></button>
         </section>
         <section className="admin-products ap-orders-list">
-        <div className="admin-list-heading"><h2>الطلبات المحمّلة ({orders.length})</h2><span>الأحدث أولًا · اختاري بطاقة لتحديث الحالة</span></div>
-        {orders.length === 0 && <div className="builder-empty">مفيش طلبات لسه. أول طلب يتسجل من الموقع هيظهر هنا تلقائيًا.</div>}
+        <div className="admin-list-heading"><h2>الطلبات المحمّلة ({ordersInitialLoading ? '…' : orders.length})</h2><span>الأحدث أولًا · اختاري بطاقة لتحديث الحالة</span></div>
+        {ordersInitialLoading && <div className="builder-empty" role="status">جارٍ تحميل الطلبات من قاعدة البيانات…</div>}{!ordersInitialLoading && orders.length === 0 && <div className="builder-empty">مفيش طلبات لسه. أول طلب يتسجل من الموقع هيظهر هنا تلقائيًا.</div>}
         {orders.filter(order => orderFilter === 'all' || (orderFilter === 'active' ? !['new','delivered','cancelled'].includes(order.fulfillmentStatus || 'new') : order.fulfillmentStatus === orderFilter)).map(order => <article className="admin-product-row ap-order-row" key={order.id}>
           <div className="admin-product-info ap-order-info">
             <strong>{order.publicReference || order.id}</strong>
