@@ -1,5 +1,5 @@
 import {
-  doc, runTransaction,
+  collection, doc, getDocs, query, where, writeBatch, runTransaction,
   serverTimestamp, type Firestore,
 } from "firebase/firestore";
 
@@ -217,4 +217,44 @@ export async function setRewardProfileStatus(db: Firestore, code: string, status
     tx.update(ref, { status, updatedAt: serverTimestamp() });
     if (data.accessTokenHash) tx.set(portalRef(db, data.accessTokenHash), { status, updatedAt: serverTimestamp() }, { merge: true });
   });
+}
+
+/** Idempotently builds the safe customer-facing projection for legacy profiles. No source data is deleted. */
+export async function migrateLegacyRewardPortals(db: Firestore) {
+  const [profilesSnap, commissionsSnap, payoutsSnap] = await Promise.all([
+    getDocs(collection(db, "ambassadors")),
+    getDocs(collection(db, "ambassadorCommissions")),
+    getDocs(collection(db, "ambassadorPayouts")),
+  ]);
+  const profiles = profilesSnap.docs.map(item => ({ code: item.id, ...item.data() } as Record<string, any>));
+  const writes: Array<{ ref: ReturnType<typeof doc>; data: Record<string, unknown> }> = [];
+  for (const profile of profiles) {
+    const hash = profile.accessTokenHash;
+    if (typeof hash !== "string" || !/^[a-f0-9]{64}$/.test(hash) || !isAmbassadorCode(profile.code)) continue;
+    writes.push({ ref: portalRef(db, hash), data: portalSummary(profile.code, profile) });
+    for (const item of commissionsSnap.docs) {
+      const row = item.data();
+      if (row.ambassadorCode !== profile.code) continue;
+      writes.push({
+        ref: doc(db, "ambassadorPortals", hash, "commissions", item.id),
+        data: { orderId: item.id, amount: number(row.amount), status: row.status || "credited", createdAt: row.createdAt || null, ...(row.reversedAt ? { reversedAt: row.reversedAt } : {}) },
+      });
+    }
+    for (const item of payoutsSnap.docs) {
+      const row = item.data();
+      if (row.ambassadorCode !== profile.code) continue;
+      writes.push({
+        ref: doc(db, "ambassadorPortals", hash, "payouts", item.id),
+        data: { id: item.id, amount: number(row.amount), method: row.method || "wallet", status: row.status || "pending", requestedAt: row.requestedAt || null, ...(row.paidAt ? { paidAt: row.paidAt } : {}), ...(row.rejectionReason ? { rejectionReason: row.rejectionReason } : {}) },
+      });
+    }
+  }
+  let written = 0;
+  for (let index = 0; index < writes.length; index += 400) {
+    const batch = writeBatch(db);
+    for (const item of writes.slice(index, index + 400)) batch.set(item.ref, item.data, { merge: true });
+    await batch.commit();
+    written += Math.min(400, writes.length - index);
+  }
+  return { profiles: profiles.filter(profile => typeof profile.accessTokenHash === "string" && /^[a-f0-9]{64}$/.test(profile.accessTokenHash)).length, documents: written };
 }
