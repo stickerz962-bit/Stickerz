@@ -396,7 +396,7 @@ export default function AdminApp() {
 
   return <div className="app-shell ap-admin-shell" dir="rtl">
     <div className="announcement">ANTI PRESSURE · فُكّي الضغط — لوحة الإدارة الآمنة</div>
-    <header className="site-header"><a className="brand ap-admin-brand" href="./"><span className="brand-mark">✿</span><span><strong>ANTI PRESSURE</strong><small>فُكّي الضغط</small></span></a><div className="ap-admin-user"><span>{user.email}</span><a className="secondary-button" href="./admin-ambassadors.html">إدارة السفيرات</a><button className="secondary-button" onClick={() => void logout()}>خروج</button></div></header>
+    <header className="site-header"><a className="brand ap-admin-brand" href="./"><span className="brand-mark">✿</span><span><strong>ANTI PRESSURE</strong><small>فُكّي الضغط</small></span></a><div className="ap-admin-user"><span>{user.email}</span><a className="secondary-button" href="./admin-ambassadors.html">مكافأة التلوين</a><button className="secondary-button" onClick={() => void logout()}>خروج</button></div></header>
     <main className="admin-page ap-admin-page">
       <div className="admin-title"><div><span className="eyebrow">إدارة المحتوى المنشور</span><h1>كتالوج فُكّي الضغط</h1><p>إدارة التصنيفات والرسومات والأغلفة المعتمدة. العناصر الجديدة تُحفظ كمسودة حتى نشرها.</p></div></div>
       <div className="preview-warning"><strong>إدارة المكتبة:</strong> ارفعي معاينة واضحة لكل رسمة وغلاف، واحتفظي بكود فريد لكل عنصر. الأكواد الظاهرة في الطلبات هي مرجع تجهيز الطباعة.</div>
