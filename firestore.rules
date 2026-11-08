@@ -12,8 +12,8 @@ service cloud.firestore {
 
     function categoryIsActive(categoryId) {
       return categoryId is string
-        && exists(/databases/\$(database)/documents/categories/\$(categoryId))
-        && get(/databases/\$(database)/documents/categories/\$(categoryId)).data.active == true;
+        && exists(/databases/$(database)/documents/categories/$(categoryId))
+        && get(/databases/$(database)/documents/categories/$(categoryId)).data.active == true;
     }
 
     match /categories/{categoryId} {
@@ -43,12 +43,12 @@ service cloud.firestore {
         resource != null && (
           (resource.data.assetType == 'artwork'
             && resource.data.itemId is string
-            && exists(/databases/\$(database)/documents/artworks/\$(resource.data.itemId))
-            && get(/databases/\$(database)/documents/artworks/\$(resource.data.itemId)).data.active == true)
+            && exists(/databases/$(database)/documents/artworks/$(resource.data.itemId))
+            && get(/databases/$(database)/documents/artworks/$(resource.data.itemId)).data.active == true)
           || (resource.data.assetType == 'cover'
             && resource.data.itemId is string
-            && exists(/databases/\$(database)/documents/covers/\$(resource.data.itemId))
-            && get(/databases/\$(database)/documents/covers/\$(resource.data.itemId)).data.active == true)
+            && exists(/databases/$(database)/documents/covers/$(resource.data.itemId))
+            && get(/databases/$(database)/documents/covers/$(resource.data.itemId)).data.active == true)
         )
       );
       allow list: if isAdmin();
@@ -143,7 +143,7 @@ service cloud.firestore {
         && request.resource.data.shipping.deliveryNotes is string
         && request.resource.data.shipping.deliveryNotes.size() <= 300
         && request.resource.data.shipping.fee is int
-        && request.resource.data.shipping.fee == get(/databases/\$(database)/documents/settings/public).data.shippingFee
+        && request.resource.data.shipping.fee == get(/databases/$(database)/documents/settings/public).data.shippingFee
         && request.resource.data.book is map
         && request.resource.data.book.keys().hasOnly(['artworks', 'cover', 'personalizedName'])
         && request.resource.data.book.artworks is list
@@ -164,7 +164,7 @@ service cloud.firestore {
         && request.resource.data.pricing.standardBookPrice == 240
         && request.resource.data.pricing.bookPrice in [190, 240]
         && request.resource.data.pricing.shippingFee is int
-        && request.resource.data.pricing.shippingFee == get(/databases/\$(database)/documents/settings/public).data.shippingFee
+        && request.resource.data.pricing.shippingFee == get(/databases/$(database)/documents/settings/public).data.shippingFee
         && request.resource.data.pricing.totalAmount == request.resource.data.pricing.bookPrice + request.resource.data.pricing.shippingFee
         && request.resource.data.pricing.offerApplied is bool
         && request.resource.data.pricing.offerApplied == (request.resource.data.pricing.bookPrice == 190)
@@ -206,8 +206,8 @@ service cloud.firestore {
         && request.resource.data.updatedAt == request.time;
       allow update, delete: if isAdmin();
     }
-    // Reward source records are admin-only. Customer portal documents use a
-    // 256-bit bearer capability: SHA-256 of the private key as the document ID.
+    // Reward source records are admin-only. Customer portals use a 256-bit
+    // bearer capability: SHA-256 of the private key as the document ID.
     match /ambassadors/{ambassadorCode} {
       allow read, write: if isAdmin();
     }
@@ -220,57 +220,15 @@ service cloud.firestore {
         request.resource.data.keys().hasOnly(['ambassadorCode','accessTokenHash','amount','method','payoutDetails','status','requestedAt','reviewedAt','paidAt'])
         && request.resource.data.keys().hasAll(['ambassadorCode','accessTokenHash','amount','method','payoutDetails','status','requestedAt','reviewedAt','paidAt'])
         && request.resource.data.ambassadorCode is string
-        && request.resource.data.ambassadorCode.matches('^AP[A-F0-9]{20}
-    match /payments/{paymentId} {
-      allow read: if isAdmin();
-      allow write: if false;
-    }
-
-    match /orderEvents/{eventId} {
-      allow read: if isAdmin();
-      allow write: if false;
-    }
-
-    match /adminUsers/{uid} {
-      allow read: if isAdmin() && request.auth.uid == uid;
-      allow write: if false;
-    }
-
-    match /{document=**} {
-      allow read, write: if false;
-    }
-  }
-}
-)
+        && request.resource.data.ambassadorCode.matches('^AP[A-F0-9]{20}$')
         && request.resource.data.accessTokenHash is string
-        && request.resource.data.accessTokenHash.matches('^[a-f0-9]{64}
-    match /payments/{paymentId} {
-      allow read: if isAdmin();
-      allow write: if false;
-    }
-
-    match /orderEvents/{eventId} {
-      allow read: if isAdmin();
-      allow write: if false;
-    }
-
-    match /adminUsers/{uid} {
-      allow read: if isAdmin() && request.auth.uid == uid;
-      allow write: if false;
-    }
-
-    match /{document=**} {
-      allow read, write: if false;
-    }
-  }
-}
-)
-        && exists(/databases/\$(database)/documents/ambassadorPortals/\$(request.resource.data.accessTokenHash))
-        && get(/databases/\$(database)/documents/ambassadorPortals/\$(request.resource.data.accessTokenHash)).data.code == request.resource.data.ambassadorCode
-        && get(/databases/\$(database)/documents/ambassadorPortals/\$(request.resource.data.accessTokenHash)).data.status == 'active'
+        && request.resource.data.accessTokenHash.matches('^[a-f0-9]{64}$')
+        && exists(/databases/$(database)/documents/ambassadorPortals/$(request.resource.data.accessTokenHash))
+        && get(/databases/$(database)/documents/ambassadorPortals/$(request.resource.data.accessTokenHash)).data.code == request.resource.data.ambassadorCode
+        && get(/databases/$(database)/documents/ambassadorPortals/$(request.resource.data.accessTokenHash)).data.status == 'active'
         && request.resource.data.amount is int
         && request.resource.data.amount >= 50
-        && request.resource.data.amount <= get(/databases/\$(database)/documents/ambassadorPortals/\$(request.resource.data.accessTokenHash)).data.availableBalance
+        && request.resource.data.amount <= get(/databases/$(database)/documents/ambassadorPortals/$(request.resource.data.accessTokenHash)).data.availableBalance
         && request.resource.data.method in ['instapay','wallet']
         && request.resource.data.payoutDetails is string
         && request.resource.data.payoutDetails.size() >= 5
@@ -279,127 +237,43 @@ service cloud.firestore {
         && request.resource.data.requestedAt == request.time
         && request.resource.data.reviewedAt == null
         && request.resource.data.paidAt == null
-        && getAfter(/databases/\$(database)/documents/ambassadorPortals/\$(request.resource.data.accessTokenHash)).data.availableBalance
-          == get(/databases/\$(database)/documents/ambassadorPortals/\$(request.resource.data.accessTokenHash)).data.availableBalance - request.resource.data.amount
-        && getAfter(/databases/\$(database)/documents/ambassadorPortals/\$(request.resource.data.accessTokenHash)).data.reservedBalance
-          == get(/databases/\$(database)/documents/ambassadorPortals/\$(request.resource.data.accessTokenHash)).data.reservedBalance + request.resource.data.amount
-        && getAfter(/databases/\$(database)/documents/ambassadorPortals/\$(request.resource.data.accessTokenHash)).data.lastPayoutId == payoutId;
+        && getAfter(/databases/$(database)/documents/ambassadorPortals/$(request.resource.data.accessTokenHash)).data.availableBalance
+          == get(/databases/$(database)/documents/ambassadorPortals/$(request.resource.data.accessTokenHash)).data.availableBalance - request.resource.data.amount
+        && getAfter(/databases/$(database)/documents/ambassadorPortals/$(request.resource.data.accessTokenHash)).data.reservedBalance
+          == get(/databases/$(database)/documents/ambassadorPortals/$(request.resource.data.accessTokenHash)).data.reservedBalance + request.resource.data.amount
+        && getAfter(/databases/$(database)/documents/ambassadorPortals/$(request.resource.data.accessTokenHash)).data.lastPayoutId == payoutId;
       allow update, delete: if isAdmin();
     }
     match /ambassadorPortals/{accessHash} {
-      allow get: if accessHash.matches('^[a-f0-9]{64}
-    match /payments/{paymentId} {
-      allow read: if isAdmin();
-      allow write: if false;
-    }
-
-    match /orderEvents/{eventId} {
-      allow read: if isAdmin();
-      allow write: if false;
-    }
-
-    match /adminUsers/{uid} {
-      allow read: if isAdmin() && request.auth.uid == uid;
-      allow write: if false;
-    }
-
-    match /{document=**} {
-      allow read, write: if false;
-    }
-  }
-}
-) && resource != null;
+      allow get: if accessHash.matches('^[a-f0-9]{64}$') && resource != null;
       allow list: if false;
       allow create, delete: if isAdmin();
       allow update: if isAdmin() || (
-        accessHash.matches('^[a-f0-9]{64}
-    match /payments/{paymentId} {
-      allow read: if isAdmin();
-      allow write: if false;
-    }
-
-    match /orderEvents/{eventId} {
-      allow read: if isAdmin();
-      allow write: if false;
-    }
-
-    match /adminUsers/{uid} {
-      allow read: if isAdmin() && request.auth.uid == uid;
-      allow write: if false;
-    }
-
-    match /{document=**} {
-      allow read, write: if false;
-    }
-  }
-}
-)
+        accessHash.matches('^[a-f0-9]{64}$')
         && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['availableBalance','reservedBalance','lastPayoutId','updatedAt'])
         && request.resource.data.availableBalance is int
         && request.resource.data.reservedBalance is int
         && request.resource.data.lastPayoutId is string
-        && existsAfter(/databases/\$(database)/documents/ambassadorPayouts/\$(request.resource.data.lastPayoutId))
-        && getAfter(/databases/\$(database)/documents/ambassadorPayouts/\$(request.resource.data.lastPayoutId)).data.accessTokenHash == accessHash
-        && getAfter(/databases/\$(database)/documents/ambassadorPayouts/\$(request.resource.data.lastPayoutId)).data.amount
+        && existsAfter(/databases/$(database)/documents/ambassadorPayouts/$(request.resource.data.lastPayoutId))
+        && getAfter(/databases/$(database)/documents/ambassadorPayouts/$(request.resource.data.lastPayoutId)).data.accessTokenHash == accessHash
+        && getAfter(/databases/$(database)/documents/ambassadorPayouts/$(request.resource.data.lastPayoutId)).data.amount
           == resource.data.availableBalance - request.resource.data.availableBalance
         && request.resource.data.availableBalance >= 0
         && request.resource.data.reservedBalance == resource.data.reservedBalance
-          + getAfter(/databases/\$(database)/documents/ambassadorPayouts/\$(request.resource.data.lastPayoutId)).data.amount
+          + getAfter(/databases/$(database)/documents/ambassadorPayouts/$(request.resource.data.lastPayoutId)).data.amount
       );
       match /commissions/{orderId} {
-        allow read: if accessHash.matches('^[a-f0-9]{64}
-    match /payments/{paymentId} {
-      allow read: if isAdmin();
-      allow write: if false;
-    }
-
-    match /orderEvents/{eventId} {
-      allow read: if isAdmin();
-      allow write: if false;
-    }
-
-    match /adminUsers/{uid} {
-      allow read: if isAdmin() && request.auth.uid == uid;
-      allow write: if false;
-    }
-
-    match /{document=**} {
-      allow read, write: if false;
-    }
-  }
-}
-);
+        allow read: if accessHash.matches('^[a-f0-9]{64}$');
         allow create, update, delete: if isAdmin();
       }
       match /payouts/{payoutId} {
-        allow read: if accessHash.matches('^[a-f0-9]{64}
-    match /payments/{paymentId} {
-      allow read: if isAdmin();
-      allow write: if false;
-    }
-
-    match /orderEvents/{eventId} {
-      allow read: if isAdmin();
-      allow write: if false;
-    }
-
-    match /adminUsers/{uid} {
-      allow read: if isAdmin() && request.auth.uid == uid;
-      allow write: if false;
-    }
-
-    match /{document=**} {
-      allow read, write: if false;
-    }
-  }
-}
-);
-        allow create: if existsAfter(/databases/\$(database)/documents/ambassadorPayouts/\$(payoutId))
-          && getAfter(/databases/\$(database)/documents/ambassadorPayouts/\$(payoutId)).data.accessTokenHash == accessHash
-          && getAfter(/databases/\$(database)/documents/ambassadorPayouts/\$(payoutId)).data.status == 'pending'
+        allow read: if accessHash.matches('^[a-f0-9]{64}$');
+        allow create: if existsAfter(/databases/$(database)/documents/ambassadorPayouts/$(payoutId))
+          && getAfter(/databases/$(database)/documents/ambassadorPayouts/$(payoutId)).data.accessTokenHash == accessHash
+          && getAfter(/databases/$(database)/documents/ambassadorPayouts/$(payoutId)).data.status == 'pending'
           && request.resource.data.keys().hasOnly(['id','amount','method','status','requestedAt'])
           && request.resource.data.id == payoutId
-          && request.resource.data.amount == getAfter(/databases/\$(database)/documents/ambassadorPayouts/\$(payoutId)).data.amount
+          && request.resource.data.amount == getAfter(/databases/$(database)/documents/ambassadorPayouts/$(payoutId)).data.amount
           && request.resource.data.status == 'pending';
         allow update, delete: if isAdmin();
       }
