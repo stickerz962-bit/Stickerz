@@ -82,6 +82,7 @@ export default function AdminAmbassadorsApp() {
     } catch (reason) {
       const message = reason instanceof Error ? reason.message : "";
       setError(message === "PAYOUT_ALREADY_REVIEWED" ? "تمت مراجعة طلب الصرف بالفعل."
+        : message === "REFUND_OFFSET_PENDING" ? "لا يمكن اعتماد التحويل حاليًا لأن مكافأة مرتجعة خفّضت الرصيد. ارفضي الطلب لإعادة المبلغ المحجوز ثم راجعي الرصيد."
         : "تعذر مراجعة طلب الصرف. تأكدي من الرصيد المحجوز وحالة الطلب.");
     } finally { setBusy(false); }
   }
