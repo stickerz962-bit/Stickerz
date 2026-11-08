@@ -2,7 +2,7 @@ import { useEffect, useState, type FormEvent } from "react";
 import { onAuthStateChanged, signInWithEmailAndPassword, signOut, type User } from "firebase/auth";
 import { collection, onSnapshot } from "firebase/firestore";
 import { auth, firebaseConfigured, firestore } from "./firebase/client";
-import { reviewPayout, setRewardProfileStatus } from "./lib/freeTierRewards";
+import { migrateLegacyRewardPortals, reviewPayout, setRewardProfileStatus } from "./lib/freeTierRewards";
 
 type Ambassador = {
   code: string; name?: string; status?: string; availableBalance?: number; reservedBalance?: number;
@@ -89,6 +89,16 @@ export default function AdminAmbassadorsApp() {
     try { await navigator.clipboard.writeText(item.payoutDetails); setNotice("تم نسخ بيانات التحويل."); }
     catch { setError("تعذر النسخ تلقائيًا."); }
   }
+  async function migrateLegacy() {
+    if (!firestore || !window.confirm("سيتم تجهيز صفحات المكافآت للمشتركات المسجلات سابقًا ونسخ ملخصات آمنة للعرض فقط. لن يتم حذف أو تعديل سجلات المكافآت الأصلية. متابعة؟")) return;
+    setBusy(true); setError(""); setNotice("");
+    try {
+      const result = await migrateLegacyRewardPortals(firestore);
+      setNotice("تم تجهيز " + result.profiles + " مساحة قديمة ومزامنة " + result.documents + " سجلًا. لم يتم حذف أي بيانات.");
+    } catch { setError("تعذرت تهيئة المساحات القديمة. راجعي اتصال Firebase ثم أعيدي المحاولة."); }
+    finally { setBusy(false); }
+  }
+
 
   if (!firebaseConfigured) return <main className="ap-amb-admin"><h1>إعداد Firebase مطلوب</h1></main>;
   if (!ready) return <main className="ap-amb-admin">جارٍ التحقق...</main>;
@@ -100,7 +110,7 @@ export default function AdminAmbassadorsApp() {
   return <div className="anti-shell ap-amb-admin" dir="rtl">
     <header className="site-header"><a className="brand" href="./"><span className="brand-spark">✳</span><span className="brand-word">ANTI<br/>PRESSURE</span><span className="brand-arabic">فُكّي الضغط</span></a><nav className="ap-amb-admin-nav"><a href="./admin.html">إدارة الطلبات</a><button onClick={()=>auth&&void signOut(auth)}>خروج</button></nav></header>
     <main className="ap-amb-admin-main">
-      <div className="section-heading"><span className="eyebrow">برنامج مكافأة التلوين</span><h1>إدارة مكافأة التلوين</h1><p>15 جنيهًا لكل طلب إحالة تم تسليمه بنجاح، والحد الأدنى للصرف 50 جنيهًا.</p></div>
+      <div className="section-heading"><span className="eyebrow">برنامج مكافأة التلوين</span><h1>إدارة مكافأة التلوين</h1><p>15 جنيهًا لكل طلب إحالة تم تسليمه بنجاح، والحد الأدنى للصرف 50 جنيهًا.</p><button className="secondary-button" disabled={busy} onClick={()=>void migrateLegacy()}>تجهيز المساحات القديمة</button></div>
       {error && <p className="form-error" role="alert">{error}</p>}{notice && <p className="form-success" role="status">{notice}</p>}
       <p className="backup-help">البيانات بتتحدث تلقائيًا. العمليات المالية تُنفّذ مباشرة داخل Firestore بصلاحيات الإدارة، من غير Cloud Functions.</p>
       <div className="ap-amb-admin-stats"><article><small>عدد المشتركات</small><strong>{ambassadors.length}</strong></article><article><small>طلبات الصرف المعلقة</small><strong>{pending.length}</strong></article><article><small>إجمالي الرصيد المتاح</small><strong>{available} جنيه</strong></article><article><small>طلبات الإحالة المسلّمة</small><strong>{ambassadors.reduce((sum,item)=>sum+(Number(item.deliveredReferralOrders)||0),0)}</strong></article></div>
