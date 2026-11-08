@@ -1,5 +1,5 @@
 import {
-  collection, doc, getDoc, getDocs, query, where, runTransaction,
+  doc, runTransaction,
   serverTimestamp, type Firestore, type DocumentReference,
 } from "firebase/firestore";
 
@@ -17,7 +17,7 @@ const phone = (value: unknown) => {
 };
 
 type RewardOrder = {
-  id: string; customer?: { name?: string; phone?: string };
+  id: string; trackingToken?: string; customer?: { name?: string; phone?: string };
   ambassadorSetup?: { code?: string; accessTokenHash?: string };
   ambassadorReferralCode?: string | null;
   fulfillmentStatus?: string; paymentStatus?: string;
@@ -101,7 +101,7 @@ export async function updateOrderAndRewards(db: Firestore, order: RewardOrder, p
             lifetimeEarned: number(refProfile.lifetimeEarned) + REWARD_PER_ORDER,
             deliveredReferralOrders: number(refProfile.deliveredReferralOrders) + 1,
           };
-          tx.create(commissionRef, { orderId: current.id, ambassadorCode: referralCode, amount: REWARD_PER_ORDER, currency: "EGP", status: "credited", createdAt: now });
+          tx.set(commissionRef, { orderId: current.id, ambassadorCode: referralCode, amount: REWARD_PER_ORDER, currency: "EGP", status: "credited", createdAt: now });
           tx.update(profileRef(db, referralCode), { availableBalance: nextProfile.availableBalance, lifetimeEarned: nextProfile.lifetimeEarned, deliveredReferralOrders: nextProfile.deliveredReferralOrders, updatedAt: now });
           const hash = refProfile.accessTokenHash;
           if (hash) {
@@ -152,7 +152,7 @@ export async function submitPayout(db: Firestore, code: string, accessHash: stri
       lastPayoutId: requestId,
       updatedAt: serverTimestamp(),
     });
-    tx.create(payout, {
+    tx.set(payout, {
       ambassadorCode: code, accessTokenHash: accessHash, amount, method, payoutDetails: details.trim(),
       status: "pending", requestedAt: serverTimestamp(), reviewedAt: null, paidAt: null,
     });
