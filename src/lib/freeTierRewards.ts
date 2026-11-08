@@ -144,9 +144,8 @@ export async function submitPayout(db: Firestore, code: string, accessHash: stri
   const profile = portalRef(db, accessHash);
   const payout = doc(db, "ambassadorPayouts", requestId);
   await runTransaction(db, async tx => {
-    const [profileSnap, payoutSnap] = await Promise.all([tx.get(profile), tx.get(payout)]);
+    const profileSnap = await tx.get(profile);
     if (!profileSnap.exists() || profileSnap.data().code !== code || profileSnap.data().status !== "active") throw new Error("INVALID_ACCESS");
-    if (payoutSnap.exists()) throw new Error("DUPLICATE_REQUEST");
     const data = profileSnap.data();
     const available = number(data.availableBalance);
     if (amount > available) throw new Error("INSUFFICIENT_BALANCE");
