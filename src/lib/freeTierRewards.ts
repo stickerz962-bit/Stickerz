@@ -176,6 +176,7 @@ export async function reviewPayout(db: Firestore, payoutId: string, decision: "p
     const amount = number(payout.amount);
     if (number(profile.reservedBalance) < amount) throw new Error("RESERVED_BALANCE_MISMATCH");
     const nextAvailable = number(profile.availableBalance) + (decision === "rejected" ? amount : 0);
+    if (decision === "paid" && nextAvailable < 0) throw new Error("REFUND_OFFSET_PENDING");
     const nextReserved = number(profile.reservedBalance) - amount;
     const nextProfile = { ...profile, availableBalance: nextAvailable, reservedBalance: nextReserved, lifetimePaidOut: number(profile.lifetimePaidOut) + (decision === "paid" ? amount : 0) };
     tx.update(profileRef, { availableBalance: nextAvailable, reservedBalance: nextReserved, lifetimePaidOut: nextProfile.lifetimePaidOut, updatedAt: serverTimestamp() });
