@@ -330,8 +330,10 @@ describe('Firestore security rules — Spark-compatible reward ledger', () => {
   it('allows payout reservation only as an atomic paired portal and payout write', async () => {
     await testEnv.withSecurityRulesDisabled(async context => {
       await setDoc(doc(context.firestore(), 'ambassadorPortals', accessHash), { code, status: 'active', availableBalance: 100, reservedBalance: 0 });
+      await setDoc(doc(context.firestore(), 'ambassadors', code), { code, status: 'active', accessTokenHash: accessHash, availableBalance: 100, reservedBalance: 0 });
     });
     const db = testEnv.unauthenticatedContext().firestore();
+    await assertFails(updateDoc(doc(db, 'ambassadors', code), { availableBalance: 9999 }));
     await assertFails(setDoc(doc(db, 'ambassadorPayouts', 'unpaired'), {
       ambassadorCode: code, accessTokenHash: accessHash, amount: 50, method: 'instapay',
       payoutDetails: 'test@instapay', status: 'pending', requestedAt: new Date(), reviewedAt: null, paidAt: null,
@@ -343,6 +345,7 @@ describe('Firestore security rules — Spark-compatible reward ledger', () => {
       const snap = await tx.get(portal);
       const amount = 50;
       tx.update(portal, { availableBalance: snap.data()!.availableBalance - amount, reservedBalance: snap.data()!.reservedBalance + amount, lastPayoutId: 'payout-reserve-1', updatedAt: new Date() });
+      tx.update(doc(db, 'ambassadors', code), { availableBalance: 50, reservedBalance: 50, lastPayoutId: 'payout-reserve-1', updatedAt: new Date() });
       tx.set(payout, { ambassadorCode: code, accessTokenHash: accessHash, amount, method: 'instapay', payoutDetails: 'test@instapay', status: 'pending', requestedAt: serverTimestamp(), reviewedAt: null, paidAt: null });
       tx.set(nested, { id: 'payout-reserve-1', amount, status: 'pending' });
     }));
