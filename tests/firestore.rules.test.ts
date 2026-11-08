@@ -343,7 +343,7 @@ describe('Firestore security rules — Spark-compatible reward ledger', () => {
       const snap = await tx.get(portal);
       const amount = 50;
       tx.update(portal, { availableBalance: snap.data()!.availableBalance - amount, reservedBalance: snap.data()!.reservedBalance + amount, lastPayoutId: 'payout-reserve-1', updatedAt: new Date() });
-      tx.set(payout, { ambassadorCode: code, accessTokenHash: accessHash, amount, method: 'instapay', payoutDetails: 'test@instapay', status: 'pending', requestedAt: new Date(), reviewedAt: null, paidAt: null });
+      tx.set(payout, { ambassadorCode: code, accessTokenHash: accessHash, amount, method: 'instapay', payoutDetails: 'test@instapay', status: 'pending', requestedAt: serverTimestamp(), reviewedAt: null, paidAt: null });
       tx.set(nested, { id: 'payout-reserve-1', amount, status: 'pending' });
     }));
     const after = await getDoc(doc(db, 'ambassadorPortals', accessHash));
