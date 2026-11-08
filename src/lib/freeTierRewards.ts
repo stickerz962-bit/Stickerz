@@ -1,6 +1,6 @@
 import {
   doc, runTransaction,
-  serverTimestamp, type Firestore, type DocumentReference,
+  serverTimestamp, type Firestore,
 } from "firebase/firestore";
 
 export const REWARD_PER_ORDER = 15;
