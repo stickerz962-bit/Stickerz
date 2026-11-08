@@ -1,5 +1,5 @@
 import {
-  collection, doc, getDocs, query, where, writeBatch, runTransaction,
+  collection, doc, getDocs, writeBatch, runTransaction,
   serverTimestamp, type Firestore,
 } from "firebase/firestore";
 
