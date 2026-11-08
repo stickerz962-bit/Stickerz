@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState, type FormEvent } from "react";
-import { collection, doc, getDoc, getDocs, onSnapshot, orderBy, query } from "firebase/firestore";
+import { collection, doc, getDoc, onSnapshot, orderBy, query } from "firebase/firestore";
 import { firestore } from "./firebase/client";
 import { buildAmbassadorReferralUrl, hashAmbassadorToken } from "./lib/ambassador";
 import { submitPayout, MIN_PAYOUT } from "./lib/freeTierRewards";
@@ -34,12 +34,6 @@ export default function AmbassadorApp({ code, accessToken }: { code: string; acc
       const snap = await getDoc(ref);
       if (!snap.exists() || snap.data().code !== code || snap.data().status !== "active") throw new Error("INVALID_ACCESS");
       setData(snap.data() as Portal);
-      const [commissionSnap, payoutSnap] = await Promise.all([
-        getDocs(query(collection(firestore, "ambassadorPortals", hash, "commissions"), orderBy("createdAt", "desc"))),
-        getDocs(query(collection(firestore, "ambassadorPortals", hash, "payouts"), orderBy("requestedAt", "desc"))),
-      ]);
-      setCommissions(commissionSnap.docs.map(item => ({ id: item.id, ...item.data() } as Ledger)));
-      setPayouts(payoutSnap.docs.map(item => ({ id: item.id, ...item.data() } as Ledger)));
     } catch {
       setError("رابط مساحتك غير صالح أو لم يتم تفعيلها بعد. لو طلبك اتسلّم للتو، حدّثي الصفحة بعد قليل.");
       setData(null);
@@ -52,8 +46,18 @@ export default function AmbassadorApp({ code, accessToken }: { code: string; acc
     if (!firestore || !accessHash) return;
     const unsubscribe = onSnapshot(doc(firestore, "ambassadorPortals", accessHash), snap => {
       if (snap.exists() && snap.data().code === code) setData(snap.data() as Portal);
-    });
-    return unsubscribe;
+    }, () => setError("تعذر تحديث رصيد المكافآت."));
+    const unsubscribeCommissions = onSnapshot(
+      query(collection(firestore, "ambassadorPortals", accessHash, "commissions"), orderBy("createdAt", "desc")),
+      snap => setCommissions(snap.docs.map(item => ({ id: item.id, ...item.data() } as Ledger))),
+      () => setError("تعذر تحديث سجل المكافآت."),
+    );
+    const unsubscribePayouts = onSnapshot(
+      query(collection(firestore, "ambassadorPortals", accessHash, "payouts"), orderBy("requestedAt", "desc")),
+      snap => setPayouts(snap.docs.map(item => ({ id: item.id, ...item.data() } as Ledger))),
+      () => setError("تعذر تحديث طلبات الصرف."),
+    );
+    return () => { unsubscribe(); unsubscribeCommissions(); unsubscribePayouts(); };
   }, [accessHash, code]);
 
   async function payout(event: FormEvent<HTMLFormElement>) {
