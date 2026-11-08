@@ -1,5 +1,5 @@
 import {
-  collection, doc, getDocs, writeBatch, runTransaction,
+  collection, doc, getDocs, increment, writeBatch, runTransaction,
   serverTimestamp, type Firestore,
 } from "firebase/firestore";
 
@@ -158,6 +158,14 @@ export async function submitPayout(db: Firestore, code: string, accessHash: stri
     tx.update(profile, {
       availableBalance: available - amount,
       reservedBalance: number(data.reservedBalance) + amount,
+      lastPayoutId: requestId,
+      updatedAt: serverTimestamp(),
+    });
+    // Mirror the reservation into the admin-only source profile. Firestore
+    // rules permit only this exact paired balance change with the payout write.
+    tx.update(profileRef(db, code), {
+      availableBalance: increment(-amount),
+      reservedBalance: increment(amount),
       lastPayoutId: requestId,
       updatedAt: serverTimestamp(),
     });
