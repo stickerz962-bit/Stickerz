@@ -420,7 +420,7 @@ export default function AdminApp() {
           <button className={orderFilter === 'cancelled' ? 'selected' : ''} onClick={() => setOrderFilter('cancelled')}><b>{ordersInitialLoading ? '…' : orders.filter(x => x.fulfillmentStatus === 'cancelled').length}</b><span>{ordersInitialLoading ? 'جارٍ التحميل' : 'ملغاة'}</span></button>
         </section>
         <section className="admin-products ap-orders-list">
-        <div className="admin-list-heading"><h2>الطلبات المحمّلة ({orders.length})</h2><span>الأحدث أولًا · اختاري بطاقة لتحديث الحالة</span></div>
+        <div className="admin-list-heading"><h2>الطلبات المحمّلة ({ordersInitialLoading ? '…' : orders.length})</h2><span>الأحدث أولًا · اختاري بطاقة لتحديث الحالة</span></div>
         {ordersInitialLoading && <div className="builder-empty" role="status">جارٍ تحميل الطلبات من قاعدة البيانات…</div>}{!ordersInitialLoading && orders.length === 0 && <div className="builder-empty">مفيش طلبات لسه. أول طلب يتسجل من الموقع هيظهر هنا تلقائيًا.</div>}
         {orders.filter(order => orderFilter === 'all' || (orderFilter === 'active' ? !['new','delivered','cancelled'].includes(order.fulfillmentStatus || 'new') : order.fulfillmentStatus === orderFilter)).map(order => <article className="admin-product-row ap-order-row" key={order.id}>
           <div className="admin-product-info ap-order-info">
