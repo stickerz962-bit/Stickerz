@@ -35,6 +35,26 @@ service cloud.firestore {
       allow create, update, delete: if isAdmin();
     }
 
+    // Artwork previews live in separate documents so public catalog queries
+    // never download image payloads. Only direct reads for active parent records
+    // are public; drafts and collection listing remain admin-only.
+    match /catalogAssets/{assetId} {
+      allow get: if isAdmin() || (
+        resource != null && (
+          (resource.data.assetType == 'artwork'
+            && resource.data.itemId is string
+            && exists(/databases/$(database)/documents/artworks/$(resource.data.itemId))
+            && get(/databases/$(database)/documents/artworks/$(resource.data.itemId)).data.active == true)
+          || (resource.data.assetType == 'cover'
+            && resource.data.itemId is string
+            && exists(/databases/$(database)/documents/covers/$(resource.data.itemId))
+            && get(/databases/$(database)/documents/covers/$(resource.data.itemId)).data.active == true)
+        )
+      );
+      allow list: if isAdmin();
+      allow create, update, delete: if isAdmin();
+    }
+
     match /settings/public {
       allow read: if true;
       allow write: if isAdmin();

@@ -3,6 +3,7 @@ import { getOfferEndAt, getOfferRemainingMs, formatOfferCountdown } from './lib/
 import Builder from './Builder';
 import HeroBookAnimation from './HeroBookAnimation';
 import { loadCatalog } from './catalog/repository';
+import CatalogImage from './catalog/CatalogImage';
 import { doc, getDoc } from 'firebase/firestore';
 import { firestore } from './firebase/client';
 import type { CatalogData } from './catalog/types';
@@ -175,14 +176,14 @@ export default function App() {
         <div className="section-heading heading-row"><div><span className="eyebrow">كل رسمة ليها مود</span><h2>اختاري اللي شبهك</h2><p>مكتبة متنوعة فيها تفاصيل من يومنا وضحكنا وحاجات بنفكر فيها.</p></div><span className="side-note">{catalogData.categories.length} تصنيفات · {catalogData.artworks.length} رسمة متاحة</span></div>
         {catalogNotice && <p className="gallery-disclaimer" role="status">{catalogNotice}</p>}
         <div className="category-chips">{catalogData.categories.map((category, index) => <span key={category.id}>{category.title}<i>{String(index + 1).padStart(2, '0')}</i></span>)}</div>
-        <div className="artwork-grid">{catalogData.artworks.slice(0, 6).map(art => <article className="artwork-card" key={art.id}><div className="artwork-preview">{art.previewAssetRef ? <img src={art.previewAssetRef} alt={art.title} loading="lazy" /> : <span>معاينة غير متاحة</span>}</div><div className="artwork-caption"><b>{art.title}</b><span>{art.id}</span></div></article>)}</div>
+        <div className="artwork-grid">{catalogData.artworks.slice(0, 6).map(art => <article className="artwork-card" key={art.id}><div className="artwork-preview">{art.previewAssetRef ? <CatalogImage source={art.previewAssetRef} alt={art.title} fit="cover" /> : <span>معاينة غير متاحة</span>}</div><div className="artwork-caption"><b>{art.title}</b><span>{art.id}</span></div></article>)}</div>
         {!catalogData.artworks.length && <p className="gallery-disclaimer">سيتم عرض الرسومات المعتمدة هنا فور إتاحتها.</p>}
       </section>
 
       <section className="covers-section" id="covers">
         <div className="section-wrap">
           <div className="section-heading"><span className="eyebrow">الغلاف اللي على مزاجك</span><h2>اختاري حكاية الغلاف</h2><p>اختاري التصميم الأقرب ليكي، واسمك هيكون جزء منه.</p></div>
-          <div className="covers-grid">{catalogData.covers.map(cover => <article className="cover-option" key={cover.id}><div className="cover-art">{cover.previewAssetRef ? <img src={cover.previewAssetRef} alt={cover.title} loading="lazy" /> : <span>معاينة غير متاحة</span>}</div><strong>{cover.title}</strong></article>)}</div>
+          <div className="covers-grid">{catalogData.covers.map(cover => <article className="cover-option" key={cover.id}><div className="cover-art">{cover.previewAssetRef ? <CatalogImage source={cover.previewAssetRef} alt={cover.title} fit="cover" /> : <span>معاينة غير متاحة</span>}</div><strong>{cover.title}</strong></article>)}</div>
           {!catalogData.covers.length && <p className="gallery-disclaimer">سيتم عرض الأغلفة المعتمدة هنا فور إتاحتها.</p>}
         </div>
       </section>

@@ -1,0 +1,66 @@
+name: Deploy Firestore rules only
+
+on:
+  workflow_dispatch:
+    inputs:
+      project_id:
+        description: "Must be the Stickerz Firebase project"
+        required: true
+        default: "stickerz-922b9"
+        type: string
+      confirm_rules_deploy:
+        description: "Approve deploying Firestore security rules only"
+        required: true
+        default: false
+        type: boolean
+
+permissions:
+  contents: read
+  id-token: write
+
+concurrency:
+  group: stickerz-firestore-rules
+  cancel-in-progress: false
+
+jobs:
+  deploy-rules:
+    if: ${{ inputs.confirm_rules_deploy == true }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Validate target and workload identity configuration
+        env:
+          PROJECT_ID: ${{ inputs.project_id }}
+          WIF_PROVIDER: ${{ vars.GCP_WORKLOAD_IDENTITY_PROVIDER }}
+          SERVICE_ACCOUNT: ${{ vars.GCP_SERVICE_ACCOUNT }}
+        run: |
+          set -euo pipefail
+          if [ "$PROJECT_ID" != "stickerz-922b9" ]; then
+            echo "::error::Refusing to deploy rules to an unexpected project."
+            exit 1
+          fi
+          if [ -z "$WIF_PROVIDER" ] || [ -z "$SERVICE_ACCOUNT" ]; then
+            echo "::error::Missing GCP_WORKLOAD_IDENTITY_PROVIDER or GCP_SERVICE_ACCOUNT repository variables."
+            exit 1
+          fi
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Install Firebase CLI
+        run: npm install --global firebase-tools@13.29.2
+
+      - name: Authenticate with short-lived GitHub OIDC credentials
+        uses: google-github-actions/auth@v2
+        with:
+          workload_identity_provider: ${{ vars.GCP_WORKLOAD_IDENTITY_PROVIDER }}
+          service_account: ${{ vars.GCP_SERVICE_ACCOUNT }}
+          create_credentials_file: true
+
+      - name: Deploy Firestore rules only
+        run: firebase deploy --only firestore:rules --project stickerz-922b9 --non-interactive

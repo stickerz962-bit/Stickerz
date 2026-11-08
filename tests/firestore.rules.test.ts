@@ -24,6 +24,10 @@ async function seed() {
     await setDoc(doc(db, 'artworks', 'AP-003'), { title: 'Artwork 3', active: false, categoryId: 'published', sortOrder: 3 });
     await setDoc(doc(db, 'covers', 'cover-live'), { title: 'Cover live', active: true, sortOrder: 1 });
     await setDoc(doc(db, 'covers', 'cover-draft'), { title: 'Cover draft', active: false, sortOrder: 2 });
+    await setDoc(doc(db, 'catalogAssets', 'artwork_live'), { assetType: 'artwork', itemId: 'AP-001', dataUrl: 'data:image/webp;base64,AA' });
+    await setDoc(doc(db, 'catalogAssets', 'artwork_hidden'), { assetType: 'artwork', itemId: 'AP-003', dataUrl: 'data:image/webp;base64,AA' });
+    await setDoc(doc(db, 'catalogAssets', 'cover_live'), { assetType: 'cover', itemId: 'cover-live', dataUrl: 'data:image/webp;base64,AA' });
+    await setDoc(doc(db, 'catalogAssets', 'cover_draft'), { assetType: 'cover', itemId: 'cover-draft', dataUrl: 'data:image/webp;base64,AA' });
     await setDoc(doc(db, 'settings', 'public'), { shopName: 'ANTI PRESSURE', shippingFee: 50 });
     await setDoc(doc(db, 'settings', 'private'), { secret: 'never-public' });
     await setDoc(doc(db, 'orders', 'order-1'), { status: 'new' });
@@ -76,6 +80,28 @@ describe('Firestore security rules — public catalog reads', () => {
     // This is the exact collection-wide query used by loadCatalog().
     await assertSucceeds(getDocs(query(collection(db, 'artworks'), where('active', '==', true), orderBy('sortOrder', 'asc'))));
     await assertSucceeds(getDocs(query(collection(db, 'covers'), where('active', '==', true))));
+  });
+
+  it('allows direct preview reads only when the related artwork or cover is active', async () => {
+    const publicDb = testEnv.unauthenticatedContext().firestore();
+    await assertSucceeds(getDoc(doc(publicDb, 'catalogAssets', 'artwork_live')));
+    await assertSucceeds(getDoc(doc(publicDb, 'catalogAssets', 'cover_live')));
+    await assertFails(getDoc(doc(publicDb, 'catalogAssets', 'artwork_hidden')));
+    await assertFails(getDoc(doc(publicDb, 'catalogAssets', 'cover_draft')));
+    await assertFails(getDocs(collection(publicDb, 'catalogAssets')));
+
+    const customerDb = testEnv.authenticatedContext('customer-1').firestore();
+    await assertFails(setDoc(doc(customerDb, 'catalogAssets', 'customer_asset'), {
+      assetType: 'artwork', itemId: 'AP-001', dataUrl: 'data:image/webp;base64,AA',
+    }));
+  });
+
+  it('allows admins to read hidden preview assets and write preview assets', async () => {
+    const adminDb = testEnv.authenticatedContext('admin-1', { admin: true }).firestore();
+    await assertSucceeds(getDoc(doc(adminDb, 'catalogAssets', 'artwork_hidden')));
+    await assertSucceeds(setDoc(doc(adminDb, 'catalogAssets', 'admin_asset'), {
+      assetType: 'artwork', itemId: 'AP-999', dataUrl: 'data:image/webp;base64,AA',
+    }));
   });
 
   it('allows only the explicitly public settings document', async () => {
