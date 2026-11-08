@@ -51,7 +51,7 @@ export async function updateOrderAndRewards(db: Firestore, order: RewardOrder, p
     const ownCode = isAmbassadorCode(current.ambassadorSetup?.code) ? current.ambassadorSetup!.code! : "";
     const ownHash = typeof current.ambassadorSetup?.accessTokenHash === "string" && /^[a-f0-9]{64}$/.test(current.ambassadorSetup.accessTokenHash) ? current.ambassadorSetup.accessTokenHash : "";
     const referralCode = isAmbassadorCode(current.ambassadorReferralCode) ? current.ambassadorReferralCode : "";
-    const commissionCode: unknown = commissionSnap.exists ? commissionSnap.get("ambassadorCode") : undefined;
+    const commissionCode: unknown = commissionSnap.exists() ? commissionSnap.get("ambassadorCode") : undefined;
     const validCommissionCode = isAmbassadorCode(commissionCode) ? commissionCode : "";
     const codes = [...new Set([ownCode, referralCode, validCommissionCode].filter(Boolean))];
     const profileSnaps = new Map<string, any>();
