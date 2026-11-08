@@ -80,10 +80,14 @@ export async function updateOrderAndRewards(db: Firestore, order: RewardOrder, p
         };
         tx.set(profileRef(db, ownCode), created);
         tx.set(portalRef(db, ownHash), portalSummary(ownCode, created));
-      } else if (customerPhone) {
+      } else {
         const data = existing.data();
-        const phones = Array.isArray(data.phoneNumbers) ? data.phoneNumbers : [];
-        if (!phones.includes(customerPhone)) tx.update(profileRef(db, ownCode), { phoneNumbers: [...phones, customerPhone], updatedAt: now });
+        const ownPortal = portalSnaps.get(ownHash);
+        if (!ownPortal?.exists()) tx.set(portalRef(db, ownHash), portalSummary(ownCode, data));
+        if (customerPhone) {
+          const phones = Array.isArray(data.phoneNumbers) ? data.phoneNumbers : [];
+          if (!phones.includes(customerPhone)) tx.update(profileRef(db, ownCode), { phoneNumbers: [...phones, customerPhone], updatedAt: now });
+        }
       }
     }
 
