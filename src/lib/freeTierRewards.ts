@@ -13,7 +13,7 @@ export function shouldCreditReferralReward(input: {
 }) {
   return input.fulfillmentStatus === "delivered"
     && !["refunded", "rejected"].includes(input.paymentStatus || "")
-    && !!input.referralCode
+    && isAmbassadorCode(input.referralCode)
     && input.referralCode !== input.ownCode
     && !input.commissionExists;
 }
