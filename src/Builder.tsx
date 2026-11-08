@@ -171,7 +171,6 @@ export default function Builder() {
         const item = catalogItems.find(entry => entry.id === artworkId);
         return { artworkId, titleSnapshot: item?.title || artworkId, printOrder: index + 1 };
       });
-      const referralCode = new URLSearchParams(window.location.search).get('ref') || null;
       checkoutStage = 'prepare_reward_credentials';
       const ambassadorCredentials = await getOrCreateAmbassadorCredentials();
       checkoutStage = 'hash_reward_token';
@@ -205,7 +204,7 @@ export default function Builder() {
         paymentMethod: checkout.paymentMethod,
         paymentStatus: checkout.paymentMethod === 'instapay' ? 'pending_review' : 'unpaid',
         fulfillmentStatus: 'new',
-        partnerCode: referralCode,
+        partnerCode: null, // Legacy schema compatibility; all new referrals use مكافأة التلوين only.
         ambassadorReferralCode,
         ambassadorSetup: { code: ambassadorCredentials.code, accessTokenHash: ambassadorAccessTokenHash },
         trackingToken,
