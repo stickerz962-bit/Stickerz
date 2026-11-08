@@ -191,6 +191,7 @@ export async function reviewPayout(db: Firestore, payoutId: string, decision: "p
       reviewedBy: adminUid, reviewedAt: serverTimestamp(),
     });
     if (hash) {
+      if (portalSnap?.exists() && portalSnap.data().code !== payout.ambassadorCode) throw new Error("PORTAL_CODE_MISMATCH");
       tx.set(portalRef(db, hash), portalSummary(payout.ambassadorCode, nextProfile), { merge: true });
       tx.set(doc(db, "ambassadorPortals", hash, "payouts", payoutId), {
         id: payoutId, amount, method: payout.method, status: decision, requestedAt: payout.requestedAt || null,
