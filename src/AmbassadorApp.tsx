@@ -17,6 +17,7 @@ export default function AmbassadorApp({ code, accessToken }: { code: string; acc
   const [amount, setAmount] = useState("50");
   const [method, setMethod] = useState<"instapay" | "wallet">("instapay");
   const [details, setDetails] = useState("");
+  const [requestId, setRequestId] = useState(() => window.crypto.randomUUID());
   const [busy, setBusy] = useState(true);
   const [sending, setSending] = useState(false);
   const [error, setError] = useState("");
@@ -64,10 +65,9 @@ export default function AmbassadorApp({ code, accessToken }: { code: string; acc
     }
     setSending(true);
     try {
-      const requestId = window.crypto.randomUUID();
       await submitPayout(firestore, code, accessHash, value, method, details.trim(), requestId);
       setNotice("تم استلام طلب صرف مكافآتك وحجز المبلغ من رصيدك لحين المراجعة.");
-      setDetails(""); setAmount("50"); await load();
+      setDetails(""); setAmount("50"); setRequestId(window.crypto.randomUUID()); await load();
     } catch (reason) {
       const message = reason instanceof Error ? reason.message : "";
       setError(message === "INSUFFICIENT_BALANCE" ? "الرصيد المتاح اتغير. حدّثي الصفحة واختاري مبلغًا أقل."
