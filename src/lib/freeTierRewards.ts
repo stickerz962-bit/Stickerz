@@ -8,6 +8,16 @@ export const MIN_PAYOUT = 50;
 export const isAmbassadorCode = (value: unknown): value is string =>
   typeof value === "string" && /^AP[A-F0-9]{20}$/.test(value);
 
+export function shouldCreditReferralReward(input: {
+  fulfillmentStatus?: string; paymentStatus?: string; referralCode?: string; ownCode?: string; commissionExists: boolean;
+}) {
+  return input.fulfillmentStatus === "delivered"
+    && !["refunded", "rejected"].includes(input.paymentStatus || "")
+    && !!input.referralCode
+    && input.referralCode !== input.ownCode
+    && !input.commissionExists;
+}
+
 const number = (value: unknown) => Number.isSafeInteger(value) ? Number(value) : 0;
 const phone = (value: unknown) => {
   const digits = String(value ?? "").replace(/[\s()+-]/g, "");
@@ -94,7 +104,7 @@ export async function updateOrderAndRewards(db: Firestore, order: RewardOrder, p
     }
 
     // One referrer per order, no self-referral, and one immutable ledger row per order.
-    if (next.fulfillmentStatus === "delivered" && !["refunded", "rejected"].includes(next.paymentStatus || "") && referralCode && referralCode !== ownCode && !commissionSnap.exists) {
+    if (shouldCreditReferralReward({ fulfillmentStatus: next.fulfillmentStatus, paymentStatus: next.paymentStatus, referralCode, ownCode, commissionExists: commissionSnap.exists() })) {
       const refSnap = profileSnaps.get(referralCode);
       if (refSnap?.exists() && refSnap.data().status === "active") {
         const refProfile = refSnap.data();
