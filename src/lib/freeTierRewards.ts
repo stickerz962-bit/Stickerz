@@ -143,8 +143,10 @@ export async function submitPayout(db: Firestore, code: string, accessHash: stri
   if (!["instapay", "wallet"].includes(method) || details.trim().length < 5 || details.trim().length > 120) throw new Error("INVALID_DETAILS");
   const profile = portalRef(db, accessHash);
   const payout = doc(db, "ambassadorPayouts", requestId);
+  const portalPayout = doc(db, "ambassadorPortals", accessHash, "payouts", requestId);
   await runTransaction(db, async tx => {
-    const profileSnap = await tx.get(profile);
+    const [profileSnap, existingPayout] = await Promise.all([tx.get(profile), tx.get(portalPayout)]);
+    if (existingPayout.exists()) return;
     if (!profileSnap.exists() || profileSnap.data().code !== code || profileSnap.data().status !== "active") throw new Error("INVALID_ACCESS");
     const data = profileSnap.data();
     const available = number(data.availableBalance);
@@ -159,7 +161,7 @@ export async function submitPayout(db: Firestore, code: string, accessHash: stri
       ambassadorCode: code, accessTokenHash: accessHash, amount, method, payoutDetails: details.trim(),
       status: "pending", requestedAt: serverTimestamp(), reviewedAt: null, paidAt: null,
     });
-    tx.set(doc(db, "ambassadorPortals", accessHash, "payouts", requestId), {
+    tx.set(portalPayout, {
       id: requestId, amount, method, status: "pending", requestedAt: serverTimestamp(),
     });
   });
