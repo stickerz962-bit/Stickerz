@@ -268,13 +268,13 @@ service cloud.firestore {
       }
       match /payouts/{payoutId} {
         allow read: if accessHash.matches('^[a-f0-9]{64}$');
-        allow create: if existsAfter(/databases/$(database)/documents/ambassadorPayouts/$(payoutId))
+        allow create: if isAdmin() || (existsAfter(/databases/$(database)/documents/ambassadorPayouts/$(payoutId))
           && getAfter(/databases/$(database)/documents/ambassadorPayouts/$(payoutId)).data.accessTokenHash == accessHash
           && getAfter(/databases/$(database)/documents/ambassadorPayouts/$(payoutId)).data.status == 'pending'
           && request.resource.data.keys().hasOnly(['id','amount','method','status','requestedAt'])
           && request.resource.data.id == payoutId
           && request.resource.data.amount == getAfter(/databases/$(database)/documents/ambassadorPayouts/$(payoutId)).data.amount
-          && request.resource.data.status == 'pending';
+          && request.resource.data.status == 'pending');
         allow update, delete: if isAdmin();
       }
     }
