@@ -5,6 +5,7 @@ import { loadCatalog } from './catalog/repository';
 import CatalogImage from './catalog/CatalogImage';
 import { getOfferEndAt, getOfferRemainingMs, formatOfferCountdown } from './lib/offer';
 import { attachAmbassadorReferralToOrder, clearAmbassadorReferral, getOrCreateAmbassadorCredentials, hashAmbassadorToken, readAmbassadorReferral, readAmbassadorReferralTrackingToken, saveAmbassadorContext } from './lib/ambassador';
+import { getCheckoutDiagnostic, type CheckoutFailureStage } from './lib/checkoutDiagnostics';
 
 const categories = [
   'فوضى المسؤوليات', 'تقلبات المزاج', 'الناس والعلاقات', 'قهوة وأكل', 'حب وعلاقات',
@@ -61,6 +62,7 @@ export default function Builder() {
   const [checkout, setCheckout] = useState({ name: '', phone: '', governorate: '', area: '', address: '', notes: '', paymentMethod: 'cod' as 'cod' | 'instapay' });
   const [orderBusy, setOrderBusy] = useState(false);
   const [orderError, setOrderError] = useState('');
+  const [orderDiagnostic, setOrderDiagnostic] = useState('');
   const [orderSuccess, setOrderSuccess] = useState('');
   const [trackingUrl, setTrackingUrl] = useState('');
   const [draft, setDraft] = useState<Draft>({ coverId: 'calm', name: '' });
@@ -146,7 +148,7 @@ export default function Builder() {
 
   async function submitOrder(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    setOrderError(''); setOrderSuccess('');
+    setOrderError(''); setOrderDiagnostic(''); setOrderSuccess('');
     if (!firestore) { setOrderError('خدمة الطلبات غير متاحة حاليًا. جرّبي مرة أخرى لاحقًا.'); return; }
     if (shippingFee === null) { setOrderError('سعر الشحن لم يتم ضبطه بعد. تواصلي معنا أو حاولي لاحقًا.'); return; }
     if (selected.length !== 30 || new Set(selected).size !== 30 || !draft.name.trim() || !activeCover) {
@@ -160,6 +162,8 @@ export default function Builder() {
       setOrderError('كمّلي الاسم والمحافظة والمنطقة والعنوان.'); return;
     }
     setOrderBusy(true);
+    let checkoutStage: CheckoutFailureStage = 'prepare_order';
+    let orderSaved = false;
     try {
       const price = offerRemainingMs !== null && offerRemainingMs > 0 ? 190 : 240;
       const totalAmount = price + shippingFee;
@@ -168,10 +172,13 @@ export default function Builder() {
         return { artworkId, titleSnapshot: item?.title || artworkId, printOrder: index + 1 };
       });
       const referralCode = new URLSearchParams(window.location.search).get('ref') || null;
+      checkoutStage = 'prepare_reward_credentials';
       const ambassadorCredentials = await getOrCreateAmbassadorCredentials();
+      checkoutStage = 'hash_reward_token';
       const ambassadorAccessTokenHash = await hashAmbassadorToken(ambassadorCredentials.accessToken);
       let ambassadorReferralCode = readAmbassadorReferral();
       const pendingReferralTrackingToken = readAmbassadorReferralTrackingToken();
+      checkoutStage = 'check_referral_tracking';
       if (ambassadorReferralCode && pendingReferralTrackingToken) {
         try {
           const previousReferralOrder = await getDoc(doc(firestore, 'orderTracking', pendingReferralTrackingToken));
@@ -181,6 +188,7 @@ export default function Builder() {
           }
         } catch { /* Keep attribution if status cannot be checked; the backend still validates delivery. */ }
       }
+      checkoutStage = 'prepare_order_batch';
       const publicReference = 'AP-' + Date.now().toString(36).toUpperCase();
       const orderRef = doc(collection(firestore, 'orders'));
       const randomBytes = new Uint8Array(32);
@@ -208,15 +216,10 @@ export default function Builder() {
         fulfillmentStatus: 'new',
         createdAt: serverTimestamp(), updatedAt: serverTimestamp(),
       });
+      checkoutStage = 'write_order_batch';
       await batch.commit();
-      saveAmbassadorContext({ ...ambassadorCredentials, sourceOrderId: orderRef.id, trackingToken });
-      try {
-        const key = 'anti-pressure:customer-tracking-tokens:v1';
-        const saved = JSON.parse(localStorage.getItem(key) || '[]');
-        const tokens = Array.isArray(saved) ? saved.filter((value: unknown) => typeof value === 'string' && /^[a-f0-9]{64}$/.test(value)) : [];
-        localStorage.setItem(key, JSON.stringify([...new Set([trackingToken, ...tokens])].slice(0, 20)));
-      } catch { /* The tracking link remains available in the order confirmation. */ }
-      attachAmbassadorReferralToOrder(ambassadorReferralCode, trackingToken);
+      orderSaved = true;
+      checkoutStage = 'finalize_order';
       const url = new URL(window.location.href);
       url.hash = '';
       url.searchParams.delete('ref');
@@ -224,6 +227,14 @@ export default function Builder() {
       url.searchParams.set('track', trackingToken);
       setTrackingUrl(url.toString());
       setOrderSuccess('تم استلام طلبك بنجاح! رقم الطلب: ' + orderRef.id + ' — رابط متابعة طلبك محفوظ على هذا الجهاز، وتقدري ترجعي له من «طلباتي».');
+      try { saveAmbassadorContext({ ...ambassadorCredentials, sourceOrderId: orderRef.id, trackingToken }); } catch (error) { console.warn('[ANTI_PRESSURE_ORDER_LOCAL_FINALIZE_FAILED]', 'ambassador_context'); }
+      try {
+        const key = 'anti-pressure:customer-tracking-tokens:v1';
+        const saved = JSON.parse(localStorage.getItem(key) || '[]');
+        const tokens = Array.isArray(saved) ? saved.filter((value: unknown) => typeof value === 'string' && /^[a-f0-9]{64}$/.test(value)) : [];
+        localStorage.setItem(key, JSON.stringify([...new Set([trackingToken, ...tokens])].slice(0, 20)));
+      } catch { /* The tracking link remains available in the order confirmation. */ }
+      try { attachAmbassadorReferralToOrder(ambassadorReferralCode, trackingToken); } catch { console.warn('[ANTI_PRESSURE_ORDER_LOCAL_FINALIZE_FAILED]', 'referral_attribution'); }
       setNotice('');
       setSelected([]);
       setDraft({coverId:'calm',name:''});
@@ -231,10 +242,16 @@ export default function Builder() {
       setStep('checkout');
       try { localStorage.removeItem(STORAGE_KEY); localStorage.removeItem(DRAFT_KEY); } catch {}
     } catch (error) {
-      // Keep the customer-facing message simple, but preserve the Firebase error
-      // code and details for diagnosis instead of silently hiding the failed write.
-      console.error('[ANTI_PRESSURE_ORDER_SUBMISSION_FAILED]', error);
-      setOrderError('مقدرناش نسجل الطلب. تأكدي من اتصال الإنترنت وإعدادات الطلبات ثم حاولي مرة أخرى.');
+      const diagnostic = getCheckoutDiagnostic(error, checkoutStage);
+      // Log only an allowlisted stage/code. Never log the raw error, customer data, or tokens.
+      console.error('[ANTI_PRESSURE_ORDER_SUBMISSION_FAILED]', diagnostic);
+      if (orderSaved) {
+        setOrderSuccess('تم تسجيل طلبك بنجاح، لكن حصلت مشكلة في حفظ بعض بيانات المتابعة على الجهاز. استخدمي رابط المتابعة الظاهر إن وُجد.');
+        setOrderError('الطلب محفوظ بالفعل. لو احتجنا مساعدة، ابعتي كود التشخيص للدعم.');
+      } else {
+        setOrderError('مقدرناش نسجل الطلب. حاولي مرة أخرى، ولو تكررت المشكلة ابعتي كود التشخيص للدعم.');
+      }
+      setOrderDiagnostic(diagnostic.reference + ' · ' + diagnostic.firebaseCode);
     } finally { setOrderBusy(false); }
   }
 
@@ -362,7 +379,7 @@ export default function Builder() {
             <label>ملاحظات للتوصيل (اختياري)<textarea value={checkout.notes} onChange={e => setCheckout(v => ({...v,notes:e.target.value}))} maxLength={300} rows={2} /></label>
             <fieldset className="checkout-payment"><legend>طريقة الدفع</legend><label><input type="radio" name="paymentMethod" value="cod" checked={checkout.paymentMethod==='cod'} onChange={() => setCheckout(v=>({...v,paymentMethod:'cod'}))}/> الدفع عند الاستلام</label><label><input type="radio" name="paymentMethod" value="instapay" checked={checkout.paymentMethod==='instapay'} onChange={() => setCheckout(v=>({...v,paymentMethod:'instapay'}))}/> InstaPay (تأكيد يدوي من الإدارة)</label></fieldset>
             <p className="backup-help">سعر الشحن ثابت حاليًا: {shippingFee === null ? 'لم يتم تحديده بعد' : shippingFee + ' جنيه'}. اختيار InstaPay لا يعني أن الدفع تم.</p>
-            {orderError && <p className="form-error" role="alert">{orderError}</p>}
+            {orderError && <div className="form-error" role="alert"><p>{orderError}</p>{orderDiagnostic && <small>كود التشخيص: <b dir="ltr">{orderDiagnostic}</b></small>}</div>}
             {orderSuccess && <div className="form-success ap-tracking-success" role="status"><p>{orderSuccess}</p>{trackingUrl && <><a href={trackingUrl}>افتحي صفحة متابعة الطلب</a><button type="button" className="secondary-button" onClick={() => void navigator.clipboard.writeText(trackingUrl)}>نسخ رابط المتابعة</button><small>الرابط خاص بطلبك. هتلاقي الطلب محفوظًا في قسم «طلباتي» على نفس الجهاز.</small></>}</div>}
             <div className="form-actions"><button type="button" className="secondary-button" onClick={() => setStep('book')} disabled={orderBusy}>رجوع للمعاينة</button><button type="submit" className="primary-button" disabled={orderBusy || shippingFee === null}>{orderBusy ? 'جارٍ إرسال الطلب...' : 'تأكيد الطلب'}</button></div>
           </form>
