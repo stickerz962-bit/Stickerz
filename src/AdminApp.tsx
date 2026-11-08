@@ -427,7 +427,7 @@ export default function AdminApp() {
             <details className="ap-order-artwork-details"><summary>تفاصيل الرسومات ({order.book?.artworks?.length || 0}/30) — اضغطي لعرض الأكواد والأسماء</summary><ol>{(order.book?.artworks || []).map((art, index) => <li key={(art.artworkId || 'art') + index}><b>{art.artworkId || 'كود غير متاح'}</b><span>{art.titleSnapshot || 'اسم غير متاح'}</span></li>)}</ol></details>
             <small>سعر الكتاب: {order.pricing?.bookPrice ?? '—'} جنيه · الشحن: {order.pricing?.shippingFee ?? 'يُحدد'} · الإجمالي: {order.pricing?.totalAmount ?? 'يُحدد'} جنيه</small>
             <small>الدفع: {paymentStatusLabels[order.paymentStatus || ''] || order.paymentStatus || '—'} · {order.paymentMethod === 'cod' ? 'الدفع عند الاستلام' : 'InstaPay'}</small>
-            <small>كود الشريك: {order.partnerCode || 'بدون كود'} · كود إحالة العميلة: {order.ambassadorReferralCode || 'بدون إحالة'} · {order.createdAt?.toDate ? order.createdAt.toDate().toLocaleString('ar-EG') : 'وقت التسجيل غير متاح'}</small>
+            <small>كود مكافأة التلوين: {order.ambassadorReferralCode || 'بدون إحالة'} · {order.createdAt?.toDate ? order.createdAt.toDate().toLocaleString('ar-EG') : 'وقت التسجيل غير متاح'}</small>
           </div>
           <div className="admin-product-actions ap-order-status">
             {order.paymentStatus !== 'paid' && order.paymentStatus !== 'refunded' && <button className="secondary-button" disabled={busy} onClick={() => void updateOrderPaymentStatus(order,'paid')}>تأكيد استلام المبلغ</button>}
