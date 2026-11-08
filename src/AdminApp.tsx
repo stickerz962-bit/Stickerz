@@ -3,6 +3,7 @@ import { onAuthStateChanged, signInWithEmailAndPassword, signOut, type User } fr
 import { collection, doc, getDoc, getDocs, limit, orderBy, query, serverTimestamp, setDoc, startAfter, updateDoc, writeBatch, type DocumentData, type QueryDocumentSnapshot } from 'firebase/firestore';
 import { auth, firebaseConfigured, firestore } from './firebase/client';
 import CatalogImage from './catalog/CatalogImage';
+import { updateOrderAndRewards } from './lib/freeTierRewards';
 import './styles.css';
 
 type Category = { id: string; title: string; slug: string; sortOrder: number; active: boolean };
@@ -137,9 +138,9 @@ export default function AdminApp() {
     if (!window.confirm(message)) return;
     setBusy(true); setError(''); setNotice('');
     try {
-      await updateDoc(doc(firestore, 'orders', order.id), { paymentStatus: status, updatedAt: serverTimestamp() });
+      await updateOrderAndRewards(firestore, order, { paymentStatus: status });
       setOrders(current => current.map(item => item.id === order.id ? { ...item, paymentStatus: status } : item));
-      setNotice(status === 'refunded' ? 'تم تسجيل رد قيمة الطلب، وسيتم عكس مكافأة الإحالة تلقائيًا.' : 'تم تسجيل استلام قيمة الطلب.');
+      setNotice(status === 'refunded' ? 'تم تسجيل رد قيمة الطلب، وتمت تسوية مكافأة الإحالة ضمن نفس العملية.' : 'تم تسجيل استلام قيمة الطلب.');
     } catch { setError('تعذر تحديث حالة الدفع.'); }
     finally { setBusy(false); }
   };
@@ -148,10 +149,10 @@ export default function AdminApp() {
     if (!firestore) return;
     setBusy(true); setError(''); setNotice('');
     try {
-      const batch = writeBatch(firestore);
-      batch.update(doc(firestore, 'orders', order.id), { fulfillmentStatus: status, ...(status === 'delivered' ? { deliveredAt: serverTimestamp() } : {}), updatedAt: serverTimestamp() });
-      if (order.trackingToken) batch.update(doc(firestore, 'orderTracking', order.trackingToken), { fulfillmentStatus: status, updatedAt: serverTimestamp() });
-      await batch.commit();
+      await updateOrderAndRewards(firestore, order, {
+        fulfillmentStatus: status,
+        ...(status === 'delivered' ? { deliveredAt: serverTimestamp() } : {}),
+      });
       setOrders(current => current.map(item => item.id === order.id ? { ...item, fulfillmentStatus: status } : item));
       setNotice('تم تحديث حالة الطلب ' + (order.publicReference || order.id));
     } catch { setError('تعذر تحديث حالة الطلب. راجعي صلاحيات الأدمن وقواعد Firestore.'); }
