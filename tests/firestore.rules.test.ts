@@ -7,7 +7,7 @@ import {
   assertFails,
   assertSucceeds,
 } from '@firebase/rules-unit-testing';
-import { collection, doc, getDoc, getDocs, query, where, orderBy, setDoc, updateDoc, deleteDoc, serverTimestamp, runTransaction } from 'firebase/firestore';
+import { collection, doc, getDoc, getDocs, query, where, orderBy, setDoc, updateDoc, deleteDoc, serverTimestamp, runTransaction, writeBatch } from 'firebase/firestore';
 
 const projectId = 'demo-anti-pressure';
 let testEnv: RulesTestEnvironment;
@@ -238,6 +238,27 @@ describe('Firestore security rules — guest checkout orders', () => {
       updatedAt: serverTimestamp(),
     };
   }
+
+  it('allows the exact guest checkout batch: order with ambassador setup plus private tracking projection', async () => {
+    const db = testEnv.unauthenticatedContext().firestore();
+    const batch = writeBatch(db);
+    const order = validGuestOrder() as ReturnType<typeof validGuestOrder> & {
+      ambassadorReferralCode?: string | null;
+      ambassadorSetup?: { code: string; accessTokenHash: string };
+    };
+    order.ambassadorReferralCode = 'AP' + 'A'.repeat(20);
+    order.ambassadorSetup = { code: 'AP' + 'B'.repeat(20), accessTokenHash: 'c'.repeat(64) };
+    const orderRef = doc(collection(db, 'orders'));
+    const trackingToken = order.trackingToken;
+    batch.set(orderRef, order);
+    batch.set(doc(db, 'orderTracking', trackingToken), {
+      publicReference: order.publicReference,
+      fulfillmentStatus: 'new',
+      createdAt: serverTimestamp(),
+      updatedAt: serverTimestamp(),
+    });
+    await assertSucceeds(batch.commit());
+  });
 
   it('allows anonymous customers to create a constrained new order, but not read or edit it', async () => {
     const customerDb = testEnv.unauthenticatedContext().firestore();
