@@ -26,6 +26,15 @@ export default function AdminAmbassadorsApp() {
   const [error, setError] = useState("");
   const [notice, setNotice] = useState("");
 
+  const describeFunctionError = (reason: unknown) => {
+    const code = (reason as { code?: string })?.code || "unknown";
+    if (code.includes("not-found") || code.includes("unavailable") || code.includes("internal")) {
+      return "خدمة مكافأة التلوين الخلفية غير منشورة أو غير متاحة. عرض البيانات يعمل بشكل مستقل، لكن تغيير الحالة واعتماد الصرف يحتاجان الخدمة الخلفية. لم يتم نشر أي خدمة أو تغيير إعدادات الفوترة.";
+    }
+    if (code.includes("permission-denied")) return "العملية مرفوضة: تأكدي من صلاحية admin:true ومن إعدادات صلاحيات الإدارة.";
+    return `تعذر تنفيذ العملية (${code}). راجعي اتصال Firebase وصلاحية المدير.`;
+  };
+
   const load = useCallback(async () => {
     if (!firestore || !admin) return;
     setBusy(true); setError("");
@@ -37,7 +46,7 @@ export default function AdminAmbassadorsApp() {
         getDocs(collection(firestore, "ambassadorPayouts")),
       ]);
       setAmbassadors(ambassadorSnap.docs.map(item => ({ code: item.id, ...item.data() } as Ambassador))
-        .sort((a, b) => (b as any).createdAt?.toDate?.()?.getTime?.() - (a as any).createdAt?.toDate?.()?.getTime?.()));
+        .sort((a, b) => (((b as any).createdAt?.toDate?.()?.getTime?.() || 0) - ((a as any).createdAt?.toDate?.()?.getTime?.() || 0))));
       setPayouts(payoutSnap.docs.map(item => ({ id: item.id, ...item.data() } as Payout))
         .sort((a, b) => (b.requestedAt?.toDate?.()?.getTime?.() || 0) - (a.requestedAt?.toDate?.()?.getTime?.() || 0)));
     } catch (reason) {
@@ -114,7 +123,7 @@ export default function AdminAmbassadorsApp() {
       await call({ code: item.code, status });
       setNotice(status === "paused" ? "تم إيقاف السفيرة مؤقتًا." : "تم إعادة تفعيل السفيرة.");
       await load();
-    } catch { setError("تعذر تحديث الحالة. افحصي صلاحية المدير، وتأكدّي من تفعيل وظيفة المكافآت الخلفية."); }
+    } catch (reason) { setError(describeFunctionError(reason)); }
     finally { setBusy(false); }
   }
   async function copyPayoutDetails(payout: Payout) {
@@ -146,7 +155,7 @@ export default function AdminAmbassadorsApp() {
       await call({ payoutId: payout.id, decision, transferReference: reference });
       setNotice(decision === "paid" ? "تم تسجيل صرف المكافأة." : "تم رفض الطلب وإعادة المبلغ إلى رصيد السفيرة.");
       await load();
-    } catch { setError("تعذر مراجعة طلب الصرف. تأكدي من صلاحية المدير وحالة الطلب."); }
+    } catch (reason) { setError(describeFunctionError(reason)); }
     finally { setBusy(false); }
   }
 
@@ -162,6 +171,7 @@ export default function AdminAmbassadorsApp() {
     <main className="ap-amb-admin-main">
       <div className="section-heading"><span className="eyebrow">برنامج مكافأة التلوين</span><h1>إدارة مكافأة التلوين</h1><p>المكافأة 15 جنيهًا لكل طلب مُسلّم، والحد الأدنى للصرف 50 جنيهًا.</p></div>
       {error && <p className="form-error" role="alert">{error}</p>}{notice && <p className="form-success" role="status">{notice}</p>}
+      <p className="backup-help">البيانات بتتحدث تلقائيًا عند تسجيل مشتركة جديدة أو إنشاء/تحديث طلب صرف.</p>
       <div className="ap-amb-admin-stats"><article><small>عدد المشتركات</small><strong>{ambassadors.length}</strong></article><article><small>طلبات الصرف المعلقة</small><strong>{pending.length}</strong></article><article><small>إجمالي الرصيد المتاح</small><strong>{available} جنيه</strong></article><article><small>طلبات الإحالة المسلّمة</small><strong>{ambassadors.reduce((sum,item)=>sum+(Number(item.deliveredReferralOrders)||0),0)}</strong></article></div>
       <section className="ap-amb-admin-panel"><div className="ap-amb-admin-heading"><h2>طلبات الصرف</h2><button className="secondary-button" disabled={busy} onClick={()=>void load()}>تحديث</button></div>
         {pending.length === 0 ? <p>لا توجد طلبات صرف معلقة حاليًا.</p> : pending.map(item=><article className="ap-amb-payout-row" key={item.id}>
