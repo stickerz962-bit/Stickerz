@@ -105,6 +105,8 @@ export async function updateOrderAndRewards(db: Firestore, order: RewardOrder, p
           tx.update(profileRef(db, referralCode), { availableBalance: nextProfile.availableBalance, lifetimeEarned: nextProfile.lifetimeEarned, deliveredReferralOrders: nextProfile.deliveredReferralOrders, updatedAt: now });
           const hash = refProfile.accessTokenHash;
           if (hash) {
+            const portal = portalSnaps.get(hash);
+            if (portal?.exists() && portal.data().code !== referralCode) throw new Error("PORTAL_CODE_MISMATCH");
             tx.set(portalRef(db, hash), portalSummary(referralCode, nextProfile), { merge: true });
             tx.set(doc(db, "ambassadorPortals", hash, "commissions", current.id), { orderId: current.id, amount: REWARD_PER_ORDER, status: "credited", createdAt: now });
           }
@@ -124,6 +126,8 @@ export async function updateOrderAndRewards(db: Firestore, order: RewardOrder, p
         tx.update(profileRef(db, code), { availableBalance: updated.availableBalance, lifetimeReversed: updated.lifetimeReversed, updatedAt: now });
         const hash = data.accessTokenHash;
         if (hash) {
+          const portal = portalSnaps.get(hash);
+          if (portal?.exists() && portal.data().code !== code) throw new Error("PORTAL_CODE_MISMATCH");
           tx.set(portalRef(db, hash), portalSummary(code, updated), { merge: true });
           tx.set(doc(db, "ambassadorPortals", hash, "commissions", current.id), { orderId: current.id, amount, status: "reversed", reversedAt: now }, { merge: true });
         }
@@ -175,6 +179,8 @@ export async function reviewPayout(db: Firestore, payoutId: string, decision: "p
     const profile = profileSnap.data();
     const amount = number(payout.amount);
     if (number(profile.reservedBalance) < amount) throw new Error("RESERVED_BALANCE_MISMATCH");
+    const hash = payout.accessTokenHash || profile.accessTokenHash;
+    const portalSnap = hash ? await tx.get(portalRef(db, hash)) : null;
     const nextAvailable = number(profile.availableBalance) + (decision === "rejected" ? amount : 0);
     if (decision === "paid" && nextAvailable < 0) throw new Error("REFUND_OFFSET_PENDING");
     const nextReserved = number(profile.reservedBalance) - amount;
@@ -184,7 +190,6 @@ export async function reviewPayout(db: Firestore, payoutId: string, decision: "p
       status: decision, ...(decision === "paid" ? { transferReference: reference.trim(), paidAt: serverTimestamp() } : { rejectionReason: reference.trim() }),
       reviewedBy: adminUid, reviewedAt: serverTimestamp(),
     });
-    const hash = payout.accessTokenHash || profile.accessTokenHash;
     if (hash) {
       tx.set(portalRef(db, hash), portalSummary(payout.ambassadorCode, nextProfile), { merge: true });
       tx.set(doc(db, "ambassadorPortals", hash, "payouts", payoutId), {
@@ -201,6 +206,8 @@ export async function setRewardProfileStatus(db: Firestore, code: string, status
     const snap = await tx.get(ref);
     if (!snap.exists()) throw new Error("PROFILE_NOT_FOUND");
     const data = snap.data();
+    const portalSnap = data.accessTokenHash ? await tx.get(portalRef(db, data.accessTokenHash)) : null;
+    if (portalSnap && portalSnap.exists() && portalSnap.data().code !== code) throw new Error("PORTAL_CODE_MISMATCH");
     tx.update(ref, { status, updatedAt: serverTimestamp() });
     if (data.accessTokenHash) tx.set(portalRef(db, data.accessTokenHash), { status, updatedAt: serverTimestamp() }, { merge: true });
   });
