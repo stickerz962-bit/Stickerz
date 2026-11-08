@@ -121,7 +121,7 @@ export default function AdminAmbassadorsApp() {
     try {
       const call = httpsCallable(functions, "updateAmbassadorStatus");
       await call({ code: item.code, status });
-      setNotice(status === "paused" ? "تم إيقاف السفيرة مؤقتًا." : "تم إعادة تفعيل السفيرة.");
+      setNotice(status === "paused" ? "تم إيقاف المشتركة مؤقتًا." : "تم إعادة تفعيل المشتركة.");
       await load();
     } catch (reason) { setError(describeFunctionError(reason)); }
     finally { setBusy(false); }
@@ -153,7 +153,7 @@ export default function AdminAmbassadorsApp() {
     try {
       const call = httpsCallable(functions, "reviewAmbassadorPayout");
       await call({ payoutId: payout.id, decision, transferReference: reference });
-      setNotice(decision === "paid" ? "تم تسجيل صرف المكافأة." : "تم رفض الطلب وإعادة المبلغ إلى رصيد السفيرة.");
+      setNotice(decision === "paid" ? "تم تسجيل صرف المكافأة." : "تم رفض الطلب وإعادة المبلغ إلى رصيد المشتركة.");
       await load();
     } catch (reason) { setError(describeFunctionError(reason)); }
     finally { setBusy(false); }
@@ -175,14 +175,14 @@ export default function AdminAmbassadorsApp() {
       <div className="ap-amb-admin-stats"><article><small>عدد المشتركات</small><strong>{ambassadors.length}</strong></article><article><small>طلبات الصرف المعلقة</small><strong>{pending.length}</strong></article><article><small>إجمالي الرصيد المتاح</small><strong>{available} جنيه</strong></article><article><small>طلبات الإحالة المسلّمة</small><strong>{ambassadors.reduce((sum,item)=>sum+(Number(item.deliveredReferralOrders)||0),0)}</strong></article></div>
       <section className="ap-amb-admin-panel"><div className="ap-amb-admin-heading"><h2>طلبات الصرف</h2><button className="secondary-button" disabled={busy} onClick={()=>void load()}>تحديث</button></div>
         {pending.length === 0 ? <p>لا توجد طلبات صرف معلقة حاليًا.</p> : pending.map(item=><article className="ap-amb-payout-row" key={item.id}>
-          <div><b>{item.amount} جنيه · {item.method === "instapay" ? "InstaPay" : "محفظة إلكترونية"}</b><small>السفيرة: {item.ambassadorCode} · {item.requestedAt?.toDate ? item.requestedAt.toDate().toLocaleString("ar-EG") : "—"}</small><strong>{item.payoutDetails}</strong><div className="ap-amb-payout-actions"><button type="button" className="secondary-button" onClick={()=>void copyPayoutDetails(item)}>نسخ بيانات التحويل</button><button type="button" className="secondary-button" onClick={()=>openPayoutDestination(item)}>{/^https:\/\//i.test(item.payoutDetails.trim()) ? "فتح رابط التحويل" : "فتح InstaPay / المحفظة"}</button></div></div>
+          <div><b>{item.amount} جنيه · {item.method === "instapay" ? "InstaPay" : "محفظة إلكترونية"}</b><small>المشتركة: {item.ambassadorCode} · {item.requestedAt?.toDate ? item.requestedAt.toDate().toLocaleString("ar-EG") : "—"}</small><strong>{item.payoutDetails}</strong><div className="ap-amb-payout-actions"><button type="button" className="secondary-button" onClick={()=>void copyPayoutDetails(item)}>نسخ بيانات التحويل</button><button type="button" className="secondary-button" onClick={()=>openPayoutDestination(item)}>{/^https:\/\//i.test(item.payoutDetails.trim()) ? "فتح رابط التحويل" : "فتح InstaPay / المحفظة"}</button></div></div>
           <div className="ap-amb-payout-actions"><input value={references[item.id] || ""} onChange={e=>setReferences(current=>({...current,[item.id]:e.target.value}))} placeholder="مرجع التحويل أو سبب الرفض" maxLength={100}/><div><button className="primary-button" disabled={busy} onClick={()=>void review(item,"paid")}>تم الصرف</button><button className="secondary-button" disabled={busy} onClick={()=>void review(item,"rejected")}>رفض الطلب</button></div></div>
         </article>)}
       </section>
       <section className="ap-amb-admin-panel"><h2>سجل عمليات الصرف</h2>
         {payouts.length ? <div className="ap-ambassador-history">{payouts.map(item=><article key={item.id}><div><b>{item.amount} جنيه · {item.ambassadorCode}</b><small>{item.requestedAt?.toDate ? item.requestedAt.toDate().toLocaleString("ar-EG") : "—"} · {item.method === "instapay" ? "InstaPay" : "محفظة إلكترونية"}</small><small>{item.transferReference || (item as Payout & { rejectionReason?: string }).rejectionReason || "—"}</small></div><strong>{item.status === "paid" ? "تم الصرف" : item.status === "rejected" ? "مرفوض" : "قيد المراجعة"}</strong></article>)}</div> : <p>لا توجد عمليات صرف مسجلة.</p>}
       </section>
-      <section className="ap-amb-admin-panel"><h2>المشتركات في مكافأة التلوين</h2><div className="ap-amb-admin-table-wrap"><table><thead><tr><th>السفيرة</th><th>كود الإحالة</th><th>الطلبات المسلّمة</th><th>الرصيد المتاح</th><th>قيد الصرف</th><th>إجمالي المكتسب</th><th>الحالة</th><th>الإجراء</th></tr></thead><tbody>{ambassadors.map(item=><tr key={item.code}><td>{item.name || "—"}</td><td dir="ltr">{item.code}</td><td>{item.deliveredReferralOrders || 0}</td><td>{item.availableBalance || 0} ج</td><td>{item.reservedBalance || 0} ج</td><td>{item.lifetimeEarned || 0} ج</td><td>{item.status === "active" ? "نشطة" : "موقوفة"}</td><td><button className="secondary-button" disabled={busy} onClick={()=>void setAmbassadorStatus(item,item.status === "active" ? "paused" : "active")}>{item.status === "active" ? "إيقاف" : "إعادة تفعيل"}</button></td></tr>)}</tbody></table></div></section>
+      <section className="ap-amb-admin-panel"><h2>المشتركات في مكافأة التلوين</h2><div className="ap-amb-admin-table-wrap"><table><thead><tr><th>المشتركة</th><th>كود الإحالة</th><th>الطلبات المسلّمة</th><th>الرصيد المتاح</th><th>قيد الصرف</th><th>إجمالي المكتسب</th><th>الحالة</th><th>الإجراء</th></tr></thead><tbody>{ambassadors.map(item=><tr key={item.code}><td>{item.name || "—"}</td><td dir="ltr">{item.code}</td><td>{item.deliveredReferralOrders || 0}</td><td>{item.availableBalance || 0} ج</td><td>{item.reservedBalance || 0} ج</td><td>{item.lifetimeEarned || 0} ج</td><td>{item.status === "active" ? "نشطة" : "موقوفة"}</td><td><button className="secondary-button" disabled={busy} onClick={()=>void setAmbassadorStatus(item,item.status === "active" ? "paused" : "active")}>{item.status === "active" ? "إيقاف" : "إعادة تفعيل"}</button></td></tr>)}</tbody></table></div></section>
     </main>
   </div>;
 }
