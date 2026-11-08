@@ -230,7 +230,10 @@ export default function Builder() {
       setCheckout({name:'',phone:'',governorate:'',area:'',address:'',notes:'',paymentMethod:'cod'});
       setStep('checkout');
       try { localStorage.removeItem(STORAGE_KEY); localStorage.removeItem(DRAFT_KEY); } catch {}
-    } catch {
+    } catch (error) {
+      // Keep the customer-facing message simple, but preserve the Firebase error
+      // code and details for diagnosis instead of silently hiding the failed write.
+      console.error('[ANTI_PRESSURE_ORDER_SUBMISSION_FAILED]', error);
       setOrderError('مقدرناش نسجل الطلب. تأكدي من اتصال الإنترنت وإعدادات الطلبات ثم حاولي مرة أخرى.');
     } finally { setOrderBusy(false); }
   }
