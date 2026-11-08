@@ -206,21 +206,89 @@ service cloud.firestore {
         && request.resource.data.updatedAt == request.time;
       allow update, delete: if isAdmin();
     }
-    // Ambassador balances, commissions and payout requests are server-owned.
-    // Customers access their own dashboard only through token-verified callable functions.
+    // Reward source records remain private. The only customer-side profile
+    // mutation is an atomic payout reservation paired with the portal and payout.
     match /ambassadors/{ambassadorCode} {
       allow read: if isAdmin();
-      allow write: if false;
+      allow create, delete: if isAdmin();
+      allow update: if isAdmin() || (
+        request.resource.data.diff(resource.data).affectedKeys().hasOnly(['availableBalance','reservedBalance','lastPayoutId','updatedAt'])
+        && request.resource.data.lastPayoutId is string
+        && existsAfter(/databases/$(database)/documents/ambassadorPayouts/$(request.resource.data.lastPayoutId))
+        && getAfter(/databases/$(database)/documents/ambassadorPayouts/$(request.resource.data.lastPayoutId)).data.accessTokenHash == resource.data.accessTokenHash
+        && getAfter(/databases/$(database)/documents/ambassadorPayouts/$(request.resource.data.lastPayoutId)).data.ambassadorCode == ambassadorCode
+        && request.resource.data.availableBalance == resource.data.availableBalance - getAfter(/databases/$(database)/documents/ambassadorPayouts/$(request.resource.data.lastPayoutId)).data.amount
+        && request.resource.data.reservedBalance == resource.data.reservedBalance + getAfter(/databases/$(database)/documents/ambassadorPayouts/$(request.resource.data.lastPayoutId)).data.amount
+        && getAfter(/databases/$(database)/documents/ambassadorPortals/$(resource.data.accessTokenHash)).data.availableBalance == request.resource.data.availableBalance
+        && getAfter(/databases/$(database)/documents/ambassadorPortals/$(resource.data.accessTokenHash)).data.reservedBalance == request.resource.data.reservedBalance
+      );
     }
-
     match /ambassadorCommissions/{orderId} {
-      allow read: if isAdmin();
-      allow write: if false;
+      allow read, write: if isAdmin();
     }
-
     match /ambassadorPayouts/{payoutId} {
       allow read: if isAdmin();
-      allow write: if false;
+      allow create: if
+        request.resource.data.keys().hasOnly(['ambassadorCode','accessTokenHash','amount','method','payoutDetails','status','requestedAt','reviewedAt','paidAt'])
+        && request.resource.data.keys().hasAll(['ambassadorCode','accessTokenHash','amount','method','payoutDetails','status','requestedAt','reviewedAt','paidAt'])
+        && request.resource.data.ambassadorCode is string
+        && request.resource.data.ambassadorCode.matches('^AP[A-F0-9]{20}$')
+        && request.resource.data.accessTokenHash is string
+        && request.resource.data.accessTokenHash.matches('^[a-f0-9]{64}$')
+        && exists(/databases/$(database)/documents/ambassadorPortals/$(request.resource.data.accessTokenHash))
+        && get(/databases/$(database)/documents/ambassadorPortals/$(request.resource.data.accessTokenHash)).data.code == request.resource.data.ambassadorCode
+        && get(/databases/$(database)/documents/ambassadorPortals/$(request.resource.data.accessTokenHash)).data.status == 'active'
+        && request.resource.data.amount is int
+        && request.resource.data.amount >= 50
+        && request.resource.data.amount <= get(/databases/$(database)/documents/ambassadorPortals/$(request.resource.data.accessTokenHash)).data.availableBalance
+        && request.resource.data.method in ['instapay','wallet']
+        && request.resource.data.payoutDetails is string
+        && request.resource.data.payoutDetails.size() >= 5
+        && request.resource.data.payoutDetails.size() <= 120
+        && request.resource.data.status == 'pending'
+        && request.resource.data.requestedAt == request.time
+        && request.resource.data.reviewedAt == null
+        && request.resource.data.paidAt == null
+        && getAfter(/databases/$(database)/documents/ambassadorPortals/$(request.resource.data.accessTokenHash)).data.availableBalance
+          == get(/databases/$(database)/documents/ambassadorPortals/$(request.resource.data.accessTokenHash)).data.availableBalance - request.resource.data.amount
+        && getAfter(/databases/$(database)/documents/ambassadorPortals/$(request.resource.data.accessTokenHash)).data.reservedBalance
+          == get(/databases/$(database)/documents/ambassadorPortals/$(request.resource.data.accessTokenHash)).data.reservedBalance + request.resource.data.amount
+        && getAfter(/databases/$(database)/documents/ambassadorPortals/$(request.resource.data.accessTokenHash)).data.lastPayoutId == payoutId;
+      allow update, delete: if isAdmin();
+    }
+    match /ambassadorPortals/{accessHash} {
+      allow get: if isAdmin() || (accessHash.matches('^[a-f0-9]{64}$') && resource != null);
+      allow list: if isAdmin();
+      allow create, delete: if isAdmin();
+      allow update: if isAdmin() || (
+        accessHash.matches('^[a-f0-9]{64}$')
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['availableBalance','reservedBalance','lastPayoutId','updatedAt'])
+        && request.resource.data.availableBalance is int
+        && request.resource.data.reservedBalance is int
+        && request.resource.data.lastPayoutId is string
+        && existsAfter(/databases/$(database)/documents/ambassadorPayouts/$(request.resource.data.lastPayoutId))
+        && getAfter(/databases/$(database)/documents/ambassadorPayouts/$(request.resource.data.lastPayoutId)).data.accessTokenHash == accessHash
+        && getAfter(/databases/$(database)/documents/ambassadorPayouts/$(request.resource.data.lastPayoutId)).data.amount
+          == resource.data.availableBalance - request.resource.data.availableBalance
+        && request.resource.data.availableBalance >= 0
+        && request.resource.data.reservedBalance == resource.data.reservedBalance
+          + getAfter(/databases/$(database)/documents/ambassadorPayouts/$(request.resource.data.lastPayoutId)).data.amount
+      );
+      match /commissions/{orderId} {
+        allow read: if accessHash.matches('^[a-f0-9]{64}$');
+        allow create, update, delete: if isAdmin();
+      }
+      match /payouts/{payoutId} {
+        allow read: if accessHash.matches('^[a-f0-9]{64}$');
+        allow create: if isAdmin() || (existsAfter(/databases/$(database)/documents/ambassadorPayouts/$(payoutId))
+          && getAfter(/databases/$(database)/documents/ambassadorPayouts/$(payoutId)).data.accessTokenHash == accessHash
+          && getAfter(/databases/$(database)/documents/ambassadorPayouts/$(payoutId)).data.status == 'pending'
+          && request.resource.data.keys().hasOnly(['id','amount','method','status','requestedAt'])
+          && request.resource.data.id == payoutId
+          && request.resource.data.amount == getAfter(/databases/$(database)/documents/ambassadorPayouts/$(payoutId)).data.amount
+          && request.resource.data.status == 'pending');
+        allow update, delete: if isAdmin();
+      }
     }
     match /payments/{paymentId} {
       allow read: if isAdmin();

@@ -7,7 +7,7 @@ import {
   assertFails,
   assertSucceeds,
 } from '@firebase/rules-unit-testing';
-import { collection, doc, getDoc, getDocs, query, where, orderBy, setDoc, updateDoc, deleteDoc, serverTimestamp } from 'firebase/firestore';
+import { collection, doc, getDoc, getDocs, query, where, orderBy, setDoc, updateDoc, deleteDoc, serverTimestamp, runTransaction } from 'firebase/firestore';
 
 const projectId = 'demo-anti-pressure';
 let testEnv: RulesTestEnvironment;
@@ -304,26 +304,61 @@ describe('Firestore security rules — public order tracking projection', () => 
 
 
 
-describe('Firestore security rules — ambassador financial data', () => {
-  it('keeps ambassador profiles, commissions and payout details private from customers', async () => {
-    for (const context of [testEnv.unauthenticatedContext(), testEnv.authenticatedContext('customer-1')]) {
+describe('Firestore security rules — Spark-compatible reward ledger', () => {
+  const code = 'AP' + 'A'.repeat(20);
+  const accessHash = 'c'.repeat(64);
+
+  it('keeps source records private while allowing bearer-key portal reads', async () => {
+    await testEnv.withSecurityRulesDisabled(async context => {
       const db = context.firestore();
-      await assertFails(getDoc(doc(db, 'ambassadors', 'AP' + 'A'.repeat(20))));
-      await assertFails(getDoc(doc(db, 'ambassadorCommissions', 'order-1')));
-      await assertFails(getDoc(doc(db, 'ambassadorPayouts', 'payout-1')));
-      await assertFails(setDoc(doc(db, 'ambassadors', 'AP' + 'A'.repeat(20)), { availableBalance: 9999 }));
-      await assertFails(setDoc(doc(db, 'ambassadorCommissions', 'order-1'), { amount: 9999 }));
-      await assertFails(setDoc(doc(db, 'ambassadorPayouts', 'payout-1'), { amount: 50 }));
-    }
+      await setDoc(doc(db, 'ambassadors', code), { code, status: 'active', accessTokenHash: accessHash, availableBalance: 100, reservedBalance: 0 });
+      await setDoc(doc(db, 'ambassadorPortals', accessHash), { code, status: 'active', availableBalance: 100, reservedBalance: 0 });
+      await setDoc(doc(db, 'ambassadorCommissions', 'order-1'), { ambassadorCode: code, amount: 15 });
+      await setDoc(doc(db, 'ambassadorPayouts', 'payout-1'), { ambassadorCode: code, amount: 50, status: 'pending' });
+      await setDoc(doc(db, 'ambassadorPortals', accessHash, 'commissions', 'order-1'), { orderId: 'order-1', amount: 15 });
+    });
+    const db = testEnv.unauthenticatedContext().firestore();
+    await assertFails(getDoc(doc(db, 'ambassadors', code)));
+    await assertFails(getDoc(doc(db, 'ambassadorCommissions', 'order-1')));
+    await assertFails(getDoc(doc(db, 'ambassadorPayouts', 'payout-1')));
+    await assertSucceeds(getDoc(doc(db, 'ambassadorPortals', accessHash)));
+    await assertSucceeds(getDoc(doc(db, 'ambassadorPortals', accessHash, 'commissions', 'order-1')));
+    await assertFails(getDocs(collection(db, 'ambassadorPortals')));
+    await assertFails(setDoc(doc(db, 'ambassadors', code), { availableBalance: 9999 }));
   });
 
-  it('allows admins to read financial records but never write them directly', async () => {
+  it('allows payout reservation only as an atomic paired portal and payout write', async () => {
+    await testEnv.withSecurityRulesDisabled(async context => {
+      await setDoc(doc(context.firestore(), 'ambassadorPortals', accessHash), { code, status: 'active', availableBalance: 100, reservedBalance: 0 });
+      await setDoc(doc(context.firestore(), 'ambassadors', code), { code, status: 'active', accessTokenHash: accessHash, availableBalance: 100, reservedBalance: 0 });
+    });
+    const db = testEnv.unauthenticatedContext().firestore();
+    await assertFails(updateDoc(doc(db, 'ambassadors', code), { availableBalance: 9999 }));
+    await assertFails(setDoc(doc(db, 'ambassadorPayouts', 'unpaired'), {
+      ambassadorCode: code, accessTokenHash: accessHash, amount: 50, method: 'instapay',
+      payoutDetails: 'test@instapay', status: 'pending', requestedAt: new Date(), reviewedAt: null, paidAt: null,
+    }));
+    await assertSucceeds(runTransaction(db, async tx => {
+      const portal = doc(db, 'ambassadorPortals', accessHash);
+      const payout = doc(db, 'ambassadorPayouts', 'payout-reserve-1');
+      const nested = doc(db, 'ambassadorPortals', accessHash, 'payouts', 'payout-reserve-1');
+      const snap = await tx.get(portal);
+      const amount = 50;
+      tx.update(portal, { availableBalance: snap.data()!.availableBalance - amount, reservedBalance: snap.data()!.reservedBalance + amount, lastPayoutId: 'payout-reserve-1', updatedAt: new Date() });
+      tx.update(doc(db, 'ambassadors', code), { availableBalance: 50, reservedBalance: 50, lastPayoutId: 'payout-reserve-1', updatedAt: new Date() });
+      tx.set(payout, { ambassadorCode: code, accessTokenHash: accessHash, amount, method: 'instapay', payoutDetails: 'test@instapay', status: 'pending', requestedAt: serverTimestamp(), reviewedAt: null, paidAt: null });
+      tx.set(nested, { id: 'payout-reserve-1', amount, status: 'pending' });
+    }));
+    const after = await getDoc(doc(db, 'ambassadorPortals', accessHash));
+    expect(after.data()?.availableBalance).toBe(50);
+    expect(after.data()?.reservedBalance).toBe(50);
+  });
+
+  it('allows admins to read and maintain the reward ledger', async () => {
     const db = testEnv.authenticatedContext('admin-1', { admin: true }).firestore();
-    await assertSucceeds(getDoc(doc(db, 'ambassadors', 'AP' + 'A'.repeat(20))));
-    await assertSucceeds(getDoc(doc(db, 'ambassadorCommissions', 'order-1')));
-    await assertSucceeds(getDoc(doc(db, 'ambassadorPayouts', 'payout-1')));
-    await assertFails(setDoc(doc(db, 'ambassadors', 'AP' + 'A'.repeat(20)), { availableBalance: 9999 }));
-    await assertFails(updateDoc(doc(db, 'ambassadorPayouts', 'payout-1'), { status: 'paid' }));
+    await assertSucceeds(setDoc(doc(db, 'ambassadors', code), { code, status: 'active', availableBalance: 0, reservedBalance: 0 }));
+    await assertSucceeds(setDoc(doc(db, 'ambassadorCommissions', 'order-admin'), { ambassadorCode: code, amount: 15 }));
+    await assertSucceeds(getDoc(doc(db, 'ambassadorPortals', accessHash)));
   });
 });
 
