@@ -74,6 +74,11 @@ export default function SuperMeApp() {
   const [notice, setNotice] = useState('');
 
   useEffect(() => {
+    document.title = 'SuperMe — Your Life. Your Way.';
+    return () => { document.title = 'ANTI PRESSURE – فُكّي الضغط | كتابك على مزاجك'; };
+  }, []);
+
+  useEffect(() => {
     const draft = readDraft();
     setSelected(draft.selected);
     setCoverId(draft.coverId);
