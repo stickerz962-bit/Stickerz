@@ -9,7 +9,7 @@ import './styles.css';
 type Category = { id: string; title: string; slug: string; sortOrder: number; active: boolean };
 type Artwork = { id: string; title: string; categoryId: string; phrase: string; previewAssetRef: string; sortOrder: number; version: number; active: boolean };
 type Cover = { id: string; title: string; subtitle: string; previewAssetRef: string; sortOrder: number; version: number; active: boolean };
-type Order = { id: string; trackingToken?: string; publicReference?: string; customer?: { name?: string; phone?: string }; shipping?: { governorateName?: string; areaName?: string; address?: string; deliveryNotes?: string }; book?: { artworks?: Array<{ artworkId?: string; titleSnapshot?: string; printOrder?: number }>; cover?: { titleSnapshot?: string }; personalizedName?: string }; pricing?: { bookPrice?: number; standardBookPrice?: number; shippingFee?: number | null; totalAmount?: number | null; offerApplied?: boolean }; paymentMethod?: string; paymentStatus?: string; fulfillmentStatus?: string; partnerCode?: string | null; ambassadorReferralCode?: string | null; ambassadorSetup?: { code?: string; accessTokenHash?: string }; deliveredAt?: { toDate?: () => Date }; createdAt?: { toDate?: () => Date } };
+type Order = { id: string; productType?: string; trackingToken?: string; publicReference?: string; customer?: { name?: string; phone?: string }; shipping?: { governorateName?: string; areaName?: string; address?: string; deliveryNotes?: string }; book?: { artworks?: Array<{ artworkId?: string; titleSnapshot?: string; printOrder?: number }>; pages?: Array<{ pageId?: string; sectionTitle?: string; titleSnapshot?: string; printOrder?: number; legacyArtworkId?: string; description?: string; prompt?: string; qrUrl?: string; items?: string[] }>; cover?: { titleSnapshot?: string }; personalizedName?: string }; pricing?: { bookPrice?: number; standardBookPrice?: number; shippingFee?: number | null; totalAmount?: number | null; offerApplied?: boolean }; paymentMethod?: string; paymentStatus?: string; fulfillmentStatus?: string; partnerCode?: string | null; ambassadorReferralCode?: string | null; ambassadorSetup?: { code?: string; accessTokenHash?: string }; deliveredAt?: { toDate?: () => Date }; createdAt?: { toDate?: () => Date } };
 type Tab = 'orders' | 'categories' | 'artworks' | 'covers' | 'shipping';
 const orderStatuses = ['new','confirmed','artwork_codes_review','ready_for_printing','printing','quality_check','ready_for_shipping','shipped','delivered','cancelled'] as const;
 const orderStatusLabels: Record<string,string> = { new:'طلب جديد', confirmed:'تم التأكيد', artwork_codes_review:'مراجعة أكواد الرسومات', pdf_generating:'مراجعة أكواد الرسومات', ready_for_printing:'جاهز للطباعة', printing:'قيد الطباعة', quality_check:'مراجعة الجودة', ready_for_shipping:'جاهز للشحن', shipped:'تم الشحن', delivered:'تم التسليم', cancelled:'ملغي' };
@@ -46,6 +46,7 @@ export default function AdminApp() {
   const [lastOrderCursor, setLastOrderCursor] = useState<QueryDocumentSnapshot<DocumentData> | null>(null);
   const [hasMoreOrders, setHasMoreOrders] = useState(false);
   const [shippingFee, setShippingFee] = useState('');
+  const [superMeBookPrice, setSuperMeBookPrice] = useState('');
   const [artworkForm, setArtworkForm] = useState(emptyArtwork);
   const [coverForm, setCoverForm] = useState(emptyCover);
   const [categoryTitle, setCategoryTitle] = useState('');
@@ -96,6 +97,7 @@ export default function AdminApp() {
       setCovers(sortByOrder(coverSnap.docs.map(d => ({ id: d.id, ...d.data() } as Cover))));
       const publicSettings = settingsSnap.docs.find(d => d.id === 'public')?.data();
       setShippingFee(typeof publicSettings?.shippingFee === 'number' ? String(publicSettings.shippingFee) : '');
+      setSuperMeBookPrice(typeof publicSettings?.superMeBookPrice === 'number' ? String(publicSettings.superMeBookPrice) : '');
     } catch {
       setError('تعذر تحميل بيانات الكتالوج. تأكدي من صلاحية admin:true ومن إعدادات Firestore.');
     } finally { setBusy(false); setCatalogInitialLoading(false); }
@@ -108,9 +110,12 @@ export default function AdminApp() {
     if (!Number.isFinite(fee) || fee < 0 || fee > 5000 || !Number.isInteger(fee)) { setError('اكتبي سعر شحن صحيح من 0 إلى 5000 جنيه.'); return; }
     setBusy(true); setError(''); setNotice('');
     try {
-      await setDoc(doc(firestore, 'settings', 'public'), { shippingFee: fee, updatedAt: serverTimestamp() }, { merge: true });
+      const superMePrice = superMeBookPrice.trim() === '' ? null : Number(superMeBookPrice);
+      if (superMePrice !== null && (!Number.isSafeInteger(superMePrice) || superMePrice <= 0 || superMePrice > 50000)) { setError('سعر كتاب SuperMe يجب أن يكون رقمًا صحيحًا أكبر من صفر.'); return; }
+      await setDoc(doc(firestore, 'settings', 'public'), { shippingFee: fee, ...(superMePrice !== null ? { superMeBookPrice: superMePrice } : {}), updatedAt: serverTimestamp() }, { merge: true });
       setShippingFee(String(fee));
-      setNotice('تم حفظ سعر الشحن. هيظهر تلقائيًا للعميلات في صفحة الطلبات الجديدة.');
+      if (superMePrice !== null) setSuperMeBookPrice(String(superMePrice));
+      setNotice('تم حفظ إعدادات الشحن وسعر SuperMe. سعر الكتاب يظهر للعملاء بعد ضبطه هنا.');
     } catch { setError('تعذر حفظ سعر الشحن. تأكدي من صلاحية الأدمن وقواعد Firestore.'); }
     finally { setBusy(false); }
   };
@@ -410,7 +415,7 @@ export default function AdminApp() {
       {notice && <p className="form-success" role="status">{notice}</p>}{error && <p className="form-error" role="alert">{error}</p>}
       <div className="ap-admin-toolbar"><button className="secondary-button" disabled={busy} onClick={() => tab === 'orders' ? void loadOrders() : void loadData()}>تحديث البيانات</button>{tab === 'categories' && <button className="secondary-button" disabled={busy} onClick={() => void seedCategories()}>إضافة التصنيفات العشرة الأساسية</button>}</div>
       {busy && <p className="backup-help">جارٍ تنفيذ العملية...</p>}
-      {tab === 'shipping' && <section className="admin-layout ap-admin-layout"><form className="product-form" onSubmit={saveShippingFee}><h2>سعر الشحن الموحد</h2><p>اكتبي السعر بالجنيه المصري. سيتم تحديث صفحة الطلب تلقائيًا وحفظ السعر في الطلبات الجديدة.</p><label>سعر الشحن (جنيه)<input type="number" min="0" max="5000" step="1" inputMode="numeric" value={shippingFee} onChange={e => setShippingFee(e.target.value)} required /></label><button className="primary-button" disabled={busy}>{busy ? 'جارٍ الحفظ...' : 'حفظ سعر الشحن'}</button><p className="backup-help">السعر الحالي: {shippingFee !== '' ? shippingFee + ' جنيه' : 'لم يتم ضبطه بعد'}. الطلبات القديمة تحتفظ بسعر الشحن المسجل وقت الطلب.</p></form></section>}
+      {tab === 'shipping' && <section className="admin-layout ap-admin-layout"><form className="product-form" onSubmit={saveShippingFee}><h2>أسعار المنتجات والشحن</h2><p>إعدادات مشتركة للطلبات الحالية، مع سعر مستقل لكتاب SuperMe.</p><label>سعر الشحن (جنيه)<input type="number" min="0" max="5000" step="1" inputMode="numeric" value={shippingFee} onChange={e => setShippingFee(e.target.value)} required /></label><label>سعر كتاب SuperMe (جنيه)<input type="number" min="1" max="50000" step="1" inputMode="numeric" value={superMeBookPrice} onChange={e => setSuperMeBookPrice(e.target.value)} placeholder="اضبطي السعر قبل تفعيل الطلبات" /></label><button className="primary-button" disabled={busy}>{busy ? 'جارٍ الحفظ...' : 'حفظ الأسعار'}</button><p className="backup-help">سعر الشحن الحالي: {shippingFee !== '' ? shippingFee + ' جنيه' : 'غير مضبوط'}. سعر SuperMe: {superMeBookPrice !== '' ? superMeBookPrice + ' جنيه' : 'غير مضبوط — لن يتم قبول طلب SuperMe قبل تحديد السعر'}. الطلبات القديمة تحتفظ بأسعارها المسجلة وقت الطلب.</p></form></section>}
       {tab === 'orders' && <>
         <section className="ap-order-stats">
           <button className={orderFilter === 'all' ? 'selected' : ''} onClick={() => setOrderFilter('all')}><b>{ordersInitialLoading ? '…' : orders.length}</b><span>{ordersInitialLoading ? 'جارٍ تحميل الطلبات' : 'الطلبات المحمّلة'}</span></button>
@@ -427,8 +432,8 @@ export default function AdminApp() {
             <strong>{order.publicReference || order.id}</strong>
             <span>{order.customer?.name || 'اسم غير متاح'} · {order.customer?.phone || 'رقم غير متاح'}</span>
             <small>العنوان: {order.shipping?.governorateName || '—'} — {order.shipping?.areaName || '—'} · {order.shipping?.address || '—'}</small>{order.shipping?.deliveryNotes && <small>ملاحظات التوصيل: {order.shipping.deliveryNotes}</small>}
-            <small>الغلاف: {order.book?.cover?.titleSnapshot || '—'} · الاسم على الغلاف: {order.book?.personalizedName || '—'}</small>
-            <details className="ap-order-artwork-details"><summary>تفاصيل الرسومات ({order.book?.artworks?.length || 0}/30) — اضغطي لعرض الأكواد والأسماء</summary><ol>{(order.book?.artworks || []).map((art, index) => <li key={(art.artworkId || 'art') + index}><b>{art.artworkId || 'كود غير متاح'}</b><span>{art.titleSnapshot || 'اسم غير متاح'}</span></li>)}</ol></details>
+            <small>المنتج: {order.productType === 'superme' ? 'SuperMe — نوت بوك مخصص' : 'فُكّي الضغط'} · الغلاف: {order.book?.cover?.titleSnapshot || '—'} · الاسم على الغلاف: {order.book?.personalizedName || '—'}</small>
+            {order.productType === 'superme' ? <details className="ap-order-artwork-details"><summary>صفحات الكتاب ({order.book?.pages?.length || 0}/60) — عرض الترتيب والتفاصيل</summary><ol>{(order.book?.pages || []).map((page, index) => <li key={(page.pageId || 'page') + index}><b>{String(page.printOrder || index + 1).padStart(2,'0')} · {page.pageId || 'صفحة'}</b><span>{page.sectionTitle || ''} — {page.titleSnapshot || 'بدون عنوان'}</span>{page.legacyArtworkId && <small>رسمة قديمة: {page.legacyArtworkId}</small>}{page.description && <small>{page.description}</small>}{page.prompt && <small>تعليمات الصفحة: {page.prompt}</small>}{page.items?.length ? <small>العناصر: {page.items.join(' · ')}</small> : null}{page.qrUrl && <small>رابط QR: {page.qrUrl}</small>}</li>)}</ol></details> : <details className="ap-order-artwork-details"><summary>تفاصيل الرسومات ({order.book?.artworks?.length || 0}/30) — اضغطي لعرض الأكواد والأسماء</summary><ol>{(order.book?.artworks || []).map((art, index) => <li key={(art.artworkId || 'art') + index}><b>{art.artworkId || 'كود غير متاح'}</b><span>{art.titleSnapshot || 'اسم غير متاح'}</span></li>)}</ol></details>}
             <small>سعر الكتاب: {order.pricing?.bookPrice ?? '—'} جنيه · الشحن: {order.pricing?.shippingFee ?? 'يُحدد'} · الإجمالي: {order.pricing?.totalAmount ?? 'يُحدد'} جنيه</small>
             <small>الدفع: {paymentStatusLabels[order.paymentStatus || ''] || order.paymentStatus || '—'} · {order.paymentMethod === 'cod' ? 'الدفع عند الاستلام' : 'InstaPay'}</small>
             <small>كود مكافأة التلوين: {order.ambassadorReferralCode || 'بدون إحالة'} · {order.createdAt?.toDate ? order.createdAt.toDate().toLocaleString('ar-EG') : 'وقت التسجيل غير متاح'}</small>

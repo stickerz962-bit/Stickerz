@@ -28,7 +28,7 @@ async function seed() {
     await setDoc(doc(db, 'catalogAssets', 'artwork_hidden'), { assetType: 'artwork', itemId: 'AP-003', dataUrl: 'data:image/webp;base64,AA' });
     await setDoc(doc(db, 'catalogAssets', 'cover_live'), { assetType: 'cover', itemId: 'cover-live', dataUrl: 'data:image/webp;base64,AA' });
     await setDoc(doc(db, 'catalogAssets', 'cover_draft'), { assetType: 'cover', itemId: 'cover-draft', dataUrl: 'data:image/webp;base64,AA' });
-    await setDoc(doc(db, 'settings', 'public'), { shopName: 'ANTI PRESSURE', shippingFee: 50 });
+    await setDoc(doc(db, 'settings', 'public'), { shopName: 'ANTI PRESSURE', shippingFee: 50, superMeBookPrice: 350 });
     await setDoc(doc(db, 'settings', 'private'), { secret: 'never-public' });
     await setDoc(doc(db, 'orders', 'order-1'), { status: 'new' });
     await setDoc(doc(db, 'payments', 'payment-1'), { status: 'pending' });
@@ -238,6 +238,44 @@ describe('Firestore security rules — guest checkout orders', () => {
       updatedAt: serverTimestamp(),
     };
   }
+
+  function validSuperMeOrder() {
+    const order = validGuestOrder() as any;
+    order.productType = 'superme';
+    delete order.book.artworks;
+    order.book.pages = Array.from({ length: 60 }, (_, index) => ({
+      pageId: 'SM-PAGE-' + String(index + 1).padStart(2, '0'),
+      sectionId: 'plans',
+      sectionTitle: 'My Plans',
+      titleSnapshot: 'Page ' + (index + 1),
+      kind: 'tracker',
+      description: 'A notebook page',
+      items: ['Goal', 'Progress'],
+      prompt: 'Write here',
+      printOrder: index + 1,
+    }));
+    order.pricing = { currency: 'EGP', standardBookPrice: 350, bookPrice: 350, shippingFee: 50, totalAmount: 400, offerApplied: false };
+    order.publicReference = 'SM-TEST-0001';
+    return order;
+  }
+
+  it('allows a 60-page SuperMe guest order using the admin-configured price', async () => {
+    const db = testEnv.unauthenticatedContext().firestore();
+    const order = validSuperMeOrder();
+    await assertSucceeds(setDoc(doc(db, 'orders', 'superme-order'), order));
+  });
+
+  it('rejects SuperMe orders with fewer than 60 pages or a forged price', async () => {
+    const db = testEnv.unauthenticatedContext().firestore();
+    const tooFew = validSuperMeOrder();
+    tooFew.book.pages = tooFew.book.pages.slice(0, 59);
+    await assertFails(setDoc(doc(db, 'orders', 'superme-too-few'), tooFew));
+    const forgedPrice = validSuperMeOrder();
+    forgedPrice.pricing.bookPrice = 300;
+    forgedPrice.pricing.standardBookPrice = 300;
+    forgedPrice.pricing.totalAmount = 350;
+    await assertFails(setDoc(doc(db, 'orders', 'superme-forged-price'), forgedPrice));
+  });
 
   it('allows the exact guest checkout batch: order with ambassador setup plus private tracking projection', async () => {
     const db = testEnv.unauthenticatedContext().firestore();
