@@ -142,3 +142,19 @@
 .sm-project-field>div{display:flex;align-items:center;gap:7px;font-size:8px;color:#666478}
 .sm-project-field>div i{width:10px;height:10px;border:1px solid #bcaeb9;border-radius:2px;flex:0 0 10px}
 @media(max-width:650px){.sm-year-prayer-grid{gap:4px}.sm-month-card{padding:3px}.sm-project-top{grid-template-columns:1fr 90px}}
+
+
+.sm-checkout-section{background:#fbf7f1;border-radius:28px;padding:clamp(22px,4vw,48px);margin:48px auto;max-width:1100px}
+.sm-checkout-form{max-width:820px;margin:0 auto;background:#fff;border:1px solid #e9dfd2;border-radius:22px;padding:clamp(18px,3vw,32px);display:grid;gap:20px}
+.sm-checkout-price{display:flex;gap:14px;flex-wrap:wrap;align-items:center;justify-content:space-between;padding:16px;border-radius:14px;background:#f8f2e9;color:#4d443b}
+.sm-checkout-price strong{font-size:1.15rem;color:#8a5d3c}
+.sm-checkout-fields{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:14px}
+.sm-checkout-fields label{display:grid;gap:7px;font-weight:600;color:#51463e}
+.sm-checkout-fields input,.sm-checkout-fields textarea{width:100%;border:1px solid #d9cfc4;border-radius:10px;padding:12px;background:#fff;font:inherit}
+.sm-checkout-wide{grid-column:1/-1}
+.sm-payment-choice{display:flex;flex-wrap:wrap;gap:18px}
+.sm-payment-choice label{display:flex;align-items:center;gap:8px}
+.sm-order-success{display:grid;gap:10px;padding:16px;border:1px solid #b8d8c2;background:#f2fbf4;border-radius:12px}
+.sm-order-success a{color:#315d42;text-decoration:underline;font-weight:700}
+.sm-order-success button{justify-self:start;border:1px solid #b8cbbd;background:#fff;border-radius:8px;padding:8px 12px}
+@media(max-width:640px){.sm-checkout-fields{grid-template-columns:1fr}.sm-checkout-wide{grid-column:auto}.sm-checkout-price{display:grid}}
