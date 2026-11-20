@@ -116,3 +116,29 @@
 .sm-book-modal{display:grid;grid-template-columns:155px 1fr;gap:25px;align-items:center;padding:35px}.sm-book-modal h2{font-size:21px}.sm-book-modal p{font-size:11px;line-height:1.9;color:#747184}.sm-book-modal>div:last-child{display:grid;gap:10px}
 @media(max-width:900px){.sm-page-grid{grid-template-columns:repeat(3,minmax(0,1fr))}.sm-hero{padding:45px 30px}.sm-custom-section{padding:65px 30px;gap:30px}}
 @media(max-width:650px){.sm-header{padding:14px 17px}.sm-header nav{display:none}.sm-header-cta{font-size:10px;padding:8px 12px}.sm-hero{grid-template-columns:1fr;padding:40px 23px 50px;gap:5px}.sm-hero-copy h1{font-size:42px}.sm-hero-copy p{font-size:12px}.sm-hero-visual{min-height:300px}.sm-hero-book{width:178px;height:238px}.sm-hero-book strong{font-size:23px}.sm-orbit-one{width:290px;height:230px}.sm-orbit-two{width:340px;height:270px}.sm-floating{padding:7px 11px}.sm-floating-one{top:25px}.sm-floating-three{left:0;top:125px}.sm-intro-strip{margin:0 14px;padding:17px;grid-template-columns:1fr;gap:13px}.sm-intro-strip div{border:0;border-bottom:1px solid #eee8e1;padding:0 0 10px}.sm-intro-strip div:last-child{border:0;padding:0}.sm-library-section,.sm-book-section{padding:65px 16px}.sm-section-heading{align-items:flex-start;flex-direction:column}.sm-section-heading h2,.sm-custom-copy h2{font-size:29px}.sm-counter{text-align:right;width:100%}.sm-page-grid{grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}.sm-page-preview{height:178px}.sm-page-card{padding:7px}.sm-page-card-info h3{font-size:10px}.sm-page-card-info small{font-size:7px}.sm-custom-section{padding:55px 17px;grid-template-columns:1fr;gap:22px}.sm-custom-copy h2{font-size:32px}.sm-custom-form{padding:17px}.sm-book-builder{grid-template-columns:1fr}.sm-cover-options{grid-template-columns:repeat(4,minmax(0,1fr));gap:4px}.sm-cover-swatch{height:82px;padding:5px}.sm-cover-swatch strong{font-size:9px}.sm-cover-swatch small{font-size:6px}.sm-book-summary{gap:14px;padding:15px}.sm-final-cover{flex-basis:125px;height:170px}.sm-final-cover strong{font-size:18px}.sm-selected-list{padding:13px}.sm-selected-list ol{grid-template-columns:1fr}.sm-footer{padding:25px 18px;flex-wrap:wrap}.sm-footer p{order:3;width:100%;margin:0}.sm-book-modal{grid-template-columns:1fr;justify-items:center;text-align:center;padding:30px 20px}.sm-book-modal>div:last-child{justify-items:center}.sm-preview-paper{padding:25px 22px;min-height:530px}}
+
+/* Detailed printable layouts for the core guided-page examples */
+.sm-year-prayer-grid{display:grid;grid-template-columns:1fr 1fr;gap:7px;margin:8px 0}
+.sm-month-card{border:1px solid #e8e0e4;border-radius:5px;padding:5px;background:#fff}
+.sm-month-card>strong{display:block;font-size:8px;color:#9c627c;margin-bottom:4px}
+.sm-month-days{display:grid;grid-template-columns:repeat(7,minmax(0,1fr));gap:2px}
+.sm-month-days span{min-width:0;display:grid;grid-template-columns:repeat(5,1fr);gap:1px;justify-items:center;align-items:center}
+.sm-month-days b{grid-column:1/-1;font:600 5px 'Cairo',sans-serif;color:#777;text-align:center}
+.sm-month-days i{width:3px;height:3px;border:1px solid #c8b7c1;border-radius:1px}
+.sm-prayer-legend{grid-column:1/-1;text-align:center;font-size:7px;color:#897b88}
+.sm-surah-table{display:grid;gap:2px;margin:6px 0}
+.sm-surah-head,.sm-surah-row{display:grid;grid-template-columns:1fr 30px 40px 35px;align-items:center;gap:4px}
+.sm-surah-head{background:#f1eaf0;padding:5px 6px;border-radius:4px;color:#8e637d;font-size:7px}
+.sm-surah-head b:not(:first-child){text-align:center;font-size:6px}
+.sm-surah-row{min-height:10px;border-bottom:1px solid #f0ece9;padding:1px 5px;font-size:7px}
+.sm-surah-row i{width:8px;height:8px;border:1px solid #c9b9c3;border-radius:2px;justify-self:center}
+.sm-project-layout{display:grid;gap:11px;margin:10px 0}
+.sm-project-top{display:grid;grid-template-columns:1fr 112px;gap:12px;align-items:stretch}
+.sm-project-top>div:first-child{display:grid;align-content:start;gap:10px;font-size:9px}
+.sm-project-top>div:first-child span{height:30px;border-bottom:1px solid #dcd3d7}
+.sm-project-logo{height:105px;border:1px dashed #d4c4cf;display:grid;place-items:center;text-align:center;color:#9d8998;font-size:8px;padding:8px}
+.sm-project-field{display:grid;gap:7px;font-size:9px}
+.sm-project-field>span{height:13px;border-bottom:1px solid #e9e2df}
+.sm-project-field>div{display:flex;align-items:center;gap:7px;font-size:8px;color:#666478}
+.sm-project-field>div i{width:10px;height:10px;border:1px solid #bcaeb9;border-radius:2px;flex:0 0 10px}
+@media(max-width:650px){.sm-year-prayer-grid{gap:4px}.sm-month-card{padding:3px}.sm-project-top{grid-template-columns:1fr 90px}}
