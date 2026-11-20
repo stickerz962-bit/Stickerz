@@ -13,7 +13,7 @@ const covers = [
 ];
 
 type CatalogState = { pages: SuperMePage[]; warning: string; loaded: boolean };
-type Draft = { selected: string[]; coverId: string; name: string; customBrief: string };
+type Draft = { selected: string[]; coverId: string; name: string; customBrief: string; customPages: SuperMePage[] };
 
 function readDraft(): Draft {
   try {
@@ -23,9 +23,10 @@ function readDraft(): Draft {
       coverId: covers.some(item => item.id === value.coverId) ? value.coverId : covers[0].id,
       name: typeof value.name === 'string' ? value.name.slice(0, 40) : '',
       customBrief: typeof value.customBrief === 'string' ? value.customBrief.slice(0, 1200) : '',
+      customPages: Array.isArray(value.customPages) ? value.customPages.filter((page: any) => page && typeof page.id === 'string' && page.id.startsWith('SM-CUSTOM-')).slice(0, 60) : [],
     };
   } catch {
-    return { selected: [], coverId: covers[0].id, name: '', customBrief: '' };
+    return { selected: [], coverId: covers[0].id, name: '', customBrief: '', customPages: [] };
   }
 }
 
@@ -68,6 +69,7 @@ export default function SuperMeApp() {
   const [coverId, setCoverId] = useState(covers[0].id);
   const [name, setName] = useState('');
   const [customBrief, setCustomBrief] = useState('');
+  const [customPages, setCustomPages] = useState<SuperMePage[]>([]);
   const [customFileName, setCustomFileName] = useState('');
   const [customFilePreview, setCustomFilePreview] = useState('');
   const [showBook, setShowBook] = useState(false);
@@ -84,11 +86,12 @@ export default function SuperMeApp() {
     setCoverId(draft.coverId);
     setName(draft.name);
     setCustomBrief(draft.customBrief);
+    setCustomPages(draft.customPages);
   }, []);
 
   useEffect(() => {
-    try { localStorage.setItem(STORAGE_KEY, JSON.stringify({ selected, coverId, name, customBrief })); } catch { /* private browsing may disable storage */ }
-  }, [selected, coverId, name, customBrief]);
+    try { localStorage.setItem(STORAGE_KEY, JSON.stringify({ selected, coverId, name, customBrief, customPages })); } catch { /* private browsing may disable storage */ }
+  }, [selected, coverId, name, customBrief, customPages]);
 
   useEffect(() => {
     let alive = true;
@@ -107,7 +110,7 @@ export default function SuperMeApp() {
     return () => { alive = false; };
   }, []);
 
-  const allPages = useMemo(() => [...BUILT_IN_PAGES, ...catalog.pages], [catalog.pages]);
+  const allPages = useMemo(() => [...BUILT_IN_PAGES, ...catalog.pages, ...customPages], [catalog.pages, customPages]);
   const selectedSet = useMemo(() => new Set(selected), [selected]);
   const visiblePages = useMemo(() => allPages.filter(page =>
     (activeSection === 'all' || page.sectionId === activeSection || (activeSection === 'art' && page.legacyArtworkId)) &&
@@ -156,7 +159,24 @@ export default function SuperMeApp() {
       setNotice('اكتب فكرة الصفحة أو أرفق تصميمًا جاهزًا أولًا.');
       return;
     }
-    setNotice('تم تسجيل تفاصيل طلب الصفحة الخاصة في معاينة هذا الجهاز. لم يتم إرسالها أو رفع الملف إلى الخادم بعد.');
+    if (selected.length >= 60) {
+      setNotice('وصلت إلى 60 صفحة. احذف صفحة قبل إضافة الصفحة الخاصة.');
+      return;
+    }
+    const customPage: SuperMePage = {
+      id: 'SM-CUSTOM-' + Date.now(),
+      sectionId: 'custom',
+      sectionTitle: 'صفحاتي الخاصة',
+      title: 'صفحة خاصة من تصميمك',
+      kind: 'writing',
+      description: customBrief.trim() || 'تصميم جاهز أرسله العميل لفريق SuperMe لمراجعته وتجهيزه للطباعة.',
+      items: ['مراجعة الفكرة أو التصميم', 'تجهيز التصميم للطباعة', 'اعتماد المعاينة'],
+      prompt: customFileName ? 'الملف المرفق: ' + customFileName : 'مساحة لتفاصيل الصفحة',
+    };
+    setCustomPages(current => [...current, customPage]);
+    setSelected(current => [...current, customPage.id]);
+    setNotice('أضفنا الصفحة الخاصة إلى ترتيب كتابك في هذه المعاينة. إرسالها للإدارة ورفع الملف سيتم ربطهما لاحقًا.');
+    setActiveSection('all');
   }
 
   return <main className="sm-shell" dir="rtl">
