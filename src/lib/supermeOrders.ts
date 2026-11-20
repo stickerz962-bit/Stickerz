@@ -1,4 +1,4 @@
-import { collection, doc, serverTimestamp, writeBatch, type Firestore } from 'firebase/firestore';
+import { collection, doc, getDoc, serverTimestamp, writeBatch, type Firestore } from 'firebase/firestore';
 import { attachAmbassadorReferralToOrder, getOrCreateAmbassadorCredentials, hashAmbassadorToken, readAmbassadorReferral, readAmbassadorReferralTrackingToken, saveAmbassadorContext, clearAmbassadorReferral } from './ambassador';
 import type { SuperMePage } from './supermePages';
 
@@ -25,8 +25,8 @@ export function validateSuperMeOrder(input: {
   const { pages, coverId, coverTitle, personalizedName, checkout, pricing } = input;
   if (pages.length !== 60 || new Set(pages.map(page => page.id)).size !== 60) throw new Error('BOOK_MUST_HAVE_60_UNIQUE_PAGES');
   if (!coverId.trim() || !coverTitle.trim() || !personalizedName.trim() || personalizedName.trim().length > 40) throw new Error('INVALID_COVER_OR_NAME');
-  const phone = checkout.phone.replace(/[\\s()-]/g, '');
-  if (!/^(01[0125][0-9]{8}|\\+201[0125][0-9]{8}|201[0125][0-9]{8})$/.test(phone)) throw new Error('INVALID_EGYPT_PHONE');
+  const phone = checkout.phone.replace(/[\s()-]/g, '');
+  if (!/^(01[0125][0-9]{8}|\+201[0125][0-9]{8}|201[0125][0-9]{8})$/.test(phone)) throw new Error('INVALID_EGYPT_PHONE');
   if (checkout.name.trim().length < 2 || checkout.name.trim().length > 80 ||
       checkout.governorate.trim().length < 2 || checkout.area.trim().length < 2 ||
       checkout.address.trim().length < 5 || checkout.address.trim().length > 300 ||
@@ -52,7 +52,6 @@ export async function createSuperMeOrder(db: Firestore, input: {
   if (referralCode && pendingTracking) {
     try {
       // Referral attribution remains attached until the earlier order is delivered.
-      const { getDoc } = await import('firebase/firestore');
       const previous = await getDoc(doc(db, 'orderTracking', pendingTracking));
       if (previous.exists() && previous.data().fulfillmentStatus === 'delivered') {
         clearAmbassadorReferral(referralCode);
@@ -66,7 +65,7 @@ export async function createSuperMeOrder(db: Firestore, input: {
   window.crypto.getRandomValues(randomBytes);
   const trackingToken = Array.from(randomBytes, byte => byte.toString(16).padStart(2, '0')).join('');
   const trackingRef = doc(db, 'orderTracking', trackingToken);
-  const phone = validated.phone.replace(/^\\+/, '');
+  const phone = validated.phone.replace(/^\+/, '');
   const publicReference = 'SM-' + Date.now().toString(36).toUpperCase();
   const pageSnapshot = input.pages.map((page, index) => ({
     pageId: page.id,
