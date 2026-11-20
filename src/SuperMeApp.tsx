@@ -1,4 +1,7 @@
-import { useEffect, useMemo, useState, type ChangeEvent } from 'react';
+import { useEffect, useMemo, useState, type ChangeEvent, type FormEvent } from 'react';
+import { doc, onSnapshot } from 'firebase/firestore';
+import { firestore } from './firebase/client';
+import { createSuperMeOrder, type SuperMeCheckout } from './lib/supermeOrders';
 import CatalogImage from './catalog/CatalogImage';
 import { loadCatalog } from './catalog/repository';
 import type { CatalogArtwork } from './catalog/types';
@@ -84,6 +87,24 @@ export default function SuperMeApp() {
   const [customFilePreview, setCustomFilePreview] = useState('');
   const [showBook, setShowBook] = useState(false);
   const [notice, setNotice] = useState('');
+  const [checkout, setCheckout] = useState<SuperMeCheckout>({ name: '', phone: '', governorate: '', area: '', address: '', notes: '', paymentMethod: 'cod' });
+  const [shippingFee, setShippingFee] = useState<number | null>(null);
+  const [bookPrice, setBookPrice] = useState<number | null>(null);
+  const [priceLoaded, setPriceLoaded] = useState(false);
+  const [orderBusy, setOrderBusy] = useState(false);
+  const [orderError, setOrderError] = useState('');
+  const [orderSuccess, setOrderSuccess] = useState('');
+  const [trackingUrl, setTrackingUrl] = useState('');
+
+  useEffect(() => {
+    if (!firestore) { setPriceLoaded(true); return; }
+    return onSnapshot(doc(firestore, 'settings', 'public'), snapshot => {
+      const data = snapshot.exists() ? snapshot.data() : {};
+      setShippingFee(Number.isSafeInteger(data.shippingFee) && data.shippingFee >= 0 ? data.shippingFee : null);
+      setBookPrice(Number.isSafeInteger(data.superMeBookPrice) && data.superMeBookPrice > 0 ? data.superMeBookPrice : null);
+      setPriceLoaded(true);
+    }, () => setPriceLoaded(true));
+  }, []);
 
   useEffect(() => {
     document.title = 'SuperMe — Your Life. Your Way.';
@@ -189,6 +210,45 @@ export default function SuperMeApp() {
     setActiveSection('all');
   }
 
+  async function submitOrder(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    setOrderError('');
+    setOrderSuccess('');
+    if (!firestore) { setOrderError('خدمة الطلبات غير متاحة حاليًا.'); return; }
+    if (selectedPages.length !== 60 || new Set(selected).size !== 60) { setOrderError('لازم تختار 60 صفحة مختلفة بالضبط.'); return; }
+    if (bookPrice === null || shippingFee === null) { setOrderError('سعر الكتاب أو الشحن لم يتم ضبطه من الإدارة بعد.'); return; }
+    setOrderBusy(true);
+    try {
+      const result = await createSuperMeOrder(firestore, {
+        pages: selectedPages,
+        coverId: activeCover.id,
+        coverTitle: activeCover.title,
+        personalizedName: name,
+        checkout,
+        pricing: { bookPrice, shippingFee },
+      });
+      const url = new URL(window.location.href);
+      url.searchParams.delete('superme');
+      url.searchParams.set('track', result.trackingToken);
+      url.hash = '';
+      setTrackingUrl(url.toString());
+      setOrderSuccess('تم تسجيل طلبك بنجاح. احتفظ برابط المتابعة التالي لمراجعة حالة الطلب.');
+      try {
+        const key = 'superme:customer-tracking-tokens:v1';
+        const previous = JSON.parse(localStorage.getItem(key) || '[]');
+        const tokens = Array.isArray(previous) ? previous.filter((value: unknown) => typeof value === 'string' && /^[a-f0-9]{64}$/.test(value)) : [];
+        localStorage.setItem(key, JSON.stringify([...new Set([result.trackingToken, ...tokens])].slice(0, 20)));
+      } catch { /* Tracking link is shown below even if local storage is unavailable. */ }
+    } catch (error) {
+      const code = error instanceof Error ? error.message : '';
+      setOrderError(code === 'BOOK_MUST_HAVE_60_UNIQUE_PAGES' ? 'الكتاب يجب أن يحتوي على 60 صفحة مختلفة.' :
+        code === 'INVALID_EGYPT_PHONE' ? 'اكتب رقم موبايل مصري صحيح.' :
+        code === 'INVALID_SHIPPING_DETAILS' ? 'راجع الاسم وبيانات العنوان.' :
+        code === 'PRICE_NOT_CONFIGURED' ? 'سعر الكتاب لم يتم ضبطه بعد.' :
+        'تعذر تسجيل الطلب. راجع البيانات وحاول مرة أخرى.');
+    } finally { setOrderBusy(false); }
+  }
+
   return <main className="sm-shell" dir="rtl">
     <header className="sm-header">
       <a className="sm-logo" href="#top"><span className="sm-logo-mark">✦</span><span>SuperMe<small>YOUR LIFE. YOUR WAY.</small></span></a>
@@ -264,9 +324,35 @@ export default function SuperMeApp() {
       {notice && <div className="sm-notice">{notice}</div>}
     </section>
 
+    <section className="sm-book-section sm-checkout-section" id="checkout">
+      <div className="sm-section-heading"><div><span className="sm-eyebrow">READY WHEN YOU ARE</span><h2>بيانات التوصيل وتأكيد الطلب</h2><p>الكتاب بيتسجل كطلب جديد في نفس قاعدة البيانات، ويظهر لفريق الإدارة لمراجعته.</p></div></div>
+      <form className="sm-checkout-form" onSubmit={submitOrder}>
+        <div className="sm-checkout-price">
+          <span>سعر الكتاب: {bookPrice === null ? 'لم يحدد بعد' : bookPrice + ' جنيه'}</span>
+          <span>الشحن: {shippingFee === null ? 'لم يحدد بعد' : shippingFee + ' جنيه'}</span>
+          <strong>الإجمالي: {bookPrice === null || shippingFee === null ? '—' : (bookPrice + shippingFee) + ' جنيه'}</strong>
+        </div>
+        {!priceLoaded && <p>جارٍ تحميل الأسعار من إعدادات الإدارة...</p>}
+        {priceLoaded && (bookPrice === null || shippingFee === null) && <p className="sm-form-footnote">الطلب غير متاح حتى تضبط الإدارة سعر كتاب SuperMe وسعر الشحن في لوحة الإدارة.</p>}
+        <div className="sm-checkout-fields">
+          <label>الاسم بالكامل<input value={checkout.name} onChange={event => setCheckout(current => ({ ...current, name: event.target.value }))} maxLength={80} required /></label>
+          <label>رقم الموبايل<input value={checkout.phone} onChange={event => setCheckout(current => ({ ...current, phone: event.target.value }))} inputMode="tel" maxLength={20} required /></label>
+          <label>المحافظة<input value={checkout.governorate} onChange={event => setCheckout(current => ({ ...current, governorate: event.target.value }))} maxLength={60} required /></label>
+          <label>المنطقة<input value={checkout.area} onChange={event => setCheckout(current => ({ ...current, area: event.target.value }))} maxLength={80} required /></label>
+          <label className="sm-checkout-wide">العنوان بالتفصيل<input value={checkout.address} onChange={event => setCheckout(current => ({ ...current, address: event.target.value }))} maxLength={300} required /></label>
+          <label className="sm-checkout-wide">ملاحظات التوصيل (اختياري)<textarea value={checkout.notes} onChange={event => setCheckout(current => ({ ...current, notes: event.target.value }))} maxLength={300} rows={3} /></label>
+        </div>
+        <div className="sm-payment-choice"><label><input type="radio" name="sm-payment" checked={checkout.paymentMethod === 'cod'} onChange={() => setCheckout(current => ({ ...current, paymentMethod: 'cod' }))}/> الدفع عند الاستلام</label><label><input type="radio" name="sm-payment" checked={checkout.paymentMethod === 'instapay'} onChange={() => setCheckout(current => ({ ...current, paymentMethod: 'instapay' }))}/> InstaPay — مراجعة التحويل يدويًا</label></div>
+        {orderError && <p className="form-error" role="alert">{orderError}</p>}
+        {orderSuccess && <div className="sm-order-success"><strong>{orderSuccess}</strong>{trackingUrl && <a href={trackingUrl}>افتح رابط متابعة طلبك</a>}<button type="button" onClick={() => { void navigator.clipboard?.writeText(trackingUrl); }}>نسخ رابط المتابعة</button></div>}
+        <button className="sm-primary" type="submit" disabled={orderBusy || selectedPages.length !== 60 || !name.trim() || !priceLoaded || bookPrice === null || shippingFee === null}>{orderBusy ? 'جارٍ تسجيل الطلب...' : 'تأكيد الطلب' } <span>←</span></button>
+        <small className="sm-form-footnote">الطلب الجديد لا يخصم أي مبلغ تلقائيًا. الدفع عند الاستلام أو مراجعة تحويل InstaPay تتم حسب سياسة الإدارة.</small>
+      </form>
+    </section>
+
     <footer className="sm-footer"><a className="sm-logo" href="#top"><span className="sm-logo-mark">✦</span><span>SuperMe<small>YOUR LIFE. YOUR WAY.</small></span></a><p>مساحتك الخاصة… اختار اللي يشبهك.</p><small>SuperMe · Concept preview</small></footer>
 
     {preview && <PagePreview page={preview} onClose={() => setPreview(null)}/>}
-    {showBook && <div className="sm-modal-backdrop" role="presentation" onMouseDown={event => { if (event.target === event.currentTarget) setShowBook(false); }}><section className="sm-book-modal" role="dialog" aria-modal="true"><button className="sm-close" onClick={() => setShowBook(false)} type="button">×</button><div className={'sm-final-cover ' + activeCover.tone}><span>SUPERME</span><strong>{activeCover.title}</strong><small>{name}</small><i>✦</i></div><div><h2>ده كتابك يا {name}!</h2><p>اخترت 60 صفحة ورتبتها بنفسك. دي معاينة لتجربة تكوين الكتاب قبل ربطها بنظام الطلب والطباعة.</p><strong>الصفحات المختارة: 60</strong><button className="sm-primary" onClick={() => setShowBook(false)} type="button">رجوع للتعديل</button></div></section></div>}
+    {showBook && <div className="sm-modal-backdrop" role="presentation" onMouseDown={event => { if (event.target === event.currentTarget) setShowBook(false); }}><section className="sm-book-modal" role="dialog" aria-modal="true"><button className="sm-close" onClick={() => setShowBook(false)} type="button">×</button><div className={'sm-final-cover ' + activeCover.tone}><span>SUPERME</span><strong>{activeCover.title}</strong><small>{name}</small><i>✦</i></div><div><h2>ده كتابك يا {name}!</h2><p>اخترت 60 صفحة ورتبتها بنفسك. راجع بيانات كتابك ثم انتقل إلى بيانات التوصيل لتسجيل الطلب.</p><strong>الصفحات المختارة: 60</strong><button className="sm-primary" onClick={() => { setShowBook(false); window.location.hash = '#checkout'; }} type="button">استكمال بيانات الطلب</button><button className="sm-outline-button" onClick={() => setShowBook(false)} type="button">رجوع للتعديل</button></div></section></div>}
   </main>;
 }
