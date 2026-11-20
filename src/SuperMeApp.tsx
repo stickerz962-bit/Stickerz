@@ -211,7 +211,7 @@ export default function SuperMeApp() {
       <div className="sm-search"><span>⌕</span><input value={search} onChange={event => setSearch(event.target.value)} placeholder="دوّر على صفحة أو فكرة..." /></div>
       {catalog.warning && <div className="sm-catalog-note">{catalog.warning} <span>التصميمات الأصلية تظل محفوظة في مكتبة فُكّي الضغط ولا يتم تعديلها.</span></div>}
       <div className="sm-page-grid">
-        {visiblePages.map((page, index) => <article className={'sm-page-card ' + (selectedSet.has(page.id) ? 'is-selected' : '')} key={page.id}>
+        {visiblePages.map(page => <article className={'sm-page-card ' + (selectedSet.has(page.id) ? 'is-selected' : '')} key={page.id}>
           <button className="sm-page-preview" type="button" onClick={() => setPreview(page)} aria-label={'معاينة ' + page.title}>
             {page.previewAssetRef ? <LegacyPageImage page={page} /> : <div className={'sm-mini-paper sm-mini-' + page.kind}>
               <span className="sm-mini-kicker">{page.sectionTitle}</span><b>{page.title}</b><p>{page.description}</p>
