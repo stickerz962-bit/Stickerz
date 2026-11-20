@@ -105,7 +105,7 @@ service cloud.firestore {
       allow read: if isAdmin();
       allow create: if
         request.resource.data.keys().hasOnly([
-          'publicReference', 'customer', 'shipping', 'book', 'pricing',
+          'publicReference', 'productType', 'customer', 'shipping', 'book', 'pricing',
           'paymentMethod', 'paymentStatus', 'fulfillmentStatus', 'partnerCode', 'ambassadorReferralCode', 'ambassadorSetup', 'trackingToken',
           'createdAt', 'updatedAt'
         ])
@@ -145,9 +145,15 @@ service cloud.firestore {
         && request.resource.data.shipping.fee is int
         && request.resource.data.shipping.fee == get(/databases/$(database)/documents/settings/public).data.shippingFee
         && request.resource.data.book is map
-        && request.resource.data.book.keys().hasOnly(['artworks', 'cover', 'personalizedName'])
-        && request.resource.data.book.artworks is list
-        && request.resource.data.book.artworks.size() == 30
+        && request.resource.data.book.keys().hasOnly(['artworks', 'pages', 'cover', 'personalizedName'])
+        && ((request.resource.data.productType == 'superme'
+          && !request.resource.data.book.keys().hasAny(['artworks'])
+          && request.resource.data.book.pages is list
+          && request.resource.data.book.pages.size() == 60)
+          || ((!request.resource.data.keys().hasAny(['productType']) || request.resource.data.productType == 'anti_pressure')
+          && !request.resource.data.book.keys().hasAny(['pages'])
+          && request.resource.data.book.artworks is list
+          && request.resource.data.book.artworks.size() == 30))
         && request.resource.data.book.cover is map
         && request.resource.data.book.cover.keys().hasOnly(['coverId', 'titleSnapshot'])
         && request.resource.data.book.cover.coverId is string
@@ -161,13 +167,20 @@ service cloud.firestore {
           'totalAmount', 'offerApplied'
         ])
         && request.resource.data.pricing.currency == 'EGP'
-        && request.resource.data.pricing.standardBookPrice == 240
-        && request.resource.data.pricing.bookPrice in [190, 240]
+        && ((request.resource.data.productType == 'superme'
+          && request.resource.data.pricing.standardBookPrice == get(/databases/$(database)/documents/settings/public).data.superMeBookPrice
+          && request.resource.data.pricing.bookPrice == get(/databases/$(database)/documents/settings/public).data.superMeBookPrice
+          && request.resource.data.pricing.offerApplied == false)
+          || ((!request.resource.data.keys().hasAny(['productType']) || request.resource.data.productType == 'anti_pressure')
+          && request.resource.data.pricing.standardBookPrice == 240
+          && request.resource.data.pricing.bookPrice in [190, 240]))
         && request.resource.data.pricing.shippingFee is int
         && request.resource.data.pricing.shippingFee == get(/databases/$(database)/documents/settings/public).data.shippingFee
         && request.resource.data.pricing.totalAmount == request.resource.data.pricing.bookPrice + request.resource.data.pricing.shippingFee
         && request.resource.data.pricing.offerApplied is bool
-        && request.resource.data.pricing.offerApplied == (request.resource.data.pricing.bookPrice == 190)
+        && ((request.resource.data.productType == 'superme' && request.resource.data.pricing.offerApplied == false)
+          || ((!request.resource.data.keys().hasAny(['productType']) || request.resource.data.productType == 'anti_pressure')
+          && request.resource.data.pricing.offerApplied == (request.resource.data.pricing.bookPrice == 190)))
         && request.resource.data.paymentMethod in ['cod', 'instapay']
         && request.resource.data.paymentStatus in ['unpaid', 'pending_review']
         && request.resource.data.fulfillmentStatus == 'new'
