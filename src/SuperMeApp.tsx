@@ -41,12 +41,22 @@ function PagePreview({ page, onClose }: { page: SuperMePage; onClose: () => void
         <h2>{page.title}</h2>
         <p className="sm-paper-description">{page.description}</p>
         {page.previewAssetRef && <div className="sm-paper-art"><CatalogImage source={page.previewAssetRef} alt={page.title} fit="contain" /></div>}
-        {page.kind === 'project' && <div className="sm-project-logo"><span>مساحة لرسم اللوجو</span></div>}
-        <div className="sm-paper-items">
+        {page.id === 'SM-FAITH-01' ? <div className="sm-year-prayer-grid">
+          {['يناير','فبراير','مارس','أبريل','مايو','يونيو','يوليو','أغسطس','سبتمبر','أكتوبر','نوفمبر','ديسمبر'].map(month => <div className="sm-month-card" key={month}><strong>{month}</strong><div className="sm-month-days">{Array.from({ length: 31 }, (_, day) => <span key={day}><b>{day + 1}</b><i/><i/><i/><i/><i/></span>)}</div></div>)}
+          <small className="sm-prayer-legend">كل يوم: الفجر · الظهر · العصر · المغرب · العشاء</small>
+        </div> : page.id === 'SM-FAITH-02' ? <div className="sm-surah-table">
+          <div className="sm-surah-head"><b>السورة</b><b>حفظ</b><b>مراجعة</b><b>تسميع</b></div>
+          {page.items.map(item => <div className="sm-surah-row" key={item}><span>{item}</span><i/><i/><i/></div>)}
+        </div> : page.id === 'SM-PROJECTS-01' ? <div className="sm-project-layout">
+          <div className="sm-project-top"><div><b>اسم المشروع</b><span/></div><div className="sm-project-logo"><span>ارسم لوجو مشروعك هنا</span></div></div>
+          <div className="sm-project-field"><b>فكرة المشروع</b><span/><span/><span/></div>
+          <div className="sm-project-field"><b>الجمهور المستهدف والقيمة</b><span/><span/></div>
+          <div className="sm-project-field"><b>خطوات التنفيذ</b>{['الخطوة الأولى','الخطوة الثانية','الخطوة الثالثة','الخطوة الرابعة'].map(item => <div key={item}><i/>{item}</div>)}</div>
+        </div> : <div className="sm-paper-items">
           {page.items.map((item, index) => <div className="sm-paper-item" key={item + index}><span className="sm-check"></span><span>{item}</span></div>)}
-        </div>
+        </div>}
         {page.qrUrl && <div className="sm-qr-area"><img src={qrSrc} alt="QR Code تجريبي للمحتوى التعليمي" /><div><strong>افتح المحتوى وابدأ التعلّم</strong><small>امسح الكود بكاميرا الموبايل</small><a href={page.qrUrl} target="_blank" rel="noreferrer">فتح رابط المحتوى</a></div></div>}
-        <div className="sm-paper-writing"><strong>{page.prompt}</strong><div></div><div></div></div>
+        {page.id !== 'SM-FAITH-01' && page.id !== 'SM-FAITH-02' && page.id !== 'SM-PROJECTS-01' && <div className="sm-paper-writing"><strong>{page.prompt}</strong><div></div><div></div></div>}
         {page.quote && <blockquote>{page.quote}</blockquote>}
         <div className="sm-paper-footer">THIS NOTEBOOK IS ABOUT YOU</div>
       </div>
