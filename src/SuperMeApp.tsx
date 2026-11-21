@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState, type ChangeEvent, type FormEvent } from 'react';
-import { doc, onSnapshot } from 'firebase/firestore';
+import { collection, doc, getDocs, onSnapshot, query, where } from 'firebase/firestore';
 import { firestore } from './firebase/client';
 import { createSuperMeOrder, type SuperMeCheckout } from './lib/supermeOrders';
 import CatalogImage from './catalog/CatalogImage';
@@ -126,7 +126,12 @@ export default function SuperMeApp() {
 
   useEffect(() => {
     let alive = true;
-    loadCatalog().then(result => {
+    Promise.all([
+      loadCatalog(),
+      firestore
+        ? getDocs(query(collection(firestore, 'supermePages'), where('active', '==', true)))
+        : Promise.resolve(null),
+    ]).then(([result, dynamicSnapshot]) => {
       if (!alive) return;
       const categoryTitles = new Map(result.data.categories.map(item => [item.id, item.title]));
       const legacy = result.data.artworks.map((artwork: CatalogArtwork) => mapLegacyArtwork({
@@ -134,9 +139,30 @@ export default function SuperMeApp() {
         category: categoryTitles.get(artwork.categoryId) || 'رسومات محفوظة',
         previewAssetRef: artwork.previewAssetRef,
       }));
-      setCatalog({ pages: legacy, warning: result.warning || '', loaded: true });
+      const dynamicPages = dynamicSnapshot ? dynamicSnapshot.docs.flatMap(document => {
+        const value = document.data();
+        if (value.active !== true || typeof value.title !== 'string' || typeof value.sectionId !== 'string' ||
+            typeof value.sectionTitle !== 'string' || typeof value.description !== 'string' ||
+            typeof value.prompt !== 'string' || !Array.isArray(value.items)) return [];
+        const kinds = ['tracker', 'learning', 'project', 'writing', 'creative', 'game', 'drawing'];
+        if (!kinds.includes(value.kind) || !value.items.every((item: unknown) => typeof item === 'string')) return [];
+        return [{
+          id: document.id, sectionId: value.sectionId, sectionTitle: value.sectionTitle,
+          title: value.title, kind: value.kind, description: value.description,
+          items: value.items, prompt: value.prompt,
+          ...(typeof value.quote === 'string' ? { quote: value.quote } : {}),
+          ...(typeof value.qrUrl === 'string' ? { qrUrl: value.qrUrl } : {}),
+          ...(typeof value.previewAssetRef === 'string' ? { previewAssetRef: value.previewAssetRef } : {}),
+        } as SuperMePage];
+      }) : [];
+      dynamicPages.sort((a, b) => {
+        const left = dynamicSnapshot?.docs.find(item => item.id === a.id)?.data().sortOrder;
+        const right = dynamicSnapshot?.docs.find(item => item.id === b.id)?.data().sortOrder;
+        return (typeof left === 'number' ? left : 0) - (typeof right === 'number' ? right : 0);
+      });
+      setCatalog({ pages: [...dynamicPages, ...legacy], warning: result.warning || '', loaded: true });
     }).catch(() => {
-      if (alive) setCatalog({ pages: [], warning: 'لم نتمكن من تحميل الرسومات القديمة من المكتبة الحالية.', loaded: true });
+      if (alive) setCatalog({ pages: [], warning: 'تعذر تحميل بعض صفحات المكتبة. صفحات البداية الأساسية ما زالت متاحة.', loaded: true });
     });
     return () => { alive = false; };
   }, []);

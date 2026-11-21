@@ -450,3 +450,50 @@ describe('Firestore security rules — ambassador checkout attribution', () => {
     await assertFails(setDoc(doc(db, 'orders', 'invalid-ambassador-key'), invalidSetup));
   });
 });
+
+
+describe('Firestore security rules — SuperMe page library', () => {
+  async function seedSuperMePages() {
+    await testEnv.withSecurityRulesDisabled(async context => {
+      const db = context.firestore();
+      await setDoc(doc(db, 'supermePages', 'published-page'), {
+        title: 'Published page', sectionId: 'plans', sectionTitle: 'خططي',
+        kind: 'tracker', description: 'A public template', items: ['Goal'],
+        prompt: 'Write here', active: true, sortOrder: 1,
+      });
+      await setDoc(doc(db, 'supermePages', 'draft-page'), {
+        title: 'Draft page', sectionId: 'plans', sectionTitle: 'خططي',
+        kind: 'tracker', description: 'An unpublished template', items: ['Goal'],
+        prompt: 'Write here', active: false, sortOrder: 2,
+      });
+    });
+  }
+
+  it('allows public reads only for explicitly published templates and the storefront query', async () => {
+    await seedSuperMePages();
+    const db = testEnv.unauthenticatedContext().firestore();
+    await assertSucceeds(getDoc(doc(db, 'supermePages', 'published-page')));
+    await assertFails(getDoc(doc(db, 'supermePages', 'draft-page')));
+    const result = await getDocs(query(collection(db, 'supermePages'), where('active', '==', true)));
+    expect(result.docs.map(item => item.id)).toEqual(['published-page']);
+    await assertFails(getDocs(collection(db, 'supermePages')));
+  });
+
+  it('denies catalog mutations to signed-in non-admin users', async () => {
+    await seedSuperMePages();
+    const db = testEnv.authenticatedContext('customer-1').firestore();
+    await assertFails(getDoc(doc(db, 'supermePages', 'draft-page')));
+    await assertFails(setDoc(doc(db, 'supermePages', 'customer-page'), { title: 'Injected', active: true }));
+    await assertFails(updateDoc(doc(db, 'supermePages', 'published-page'), { title: 'Changed' }));
+    await assertFails(deleteDoc(doc(db, 'supermePages', 'published-page')));
+  });
+
+  it('allows trusted admins to create, edit, hide, and delete templates', async () => {
+    await seedSuperMePages();
+    const db = testEnv.authenticatedContext('admin-1', { admin: true }).firestore();
+    await assertSucceeds(getDoc(doc(db, 'supermePages', 'draft-page')));
+    await assertSucceeds(setDoc(doc(db, 'supermePages', 'admin-page'), { title: 'Admin page', active: false }));
+    await assertSucceeds(updateDoc(doc(db, 'supermePages', 'published-page'), { active: false }));
+    await assertSucceeds(deleteDoc(doc(db, 'supermePages', 'draft-page')));
+  });
+});

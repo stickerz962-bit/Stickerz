@@ -55,6 +55,13 @@ service cloud.firestore {
       allow create, update, delete: if isAdmin();
     }
 
+    // SuperMe page templates are public only after explicit publication.
+    // Drafts and all catalog mutations remain restricted to trusted admins.
+    match /supermePages/{pageId} {
+      allow read: if isAdmin() || resource.data.active == true;
+      allow create, update, delete: if isAdmin();
+    }
+
     match /settings/public {
       allow read: if true;
       allow write: if isAdmin();
