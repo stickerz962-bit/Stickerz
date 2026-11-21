@@ -2,7 +2,7 @@ import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import { initializeTestEnvironment, type RulesTestEnvironment, assertFails, assertSucceeds } from '@firebase/rules-unit-testing';
-import { collection, deleteDoc, doc, getDoc, getDocs, orderBy, query, setDoc, updateDoc, where } from 'firebase/firestore';
+import { collection, deleteDoc, doc, getDoc, getDocs, query, setDoc, updateDoc, where } from 'firebase/firestore';
 
 let env: RulesTestEnvironment;
 const rules = readFileSync(resolve(process.cwd(), 'firestore.rules'), 'utf8');
@@ -33,7 +33,7 @@ describe('Firestore security — SuperMe page library', () => {
     const db = env.unauthenticatedContext().firestore();
     await assertSucceeds(getDoc(doc(db, 'supermePages', 'published-page')));
     await assertFails(getDoc(doc(db, 'supermePages', 'draft-page')));
-    const result = await getDocs(query(collection(db, 'supermePages'), where('active', '==', true), orderBy('sortOrder', 'asc')));
+    const result = await getDocs(query(collection(db, 'supermePages'), where('active', '==', true)));
     expect(result.docs.map(item => item.id)).toEqual(['published-page']);
     await assertFails(getDocs(collection(db, 'supermePages')));
   });
