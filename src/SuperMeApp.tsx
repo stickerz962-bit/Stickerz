@@ -129,7 +129,7 @@ export default function SuperMeApp() {
     Promise.all([
       loadCatalog(),
       firestore
-        ? getDocs(query(collection(firestore, 'supermePages'), where('active', '==', true), orderBy('sortOrder', 'asc')))
+        ? getDocs(query(collection(firestore, 'supermePages'), where('active', '==', true)))
         : Promise.resolve(null),
     ]).then(([result, dynamicSnapshot]) => {
       if (!alive) return;
@@ -155,6 +155,11 @@ export default function SuperMeApp() {
           ...(typeof value.previewAssetRef === 'string' ? { previewAssetRef: value.previewAssetRef } : {}),
         } as SuperMePage];
       }) : [];
+      dynamicPages.sort((a, b) => {
+        const left = dynamicSnapshot?.docs.find(item => item.id === a.id)?.data().sortOrder;
+        const right = dynamicSnapshot?.docs.find(item => item.id === b.id)?.data().sortOrder;
+        return (typeof left === 'number' ? left : 0) - (typeof right === 'number' ? right : 0);
+      });
       setCatalog({ pages: [...dynamicPages, ...legacy], warning: result.warning || '', loaded: true });
     }).catch(() => {
       if (alive) setCatalog({ pages: [], warning: 'تعذر تحميل بعض صفحات المكتبة. صفحات البداية الأساسية ما زالت متاحة.', loaded: true });
