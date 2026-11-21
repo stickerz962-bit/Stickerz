@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState, type ChangeEvent, type FormEvent } from 'react';
-import { collection, doc, getDocs, onSnapshot, orderBy, query, where } from 'firebase/firestore';
+import { collection, doc, getDocs, onSnapshot, query, where } from 'firebase/firestore';
 import { firestore } from './firebase/client';
 import { createSuperMeOrder, type SuperMeCheckout } from './lib/supermeOrders';
 import CatalogImage from './catalog/CatalogImage';
